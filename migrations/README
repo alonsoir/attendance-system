@@ -1,0 +1,9 @@
+migrations/
+├── README
+├── __init__.py
+├── env.py
+├── script.py.mako
+└── versions/
+    ├── __init__.py
+    ├── 001_initial_schema.py
+    └── 002_add_service_status.py

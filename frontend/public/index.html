@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/school.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="description" content="Sistema de gestión de ausencias escolares" data-i18n="meta.description" />
+
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Sistema de Gestión de Asistencia" data-i18n="meta.ogTitle" />
+    <meta property="og:description" content="Sistema de gestión de ausencias escolares" data-i18n="meta.ogDescription" />
+    <meta property="og:image" content="/og-image.png" />
+
+    <!-- Progressive Web App -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Preload fonts -->
+    <link
+        rel="preload"
+        href="https://cdnjs.cloudflare.com/ajax/libs/inter/3.19.3/Inter-roman.var.woff2"
+        as="font"
+        type="font/woff2"
+        crossorigin="anonymous"
+    />
+
+    <!-- Preload critical styles -->
+    <link
+        rel="preload"
+        href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"
+        as="style"
+    />
+
+    <!-- Styles -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"
+    />
+
+    <!-- App title -->
+    <title data-i18n="app.title">Sistema de Gestión de Asistencia</title>
+
+    <!-- Internacionalización -->
+    <script>
+        // Configuración inicial de i18n
+        window.i18nConfig = {
+            defaultLocale: 'es-ES',
+            supportedLocales: ['es-ES', 'en-US'],
+            fallbackLocale: 'en-US'
+        };
+    </script>
+    <script src="/i18n/config.js"></script>
+    <script src="/i18n/es-ES.js"></script>
+    <script src="/i18n/en-US.js"></script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <noscript>
+        <div class="flex min-h-screen items-center justify-center p-4 text-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4" data-i18n="errors.noJavaScript">
+                    JavaScript es necesario
+                </h1>
+                <p class="text-gray-600 dark:text-gray-400" data-i18n="errors.enableJavaScript">
+                    Por favor, habilite JavaScript para utilizar esta aplicación.
+                </p>
+            </div>
+        </div>
+    </noscript>
+
+    <!-- Contenedor principal de la aplicación -->
+    <div id="root">
+        <!-- Estado de carga inicial -->
+        <div class="flex min-h-screen items-center justify-center" aria-busy="true">
+            <div class="text-center">
+                <!-- Spinner de carga -->
+                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-blue-600 motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                     role="status">
+                    <span class="sr-only" data-i18n="accessibility.loading">Cargando...</span>
+                </div>
+                <p class="mt-4 text-sm text-gray-600 dark:text-gray-400" data-i18n="app.loading">
+                    Cargando aplicación...
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portales para modales y overlays -->
+    <div id="modal-root"></div>
+    <div id="toast-root"></div>
+    <div id="tooltip-root"></div>
+
+    <!-- Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('SW registered:', registration);
+                }).catch(error => {
+                    console.log('SW registration failed:', error);
+                });
+            });
+        }
+    </script>
+
+    <!-- Scripts de la aplicación -->
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Detectores de estado -->
+    <script>
+        // Detector de conexión
+        function updateOnlineStatus() {
+            document.documentElement.classList.toggle('offline', !navigator.onLine);
+            const event = new CustomEvent('connectionStatusChanged', {
+                detail: { online: navigator.onLine }
+            });
+            window.dispatchEvent(event);
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
+        // Detector de tema oscuro
+        const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        function updateTheme(e) {
+            document.documentElement.classList.toggle('dark', e.matches);
+            const event = new CustomEvent('themeChanged', {
+                detail: { dark: e.matches }
+            });
+            window.dispatchEvent(event);
+        }
+        darkModeMediaQuery.addListener(updateTheme);
+        updateTheme(darkModeMediaQuery);
+    </script>
+
+    <!-- Fallback para navegadores antiguos -->
+    <script nomodule>
+        document.getElementById('root').innerHTML = `
+            <div class="flex min-h-screen items-center justify-center p-4 text-center">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4" data-i18n="errors.oldBrowser">
+                        Navegador no compatible
+                    </h1>
+                    <p class="text-gray-600 dark:text-gray-400" data-i18n="errors.updateBrowser">
+                        Por favor, actualice su navegador para utilizar esta aplicación.
+                    </p>
+                </div>
+            </div>
+        `;
+    </script>
+</body>
+</html>
