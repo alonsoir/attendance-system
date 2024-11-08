@@ -280,10 +280,10 @@ Este proyecto está bajo la Licencia MIT - ver [LICENSE](LICENSE) para detalles.
 
 ## 🆘 Soporte
 
-- 📧 Email: your.email@example.com
-- 💬 Discord: [Invitación al servidor](https://discord.gg/your-server)
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/attendance-system/issues)
-- 📝 Wiki: [GitHub Wiki](https://github.com/yourusername/attendance-system/wiki)
+- 📧 Email: alonsoir@gmail.com
+- 💬 Discord: [Invitación al servidor](https://discord.com/api/webhooks/1304425221163585596/zMOtBat8W3pmyKZxzdjK98TdKClkTkvd4NWSa2AwIoHyXfMzFJ1T01BfkCV7oR19pPNk)
+- 🐛 Issues: [GitHub Issues](https://github.com/alonsoir/attendance-system/issues)
+- 📝 Wiki: [GitHub Wiki](https://github.com/alonsoir/attendance-system/wiki)
 
 ## 🙏 Agradecimientos
 
