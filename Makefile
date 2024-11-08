@@ -255,3 +255,54 @@ init: check-env check-deps install migrate
 
 # Por defecto usar entorno de desarrollo
 .DEFAULT_GOAL := help
+
+# Heroku
+heroku-deploy: check-env
+	@if [ "$(ENV)" = "prod" ]; then \
+		echo "$(YELLOW)Verificando configuración de Heroku...$(NC)" && \
+		if [ -z "$$HEROKU_API_KEY" ]; then \
+			echo "$(RED)ERROR: HEROKU_API_KEY no está configurada$(NC)" && exit 1; \
+		fi && \
+		if [ -z "$(HEROKU_APP_NAME)" ]; then \
+			echo "$(RED)ERROR: HEROKU_APP_NAME no está configurado$(NC)" && exit 1; \
+		fi && \
+		echo "$(YELLOW)Configurando Heroku...$(NC)" && \
+		heroku container:login && \
+		heroku stack:set container --app $(HEROKU_APP_NAME) && \
+		echo "$(YELLOW)Construyendo y subiendo contenedores...$(NC)" && \
+		heroku container:push web worker --app $(HEROKU_APP_NAME) && \
+		echo "$(YELLOW)Liberando contenedores...$(NC)" && \
+		heroku container:release web worker --app $(HEROKU_APP_NAME) && \
+		echo "$(YELLOW)Ejecutando migraciones...$(NC)" && \
+		heroku run alembic upgrade head --app $(HEROKU_APP_NAME) && \
+		echo "$(GREEN)$(EMOJI_CHECK) Despliegue completado$(NC)"; \
+	else \
+		echo "$(RED)$(EMOJI_ERROR) El deploy a Heroku solo está disponible para producción$(NC)"; \
+		exit 1; \
+	fi
+
+heroku-logs:
+	@if [ -z "$(HEROKU_APP_NAME)" ]; then \
+		echo "$(RED)ERROR: HEROKU_APP_NAME no está configurado$(NC)" && exit 1; \
+	fi
+	@heroku logs --tail --app $(HEROKU_APP_NAME)
+
+heroku-bash:
+	@if [ -z "$(HEROKU_APP_NAME)" ]; then \
+		echo "$(RED)ERROR: HEROKU_APP_NAME no está configurado$(NC)" && exit 1; \
+	fi
+	@heroku run bash --app $(HEROKU_APP_NAME)
+
+heroku-db-reset: check-env
+	@if [ "$(ENV)" = "prod" ]; then \
+		if [ -z "$(HEROKU_APP_NAME)" ]; then \
+			echo "$(RED)ERROR: HEROKU_APP_NAME no está configurado$(NC)" && exit 1; \
+		fi && \
+		echo "$(RED)¿Estás seguro de que quieres resetear la base de datos de producción? [y/N]$(NC)" && \
+		read ans && [ $${ans:-N} = y ] && \
+		heroku pg:reset --app $(HEROKU_APP_NAME) --confirm $(HEROKU_APP_NAME) && \
+		heroku run alembic upgrade head --app $(HEROKU_APP_NAME); \
+	else \
+		echo "$(RED)$(EMOJI_ERROR) Este comando solo está disponible para producción$(NC)"; \
+		exit 1; \
+	fi

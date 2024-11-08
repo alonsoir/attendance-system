@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: "3.10"
+  POETRY_VERSION: "1.8.4"
+  NODE_VERSION: "20.x"
+
+jobs:
+  test:
+    name: Tests and Linting
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          poetry config virtualenvs.create false
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: ${{ runner.os }}-poetry-
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
+      - name: Create .env file for testing
+        run: |
+          cp .env-dev.example .env-dev
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env-dev
+          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env-dev
+          echo "META_API_KEY=${{ secrets.META_API_KEY }}" >> .env-dev
+
+      - name: Install dependencies
+        run: make install ENV=dev
+
+      - name: Run linting
+        run: |
+          make lint
+          make type-check
+
+      - name: Run tests with coverage
+        run: make test-coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: |
+          pip install safety bandit gitguardian-scanner
+
+      - name: Run security checks
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        run: make security-check
+
+  build:
+    name: Build Docker Images
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-buildx-
+
+      - name: Create .env file
+        run: |
+          if [[ $GITHUB_REF == refs/heads/main ]]; then
+            cp .env-prod.example .env-prod
+            echo "ENV=prod" >> $GITHUB_ENV
+          else
+            cp .env-dev.example .env-dev
+            echo "ENV=dev" >> $GITHUB_ENV
+          fi
+
+      - name: Build Docker images
+        run: make docker-build ENV=${{ env.ENV }}
+
+      - name: Export Docker images
+        run: |
+          docker save attendance-system-api:latest > api.tar
+          docker save attendance-system-frontend:latest > frontend.tar
+
+      - name: Upload Docker images as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-images
+          path: |
+            api.tar
+            frontend.tar
