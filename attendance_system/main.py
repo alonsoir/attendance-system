@@ -58,7 +58,7 @@ app = FastAPI(
     docs_url=f"{settings.API_V1_STR}/docs",
     redoc_url=f"{settings.API_V1_STR}/redoc",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Middleware de CORS
@@ -93,22 +93,14 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Error no manejado: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error"}
+        content={"detail": "Internal server error"},
     )
 
 
 # Montar rutas
-app.include_router(
-    websocket_router,
-    prefix=settings.API_V1_STR,
-    tags=["websocket"]
-)
+app.include_router(websocket_router, prefix=settings.API_V1_STR, tags=["websocket"])
 
-app.include_router(
-    whatsapp_router,
-    prefix=settings.API_V1_STR,
-    tags=["whatsapp"]
-)
+app.include_router(whatsapp_router, prefix=settings.API_V1_STR, tags=["whatsapp"])
 
 # Montar archivos estáticos
 static_path = Path(__file__).parent / "static"
@@ -130,8 +122,8 @@ async def health_check():
         "version": settings.VERSION,
         "services": {
             "database": "online" if db_status else "offline",
-            **service_status
-        }
+            **service_status,
+        },
     }
 
 
@@ -151,5 +143,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_config=LogConfig().dict()
+        log_config=LogConfig().dict(),
     )

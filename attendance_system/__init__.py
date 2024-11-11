@@ -8,5 +8,5 @@ __all__ = [
     "get_settings",
     "websocket_router",
     "whatsapp_router",
-    "__version__"
+    "__version__",
 ]

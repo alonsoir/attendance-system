@@ -1,0 +1,20 @@
+/* frontend/src/components/ui/Card.module.css */
+
+.baseStyle {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+}
+
+.shadow {
+  box-shadow: 0 8px 10px rgba(0, 0, 0, 0.15);
+}
+
+.noShadow {
+  box-shadow: none;
+}
+
+.rounded {
+  border-radius: 16px;
+}

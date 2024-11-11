@@ -1,0 +1,25 @@
+/* src/components/ui/Table.module.css */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+.table-header {
+  background-color: #f4f4f4;
+  padding: 8px;
+  text-align: left;
+}
+
+.table-cell {
+  padding: 8px;
+  border: 1px solid #ddd;
+}
+
+.table-row:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.table-row:hover {
+  background-color: #f1f1f1;
+}

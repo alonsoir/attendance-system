@@ -1,0 +1,38 @@
+/* frontend/src/components/ui/Button.module.css */
+
+.baseStyle {
+  padding: 8px 16px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.primary {
+  background-color: #3b82f6; /* Azul */
+  color: white;
+}
+
+.secondary {
+  background-color: #d1d5db; /* Gris */
+  color: black;
+}
+
+.ghost {
+  background-color: transparent;
+  color: #3b82f6; /* Azul */
+  border: 1px solid #3b82f6;
+}
+
+.icon {
+  padding: 4px;
+  width: 32px;
+  height: 32px;
+}
+
+.small {
+  padding: 4px 8px;
+  font-size: 0.875rem; /* Tamaño de texto reducido */
+}

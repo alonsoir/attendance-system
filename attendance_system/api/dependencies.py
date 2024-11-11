@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+
 def get_db():
     try:
         db = SessionLocal()
@@ -14,7 +15,10 @@ def get_db():
     finally:
         db.close()
 
-async def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+
+async def get_current_user(
+    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+):
     user = await verify_token(db, token)
     if not user:
         raise HTTPException(
@@ -23,6 +27,7 @@ async def get_current_user(db: Session = Depends(get_db), token: str = Depends(o
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
 
 async def verify_token(db: Session, token: str):
     try:

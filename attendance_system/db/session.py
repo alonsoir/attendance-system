@@ -11,7 +11,7 @@ engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,  # Verifica la conexión antes de usarla
     pool_size=5,  # Número máximo de conexiones en el pool
-    max_overflow=10  # Número máximo de conexiones que se pueden crear más allá del pool_size
+    max_overflow=10,  # Número máximo de conexiones que se pueden crear más allá del pool_size
 )
 
 # Crear el fabricante de sesiones
@@ -71,7 +71,7 @@ def init_db():
             # Crear registros iniciales de estado de servicio
             services = [
                 ServiceStatus(service_name="claude", status=True),
-                ServiceStatus(service_name="meta", status=True)
+                ServiceStatus(service_name="meta", status=True),
             ]
             db.bulk_save_objects(services)
             db.commit()

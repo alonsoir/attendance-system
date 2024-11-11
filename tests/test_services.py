@@ -5,7 +5,10 @@ from typing import Dict, Any
 
 from attendance_system.services.attendance import AttendanceManager
 from attendance_system.services.claude import generate_claude_response
-from attendance_system.services.whatsapp import send_whatsapp_message, handle_whatsapp_message
+from attendance_system.services.whatsapp import (
+    send_whatsapp_message,
+    handle_whatsapp_message,
+)
 from attendance_system.db.models import Interaction, User, ServiceStatus
 from attendance_system.core.config import settings
 
@@ -14,13 +17,13 @@ from attendance_system.core.config import settings
 @pytest.mark.asyncio
 async def test_generate_claude_response():
     """Prueba la generación de respuestas de Claude."""
-    with patch('aiohttp.ClientSession.post') as mock_post:
+    with patch("aiohttp.ClientSession.post") as mock_post:
         mock_post.return_value.__aenter__.return_value.json = AsyncMock(
             return_value={
                 "sensitivity": 5,
                 "response": "Test response",
                 "likely_to_be_on_leave_tomorrow": False,
-                "reach_out_tomorrow": True
+                "reach_out_tomorrow": True,
             }
         )
         mock_post.return_value.__aenter__.return_value.status = 200
@@ -35,7 +38,7 @@ async def test_generate_claude_response():
 @pytest.mark.asyncio
 async def test_generate_claude_response_error():
     """Prueba el manejo de errores en las respuestas de Claude."""
-    with patch('aiohttp.ClientSession.post') as mock_post:
+    with patch("aiohttp.ClientSession.post") as mock_post:
         mock_post.return_value.__aenter__.return_value.status = 500
         mock_post.return_value.__aenter__.return_value.json = AsyncMock(
             side_effect=Exception("API Error")
@@ -49,7 +52,7 @@ async def test_generate_claude_response_error():
 @pytest.mark.asyncio
 async def test_send_whatsapp_message():
     """Prueba el envío de mensajes de WhatsApp."""
-    with patch('aiohttp.ClientSession.get') as mock_get:
+    with patch("aiohttp.ClientSession.get") as mock_get:
         mock_get.return_value.__aenter__.return_value.status = 200
 
         await send_whatsapp_message("+34666777888", "Test message")
@@ -66,15 +69,17 @@ async def test_send_whatsapp_message_invalid_phone():
 @pytest.mark.asyncio
 async def test_handle_whatsapp_message(mock_whatsapp_message):
     """Prueba el manejo de mensajes de WhatsApp."""
-    with patch('attendance_system.services.attendance.AttendanceManager.process_whatsapp_message') as mock_process:
+    with patch(
+        "attendance_system.services.attendance.AttendanceManager.process_whatsapp_message"
+    ) as mock_process:
         mock_process.return_value = {
             "status": "success",
             "response": {
                 "sensitivity": 5,
                 "response": "Test response",
                 "likely_to_be_on_leave_tomorrow": False,
-                "reach_out_tomorrow": True
-            }
+                "reach_out_tomorrow": True,
+            },
         }
 
         result = await handle_whatsapp_message(mock_whatsapp_message)
@@ -84,14 +89,18 @@ async def test_handle_whatsapp_message(mock_whatsapp_message):
 
 # Tests para el AttendanceManager
 @pytest.mark.asyncio
-async def test_attendance_manager_process_message(db_session, test_user, mock_whatsapp_message):
+async def test_attendance_manager_process_message(
+    db_session, test_user, mock_whatsapp_message
+):
     """Prueba el procesamiento de mensajes por el AttendanceManager."""
-    with patch('attendance_system.services.claude.generate_claude_response') as mock_claude:
+    with patch(
+        "attendance_system.services.claude.generate_claude_response"
+    ) as mock_claude:
         mock_claude.return_value = {
             "sensitivity": 5,
             "response": "Test response",
             "likely_to_be_on_leave_tomorrow": False,
-            "reach_out_tomorrow": True
+            "reach_out_tomorrow": True,
         }
 
         result = await AttendanceManager.process_whatsapp_message(mock_whatsapp_message)
@@ -102,7 +111,7 @@ async def test_attendance_manager_process_message(db_session, test_user, mock_wh
 @pytest.mark.asyncio
 async def test_check_service_status():
     """Prueba la verificación del estado de los servicios."""
-    with patch('aiohttp.ClientSession.get') as mock_get:
+    with patch("aiohttp.ClientSession.get") as mock_get:
         mock_get.return_value.__aenter__.return_value.status = 200
 
         status = await AttendanceManager.check_service_status()
@@ -133,19 +142,21 @@ async def test_save_interaction(db_session, test_user):
             "sensitivity": 5,
             "response": "Test response",
             "likely_to_be_on_leave_tomorrow": False,
-            "reach_out_tomorrow": True
-        }
+            "reach_out_tomorrow": True,
+        },
     }
 
     await AttendanceManager.save_interaction(
         interaction_data["student_name"],
         interaction_data["tutor_phone"],
-        interaction_data["claude_response"]
+        interaction_data["claude_response"],
     )
 
-    saved = db_session.query(Interaction).filter_by(
-        student_name=interaction_data["student_name"]
-    ).first()
+    saved = (
+        db_session.query(Interaction)
+        .filter_by(student_name=interaction_data["student_name"])
+        .first()
+    )
     assert saved is not None
     assert saved.tutor_phone == interaction_data["tutor_phone"]
 
@@ -154,8 +165,7 @@ async def test_save_interaction(db_session, test_user):
 async def test_verify_authorization():
     """Prueba la verificación de autorización."""
     result = await AttendanceManager.verify_authorization(
-        "Test Student",
-        "+34666777888"
+        "Test Student", "+34666777888"
     )
     assert isinstance(result, bool)
 
@@ -196,19 +206,13 @@ async def test_message_formatter():
 
     # Prueba con diferentes idiomas
     es_message = MessageFormatter.get_message(
-        "INITIAL_CONTACT",
-        "es-ES",
-        student_name="Juan",
-        school_name="IES Test"
+        "INITIAL_CONTACT", "es-ES", student_name="Juan", school_name="IES Test"
     )
     assert "Juan" in es_message
     assert "IES Test" in es_message
 
     en_message = MessageFormatter.get_message(
-        "INITIAL_CONTACT",
-        "en-US",
-        student_name="John",
-        school_name="Test High School"
+        "INITIAL_CONTACT", "en-US", student_name="John", school_name="Test High School"
     )
     assert "John" in en_message
     assert "Test High School" in en_message
@@ -218,13 +222,13 @@ async def test_message_formatter():
 async def test_error_handling():
     """Prueba el manejo de errores en los servicios."""
     # Prueba de error en Claude
-    with patch('aiohttp.ClientSession.post') as mock_post:
+    with patch("aiohttp.ClientSession.post") as mock_post:
         mock_post.side_effect = Exception("API Error")
         with pytest.raises(Exception):
             await generate_claude_response("Test Student")
 
     # Prueba de error en WhatsApp
-    with patch('aiohttp.ClientSession.get') as mock_get:
+    with patch("aiohttp.ClientSession.get") as mock_get:
         mock_get.side_effect = Exception("Network Error")
         with pytest.raises(Exception):
             await send_whatsapp_message("+34666777888", "Test message")
@@ -235,9 +239,7 @@ async def test_service_status_updates(db_session):
     """Prueba las actualizaciones de estado de servicios."""
     # Crear un nuevo estado de servicio
     service = ServiceStatus(
-        service_name="test_service",
-        status=True,
-        last_check=datetime.utcnow()
+        service_name="test_service", status=True, last_check=datetime.utcnow()
     )
     db_session.add(service)
     db_session.commit()
@@ -248,9 +250,9 @@ async def test_service_status_updates(db_session):
     db_session.commit()
 
     # Verificar la actualización
-    updated = db_session.query(ServiceStatus).filter_by(
-        service_name="test_service"
-    ).first()
+    updated = (
+        db_session.query(ServiceStatus).filter_by(service_name="test_service").first()
+    )
     assert not updated.status
     assert updated.error_message == "Test error"
 
@@ -263,16 +265,18 @@ async def test_interaction_sensitivity_calculation():
         ("El estudiante está enfermo", 7),
         ("Visita al médico programada", 5),
         ("Emergencia familiar", 9),
-        ("Llegará tarde hoy", 3)
+        ("Llegará tarde hoy", 3),
     ]
 
     for message, expected_sensitivity in test_cases:
-        with patch('attendance_system.services.claude.generate_claude_response') as mock_claude:
+        with patch(
+            "attendance_system.services.claude.generate_claude_response"
+        ) as mock_claude:
             mock_claude.return_value = {
                 "sensitivity": expected_sensitivity,
                 "response": "Test response",
                 "likely_to_be_on_leave_tomorrow": False,
-                "reach_out_tomorrow": True
+                "reach_out_tomorrow": True,
             }
 
             response = await generate_claude_response(message)

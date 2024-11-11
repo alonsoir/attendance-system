@@ -2,9 +2,9 @@ import React, { Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Loader2, Bell, Menu, X } from 'lucide-react';
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Alert, AlertDescription } from "@/components/ui/Alert";
 
 // Lazy loading de componentes
 const Dashboard = React.lazy(() => import('./components/Dashboard'));
@@ -27,27 +27,46 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar el estado de la conexión
+    // Verificar conexión con el backend
+    const checkBackendStatus = async () => {
+      try {
+        const response = await fetch('/api/v1/health'); // Ruta de health-check en el backend
+        if (response.ok) {
+          setIsOnline(true); // Backend está online
+          const ws = new WebSocket(
+            `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/ws`
+          );
+
+          ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'notification') {
+              setNotifications((prev) => [
+                { id: crypto.randomUUID(), ...data.payload, timestamp: new Date() },
+                ...prev,
+              ].slice(0, 5)); // Mantener solo las 5 notificaciones más recientes
+            }
+          };
+
+          ws.onerror = () => setIsOnline(false); // Si hay error en WebSocket, marcar offline
+
+          // Cerrar WebSocket cuando el componente se desmonte
+          return () => ws.close();
+        } else {
+          setIsOnline(false); // Si el backend no responde correctamente
+        }
+      } catch (error) {
+        setIsOnline(false); // Si falla el fetch, marcar offline
+      }
+    };
+
+    checkBackendStatus();
+
+    // Configurar eventos de cambio de conexión de red
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // Configurar WebSocket para notificaciones
-    const ws = new WebSocket(
-      `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/ws`
-    );
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'notification') {
-        setNotifications(prev => [
-          { id: crypto.randomUUID(), ...data.payload, timestamp: new Date() },
-          ...prev
-        ].slice(0, 5)); // Mantener solo las 5 notificaciones más recientes
-      }
-    };
 
     // Simular carga inicial
     setTimeout(() => setIsLoading(false), 1000);
@@ -55,7 +74,6 @@ const App = () => {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      ws.close();
     };
   }, []);
 
@@ -101,11 +119,7 @@ const App = () => {
 
                 {/* Campana de notificaciones */}
                 <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="relative"
-                  >
+                  <Button variant="ghost" size="icon" className="relative">
                     <Bell />
                     {notifications.length > 0 && (
                       <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500" />

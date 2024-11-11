@@ -29,11 +29,12 @@ def initialize_db():
             admin_exists = db.query(User).filter(User.username == "admin").first()
             if not admin_exists:
                 from attendance_system.core.security import get_password_hash
+
                 admin_user = User(
                     username="admin",
                     email="admin@example.com",
                     hashed_password=get_password_hash("admin"),
-                    is_superuser=True
+                    is_superuser=True,
                 )
                 db.add(admin_user)
                 db.commit()

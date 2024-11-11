@@ -15,7 +15,7 @@ Un sistema de gestión de asistencia escolar moderno que utiliza IA (Claude) y W
 - 💾 Persistencia con PostgreSQL
 - 🚀 Caché con Redis
 - 🐳 Containerización completa con Docker
-- 🔄 CI/CD con Heroku
+- 🔄 CI/CD con GitHub Actions
 
 ## 🛠️ Stack Tecnológico
 
@@ -160,12 +160,6 @@ make docker-stop                # Detener contenedores
 make logs                       # Ver logs de contenedores
 ```
 
-### Base de Datos
-```bash
-make migrate ENV=[dev|prod]     # Ejecutar migraciones
-make db-reset ENV=[dev|prod]    # Resetear base de datos
-```
-
 ## 📊 Monitorización y Métricas
 
 ### Acceso a Servicios
@@ -182,120 +176,265 @@ make db-reset ENV=[dev|prod]    # Resetear base de datos
 - `/metrics` - Métricas de Prometheus
 - `/api/v1/status` - Estado detallado de servicios
 
-## 🔍 Troubleshooting
+## 🚀 Opciones de Despliegue
 
-### Verificación de Estado
+### 1. Heroku (Recomendado para inicio rápido)
+
+#### Prerequisitos
+
+1. **Cuenta Heroku**
+   - Crear cuenta gratuita en [Heroku](https://signup.heroku.com)
+   - Instalar [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli)
+
+2. **Add-ons Necesarios (Free Tier)**
+   - Heroku Postgres
+   ```bash
+   heroku addons:create heroku-postgresql:hobby-dev
+   ```
+   - Heroku Redis
+   ```bash
+   heroku addons:create heroku-redis:hobby-dev
+   ```
+
+3. **Variables de Entorno en GitHub**
+   Configurar en `Settings > Secrets and variables > Actions`:
+   ```plaintext
+   # Heroku
+   HEROKU_API_KEY            # Tu API key de Heroku
+   HEROKU_EMAIL             # Email de tu cuenta Heroku
+   HEROKU_APP_NAME          # Nombre de tu aplicación en Heroku
+
+   # Producción
+   PROD_SECRET_KEY          # Clave secreta para producción
+   PROD_ANTHROPIC_API_KEY   # API key de Claude/Anthropic
+   PROD_META_API_KEY        # API key de WhatsApp/Meta
+   ```
+
+#### Despliegue en Heroku
 ```bash
-# Estado general
-curl http://localhost:8000/health
+# Manual
+make heroku-deploy ENV=prod
 
-# Estado de servicios
-curl http://localhost:8000/api/v1/status
+# Automático (via GitHub Actions)
+git push main
 ```
 
-### Logs y Diagnóstico
-```bash
-# Todos los servicios
-make logs
+### 2. Alternativas de Hosting
 
-# Servicio específico
-docker-compose logs api
-```
+#### Railway.app
+- Similar a Heroku
+- Tier gratuito disponible
+- Soporte nativo para Docker
+- PostgreSQL y Redis incluidos
 
-### Problemas Comunes
+#### Render
+- Alternativa moderna
+- Tier gratuito
+- Despliegue automático desde GitHub
+- Servicios gestionados
 
-1. Error de conexión a BD:
-```bash
-make db-reset ENV=dev
-```
+#### DigitalOcean App Platform
+- PaaS completo
+- Buena relación calidad/precio
+- Servicios gestionados
+- Escalabilidad sencilla
 
-2. Dependencias:
-```bash
-make clean
-make install ENV=dev
-```
+#### Google Cloud Run
+- Serverless
+- Pay-per-use
+- Excelente para contenedores
+- Integración con servicios GCP
 
-3. Tipos:
-```bash
-make type-check
-```
+### 3. Almacenamiento Adicional
 
-## 📦 Estructura del Proyecto
+Wasabi u otros servicios S3-compatibles pueden utilizarse para:
+- Backups de base de datos
+- Almacenamiento de logs
+- Archivos estáticos/media
+- Copias de configuración
 
-```
-attendance_system/
-├── attendance_system/        # Backend
-│   ├── api/                 # Endpoints
-│   ├── core/               # Configuración
-│   ├── db/                 # Modelos
-│   └── services/           # Servicios
-├── frontend/               # Frontend React
-│   ├── src/               # Código fuente
-│   └── public/            # Archivos estáticos
-├── migrations/             # Migraciones DB
-├── tests/                 # Tests
-│   ├── unit/             # Tests unitarios
-│   └── integration/      # Tests de integración
-├── docs/                 # Documentación
-├── Dockerfile           # Backend container
-├── docker-compose.yml   # Servicios
-└── Makefile            # Automatización
-```
+[... continúa con las secciones anteriores de Troubleshooting, Estructura del Proyecto, etc. ...]
 
 ## 🤝 Contribuir
 
-1. Fork del repositorio
-
-2. Configurar entorno:
-```bash
-make init ENV=dev
-```
-
-3. Crear rama:
-```bash
-git checkout -b feature/amazing-feature
-```
-
-4. Verificar código:
-```bash
-make format
-make lint
-make type-check
-make test
-```
-
-5. Crear Pull Request
-
-### Guía de Pull Request
-
-1. Asegúrate de que todos los tests pasan
-2. Actualiza la documentación si es necesario
-3. Sigue las convenciones de código existentes
-4. Añade tests para nuevas funcionalidades
-5. Actualiza el CHANGELOG.md
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT - ver [LICENSE](LICENSE) para detalles.
-
-## 🆘 Soporte
-
-- 📧 Email: alonsoir@gmail.com
-- 💬 Discord: [Invitación al servidor](https://discord.com/api/webhooks/1304425221163585596/zMOtBat8W3pmyKZxzdjK98TdKClkTkvd4NWSa2AwIoHyXfMzFJ1T01BfkCV7oR19pPNk)
-- 🐛 Issues: [GitHub Issues](https://github.com/alonsoir/attendance-system/issues)
-- 📝 Wiki: [GitHub Wiki](https://github.com/alonsoir/attendance-system/wiki)
-
-## 🙏 Agradecimientos
-
-- [FastAPI](https://fastapi.tiangolo.com/) - Framework web moderno y rápido
-- [Anthropic Claude](https://www.anthropic.com/) - API de IA avanzada
-- [WhatsApp Business API](https://www.whatsapp.com/business/api) - Comunicación con tutores
-- [shadcn/ui](https://ui.shadcn.com/) - Componentes de UI accesibles
+[... secciones anteriores de Contribuir, Licencia, etc. ...]
 
 ## 📝 Changelog
 
 Ver [CHANGELOG.md](CHANGELOG.md) para detalles sobre cambios y versiones.
 
+## 🔌 Integración con Servicios Externos
+
+### Claude/Anthropic API
+1. Crear cuenta en [Anthropic](https://www.anthropic.com/)
+2. Obtener API key desde el dashboard
+3. Configurar en variables de entorno:
+   ```bash
+   ANTHROPIC_API_KEY=your-api-key
+   ```
+
+### WhatsApp Business API
+1. Crear cuenta en [Meta for Developers](https://developers.facebook.com/)
+2. Configurar WhatsApp Business API
+3. Obtener tokens necesarios
+4. Configurar webhook
+
+## 💼 Guía de Producción
+
+### Checklist Pre-Despliegue
+- [ ] Todas las variables de entorno configuradas
+- [ ] Secrets revisados y actualizados
+- [ ] Tests pasando al 100%
+- [ ] Migraciones probadas
+- [ ] Backups configurados
+- [ ] Monitorización activada
+- [ ] SSL/TLS configurado
+- [ ] Firewall y seguridad revisados
+
+### Backups
+```bash
+# Backup manual
+make backup ENV=prod
+
+# Restaurar backup
+make restore ENV=prod BACKUP_FILE=backup_name.sql
+
+# Programar backup automático
+make schedule-backup ENV=prod
+```
+
+### Escalabilidad
+- Configuración de auto-scaling
+- Manejo de carga
+- Optimización de recursos
+- Políticas de caché
+
+## 🔬 Ambiente de Testing
+
+### Tipos de Tests
+1. **Unitarios**: Componentes individuales
+2. **Integración**: Interacción entre componentes
+3. **E2E**: Flujos completos
+4. **Performance**: Rendimiento bajo carga
+
+### Datos de Prueba
+```bash
+# Generar datos de prueba
+make generate-test-data
+
+# Limpiar datos de prueba
+make clean-test-data
+```
+
+## 📊 Métricas y KPIs
+
+### Métricas de Negocio
+- Tasa de respuesta de tutores
+- Tiempo promedio de respuesta
+- Efectividad de seguimiento
+- Patrones de ausencia
+
+### Métricas Técnicas
+- Tiempo de respuesta API
+- Uso de recursos
+- Tasa de errores
+- Disponibilidad del servicio
+
+## 🔐 Seguridad
+
+### Auditoría
+```bash
+# Ejecutar auditoría de seguridad
+make security-audit
+
+# Verificar dependencias
+make check-dependencies
+
+# Escanear vulnerabilidades
+make scan-vulnerabilities
+```
+
+### Compliance
+- GDPR/RGPD
+- FERPA (para datos educativos)
+- LOPD (España)
+- Protección de datos de menores
+
+### Mejores Prácticas
+- Rotación regular de secretos
+- Monitorización de accesos
+- Logs de auditoría
+- Planes de respuesta a incidentes
+
+## 🌍 Internacionalización
+
+### Idiomas Soportados
+- 🇪🇸 Español (España)
+- 🇺🇸 Inglés (US)
+
+### Añadir Nuevo Idioma
+1. Crear archivo de traducción
+2. Actualizar configuración i18n
+3. Validar traducciones
+4. Actualizar documentación
+
+## 📱 PWA Support
+
+### Características
+- Instalable en dispositivos móviles
+- Funcionamiento offline
+- Push notifications
+- Sincronización en segundo plano
+
+### Service Worker
+```bash
+# Construir service worker
+make build-sw
+
+# Probar funcionalidad offline
+make test-offline
+```
+
+## 🤖 CI/CD
+
+### GitHub Actions
+- Build automático
+- Tests en cada PR
+- Análisis de código
+- Despliegue automático
+
+### Entornos
+- Development
+- Staging
+- Production
+
+### Rollback
+```bash
+# Revertir último despliegue
+make rollback ENV=prod
+
+# Listar despliegues anteriores
+make list-deployments
+```
+
+## 📚 Documentación Adicional
+
+### Guías
+- [Manual de Usuario](docs/user-guide.md)
+- [Guía de Desarrollo](docs/dev-guide.md)
+- [Guía de Despliegue](docs/deployment-guide.md)
+- [Guía de Troubleshooting](docs/troubleshooting-guide.md)
+
+### API Docs
+- [OpenAPI Spec](docs/api/openapi.yaml)
+- [Postman Collection](docs/api/postman_collection.json)
+- [Ejemplos de Integración](docs/api/examples)
+
+### Arquitectura
+- [Diagramas](docs/architecture/diagrams)
+- [Decisiones de Diseño](docs/architecture/decisions)
+- [Patrones Utilizados](docs/architecture/patterns)
+- 
 ## 🔜 Roadmap
 
 - [ ] Integración con sistemas escolares externos
@@ -304,3 +443,193 @@ Ver [CHANGELOG.md](CHANGELOG.md) para detalles sobre cambios y versiones.
 - [ ] Análisis predictivo de ausencias
 - [ ] Soporte para múltiples centros educativos
 - [ ] API pública para integraciones de terceros
+
+## 🆘 Soporte
+
+- 📧 Email: your.email@example.com
+- 💬 Discord: [Invitación al servidor](https://discord.gg/your-server)
+- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/attendance-system/issues)
+- 📝 Wiki: [GitHub Wiki](https://github.com/yourusername/attendance-system/wiki)
+
+## 🙏 Agradecimientos
+
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Anthropic Claude](https://www.anthropic.com/)
+- [WhatsApp Business API](https://www.whatsapp.com/business/api)
+- [shadcn/ui](https://ui.shadcn.com/)
+
+# Guía de Inicio Paso a Paso 🚀
+
+## 1. Verificación Inicial del Sistema
+
+```bash
+# Verificar requisitos del sistema
+make check-deps
+```
+
+Esto verificará que tengas instalado:
+- Python 3.10.x
+- Poetry 1.8.4
+- Node.js 20.x
+- Docker y Docker Compose
+- Make
+
+## 2. Configuración del Entorno de Desarrollo
+
+```bash
+# Copiar archivos de ejemplo
+cp .env-dev.example .env-dev
+
+# Editar .env-dev con tus credenciales
+nano .env-dev
+```
+
+Variables críticas a configurar:
+- ANTHROPIC_API_KEY
+- SECRET_KEY
+- Credenciales de base de datos local
+
+## 3. Instalación de Dependencias
+
+```bash
+# Instalar dependencias de Python y Node.js
+make install ENV=dev
+
+# Verificar instalación
+poetry env info
+poetry show
+```
+
+## 4. Verificación de Código y Tests
+
+```bash
+# Ejecutar verificaciones de código
+make lint
+make type-check
+
+# Ejecutar tests unitarios
+make test-unit
+
+# Verificar cobertura
+make test-coverage
+```
+
+## 5. Iniciar Servicios Básicos (sin Docker)
+
+```bash
+# Iniciar PostgreSQL y Redis localmente si los tienes instalados
+# O usar Docker solo para servicios de base de datos
+docker-compose up -d db redis
+
+# Ejecutar migraciones
+make migrate ENV=dev
+
+# Iniciar backend en modo desarrollo
+poetry run uvicorn attendance_system.main:app --reload --port 8000
+```
+
+## 6. Probar el Backend
+
+```bash
+# Verificar estado del servidor
+curl http://localhost:8000/health
+
+# Verificar documentación API
+# Abrir en navegador: http://localhost:8000/docs
+```
+
+## 7. Iniciar Frontend en Desarrollo
+
+```bash
+# En otra terminal
+cd frontend
+npm run dev
+
+# Abrir en navegador: http://localhost:3000
+```
+
+## 8. Construcción de Contenedores (opcional en desarrollo)
+
+```bash
+# Solo después de verificar que todo funciona localmente
+make docker-build ENV=dev
+make docker-run ENV=dev
+
+# Verificar logs
+make logs
+```
+
+## 9. Verificación Final del Sistema
+
+```bash
+# Verificar todos los servicios
+curl http://localhost:8000/api/v1/status
+
+# Verificar métricas
+curl http://localhost:8000/metrics
+```
+
+## Troubleshooting Común
+
+### Problemas de Dependencias
+```bash
+# Limpiar entorno
+make clean
+
+# Reinstalar todo
+make install ENV=dev
+```
+
+### Problemas de Base de Datos
+```bash
+# Resetear base de datos
+make db-reset ENV=dev
+```
+
+### Problemas de Docker
+```bash
+# Limpiar contenedores
+docker-compose down -v
+docker system prune -f
+
+# Reconstruir
+make docker-build ENV=dev
+```
+
+## Verificación de Funcionalidades
+
+1. **Sistema Base**
+   - [ ] Servidor backend responde
+   - [ ] Frontend carga correctamente
+   - [ ] Base de datos conectada
+   - [ ] Redis funcionando
+
+2. **Integraciones**
+   - [ ] Conexión con Claude API
+   - [ ] WebSockets funcionando
+   - [ ] Sistema de logs activo
+
+3. **Características**
+   - [ ] Autenticación funciona
+   - [ ] CRUD de ausencias
+   - [ ] Notificaciones funcionan
+   - [ ] Métricas disponibles
+
+## Notas Importantes
+
+1. **Desarrollo Local**
+   - Usar `make run ENV=dev` para desarrollo rápido
+   - Los cambios en código se recargan automáticamente
+   - Logs disponibles en tiempo real
+
+2. **Docker**
+   - Usar contenedores solo cuando sea necesario en desarrollo
+   - Útil para probar el sistema completo
+   - Consumirá más recursos que el desarrollo local
+
+3. **Performance**
+   - Desarrollo local es más rápido para iteraciones
+   - Docker es mejor para probar el sistema completo
+   - Usar profiling en desarrollo: `make profile ENV=dev`
+
+¿Necesitas que detalle algún paso específico o que añada más información sobre algún aspecto en particular?

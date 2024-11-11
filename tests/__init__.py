@@ -10,4 +10,5 @@ os.environ["TESTING"] = "1"
 
 # Configurar el registro para las pruebas
 import logging
+
 logging.basicConfig(level=logging.DEBUG)

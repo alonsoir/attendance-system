@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings
 
 class LogConfig:
     """Configuración de logging"""
+
     LOGGER_NAME: str = "attendance_system"
     LOG_FORMAT: str = "%(levelprefix)s | %(asctime)s | %(message)s"
     LOG_LEVEL: str = "DEBUG"
@@ -112,7 +113,7 @@ class Settings(BaseSettings):
     def get_supported_languages(self) -> List[Dict[str, str]]:
         return [
             {"code": "en-US", "name": "English (US)"},
-            {"code": "es-ES", "name": "Español (España)"}
+            {"code": "es-ES", "name": "Español (España)"},
         ]
 
 

@@ -16,10 +16,7 @@ def test_health_check(client):
 
 def test_whatsapp_webhook(client, mock_whatsapp_message):
     """Prueba el endpoint del webhook de WhatsApp."""
-    response = client.post(
-        "/api/v1/webhook/whatsapp",
-        json=mock_whatsapp_message
-    )
+    response = client.post("/api/v1/webhook/whatsapp", json=mock_whatsapp_message)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["status"] == "success"
@@ -28,10 +25,7 @@ def test_whatsapp_webhook(client, mock_whatsapp_message):
 
 def test_whatsapp_webhook_invalid_data(client):
     """Prueba el webhook de WhatsApp con datos inválidos."""
-    response = client.post(
-        "/api/v1/webhook/whatsapp",
-        json={"invalid": "data"}
-    )
+    response = client.post("/api/v1/webhook/whatsapp", json={"invalid": "data"})
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
@@ -65,13 +59,9 @@ def test_get_interaction_detail(client, test_interaction):
 
 def test_update_interaction(client, test_interaction):
     """Prueba la actualización de una interacción."""
-    update_data = {
-        "status": "resolved",
-        "sensitivity_score": 3
-    }
+    update_data = {"status": "resolved", "sensitivity_score": 3}
     response = client.patch(
-        f"/api/v1/interactions/{test_interaction['id']}",
-        json=update_data
+        f"/api/v1/interactions/{test_interaction['id']}", json=update_data
     )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -95,8 +85,7 @@ async def test_websocket_updates(client, test_interaction):
         # Actualizar una interacción
         update_data = {"status": "resolved"}
         response = client.patch(
-            f"/api/v1/interactions/{test_interaction['id']}",
-            json=update_data
+            f"/api/v1/interactions/{test_interaction['id']}", json=update_data
         )
         assert response.status_code == status.HTTP_200_OK
 
