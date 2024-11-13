@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseSettings, PostgresDsn, validator
 from pydantic_settings import BaseSettings
 

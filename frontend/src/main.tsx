@@ -1,20 +1,25 @@
-import React, { Suspense, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Loader2, Bell, Menu, X } from 'lucide-react';
+import React, { Suspense, useState, useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Loader2, Bell, Menu, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Alert, AlertDescription } from "@/components/ui/Alert";
 
 // Lazy loading de componentes
-const Dashboard = React.lazy(() => import('./components/Dashboard'));
-const ServiceStatus = React.lazy(() => import('./components/ServiceStatus'));
-const Settings = React.lazy(() => import('./components/Settings'));
-const Profile = React.lazy(() => import('./components/Profile'));
+const Dashboard = React.lazy(() => import("./components/Dashboard"));
+const ServiceStatus = React.lazy(() => import("./components/ServiceStatus"));
+const Settings = React.lazy(() => import("./components/Settings"));
+const Profile = React.lazy(() => import("./components/Profile"));
 
 interface Notification {
   id: string;
-  type: 'info' | 'warning' | 'error' | 'success';
+  type: "info" | "warning" | "error" | "success";
   message: string;
   timestamp: Date;
 }
@@ -30,20 +35,26 @@ const App = () => {
     // Verificar conexión con el backend
     const checkBackendStatus = async () => {
       try {
-        const response = await fetch('/api/v1/health'); // Ruta de health-check en el backend
+        const response = await fetch("/api/v1/health"); // Ruta de health-check en el backend
         if (response.ok) {
           setIsOnline(true); // Backend está online
           const ws = new WebSocket(
-            `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/ws`
+            `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/v1/ws`,
           );
 
           ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.type === 'notification') {
-              setNotifications((prev) => [
-                { id: crypto.randomUUID(), ...data.payload, timestamp: new Date() },
-                ...prev,
-              ].slice(0, 5)); // Mantener solo las 5 notificaciones más recientes
+            if (data.type === "notification") {
+              setNotifications((prev) =>
+                [
+                  {
+                    id: crypto.randomUUID(),
+                    ...data.payload,
+                    timestamp: new Date(),
+                  },
+                  ...prev,
+                ].slice(0, 5),
+              ); // Mantener solo las 5 notificaciones más recientes
             }
           };
 
@@ -65,15 +76,15 @@ const App = () => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     // Simular carga inicial
     setTimeout(() => setIsLoading(false), 1000);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
@@ -102,7 +113,7 @@ const App = () => {
                   {isSidebarOpen ? <X /> : <Menu />}
                 </Button>
                 <div className="flex-shrink-0 flex items-center">
-                  <span className="text-xl font-bold">{t('app.title')}</span>
+                  <span className="text-xl font-bold">{t("app.title")}</span>
                 </div>
               </div>
 
@@ -132,18 +143,20 @@ const App = () => {
         </nav>
 
         {/* Barra lateral */}
-        <div className={`fixed inset-y-0 left-0 transform ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 transition duration-200 ease-in-out z-30 w-64 bg-white dark:bg-gray-800 shadow-lg`}>
+        <div
+          className={`fixed inset-y-0 left-0 transform ${
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } md:translate-x-0 transition duration-200 ease-in-out z-30 w-64 bg-white dark:bg-gray-800 shadow-lg`}
+        >
           <div className="h-full flex flex-col">
             <div className="flex-1 py-4 overflow-y-auto">
               <nav className="px-2 space-y-1">
                 {/* Enlaces de navegación */}
                 {[
-                  { name: 'dashboard', path: '/', icon: 'Home' },
-                  { name: 'settings', path: '/settings', icon: 'Settings' },
-                  { name: 'profile', path: '/profile', icon: 'User' }
-                ].map(item => (
+                  { name: "dashboard", path: "/", icon: "Home" },
+                  { name: "settings", path: "/settings", icon: "Settings" },
+                  { name: "profile", path: "/profile", icon: "User" },
+                ].map((item) => (
                   <Button
                     key={item.name}
                     variant="ghost"
@@ -175,15 +188,13 @@ const App = () => {
             {/* Alerta de estado offline */}
             {!isOnline && (
               <Alert variant="destructive" className="mb-4">
-                <AlertDescription>
-                  {t('errors.offline')}
-                </AlertDescription>
+                <AlertDescription>{t("errors.offline")}</AlertDescription>
               </Alert>
             )}
 
             {/* Notificaciones */}
             <div className="fixed top-20 right-4 z-50 space-y-2 max-w-sm">
-              {notifications.map(notification => (
+              {notifications.map((notification) => (
                 <Card key={notification.id} className="p-4 shadow-lg">
                   <h4 className="font-semibold">
                     {t(`notifications.${notification.type}`)}
@@ -197,11 +208,13 @@ const App = () => {
             </div>
 
             {/* Rutas */}
-            <Suspense fallback={
-              <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-              </div>
-            }>
+            <Suspense
+              fallback={
+                <div className="flex justify-center items-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                </div>
+              }
+            >
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/status" element={<ServiceStatus />} />

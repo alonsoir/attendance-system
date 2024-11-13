@@ -1,16 +1,17 @@
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Any, Dict
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from attendance_system.core.config import settings
+from attendance_system.db.models import Interaction, ServiceStatus, User
 from attendance_system.services.attendance import AttendanceManager
 from attendance_system.services.claude import generate_claude_response
 from attendance_system.services.whatsapp import (
-    send_whatsapp_message,
     handle_whatsapp_message,
+    send_whatsapp_message,
 )
-from attendance_system.db.models import Interaction, User, ServiceStatus
-from attendance_system.core.config import settings
 
 
 # Tests para el servicio de Claude

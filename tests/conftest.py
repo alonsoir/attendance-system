@@ -1,17 +1,15 @@
-import pytest
 import asyncio
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-from typing import Generator, Dict, Any
-import json
-from datetime import datetime, timedelta
+from typing import Any, Dict, Generator
 
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from attendance_system.core.security import get_password_hash
 from attendance_system.db.base import Base
 from attendance_system.db.session import get_db
-from attendance_system.core.config import settings
 from attendance_system.main import app
-from attendance_system.core.security import get_password_hash
 
 # Crear base de datos de prueba
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"

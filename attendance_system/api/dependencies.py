@@ -1,9 +1,10 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+
 from attendance_system.core.security import verify_password
 from attendance_system.db.models import User
 from attendance_system.db.session import SessionLocal
-from sqlalchemy.orm import Session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 

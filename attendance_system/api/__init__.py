@@ -1,7 +1,9 @@
 from fastapi import FastAPI
-from .endpoints import websocket_router, whatsapp_router
+
 from attendance_system.core.config import settings
 from attendance_system.db.base import initialize_db
+
+from .endpoints import websocket_router, whatsapp_router
 
 
 def create_app():

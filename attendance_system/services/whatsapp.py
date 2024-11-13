@@ -1,9 +1,10 @@
 import asyncio
-import aiohttp
 import json
 import logging
-from typing import Optional, Dict, Any
 from enum import Enum
+from typing import Any, Dict, Optional
+
+import aiohttp
 
 from attendance_system.core.config import settings
 from attendance_system.services import AttendanceManager

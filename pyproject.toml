@@ -9,7 +9,7 @@ license = "MIT"
 repository = "https://github.com/alonsoir/attendance-system"
 
 [tool.poetry.dependencies]
-python = "^3.10.0"
+python = "^3.10.15"
 # API Framework y servidor
 fastapi = "^0.104.1"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
@@ -95,9 +95,11 @@ pip-audit = "^2.6.1"
 debugpy = "^1.8.0"
 
 # Documentación
-sphinx = "^7.2.6"
+sphinx = "^7.0.0"
 sphinx-rtd-theme = "^1.3.0"
 sphinx-autodoc-typehints = "^1.24.0"
+furo = "^2023.6.16"
+
 
 [tool.poetry.group.prod.dependencies]
 # Dependencias específicas de producción
@@ -192,9 +194,9 @@ exclude_lines = [
 [tool.poetry.scripts]
 start = "attendance_system.main:start"
 dev = "attendance_system.main:start_dev"
-test = "pytest"
-lint = "pre-commit run --all-files"
-format = "black ."
-type-check = "mypy ."
-security-check = "safety check"
-docs = "sphinx-build -b html docs/source docs/build"
+test = "run_tests:main"
+lint = "run_lint:main"
+format = "run_black:main"
+type-check = "run_mypy:main"
+security-check = "run_security_check:main"
+docs = "build_docs:main"

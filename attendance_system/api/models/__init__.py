@@ -1,1 +1,1 @@
-from .schemas import InteractionCreate, InteractionUpdate, InteractionRead
+from .schemas import InteractionCreate, InteractionRead, InteractionUpdate

@@ -2,8 +2,9 @@
 Test suite for the Attendance System.
 """
 
-import pytest
 import os
+
+import pytest
 
 # Asegurar que estamos en modo de prueba
 os.environ["TESTING"] = "1"

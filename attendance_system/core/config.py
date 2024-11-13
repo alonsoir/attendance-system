@@ -1,9 +1,10 @@
-from pydantic import BaseSettings
 from functools import lru_cache
 from typing import Optional
 
+#from pydantic import BaseSettings
 
-class Settings(BaseSettings):
+
+class Settings:
     PROJECT_NAME: str = "Attendance System"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"

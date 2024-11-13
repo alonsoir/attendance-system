@@ -1,8 +1,10 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from attendance_system.core.config import settings
 import logging
+
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+from attendance_system.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +16,7 @@ def initialize_db():
     """
     Inicializa la base de datos y crea todas las tablas necesarias.
     """
-    from .models import User, Interaction  # Importación aquí para evitar ciclos
+    from .models import Interaction, User  # Importación aquí para evitar ciclos
 
     try:
         engine = create_engine(settings.DATABASE_URL)

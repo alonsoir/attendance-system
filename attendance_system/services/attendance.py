@@ -1,14 +1,16 @@
 import asyncio
-import aiohttp
 import json
+import logging
 from datetime import datetime
+
+import aiohttp
 from sqlalchemy.orm import sessionmaker
+
+from attendance_system.core.config import settings
 from attendance_system.db.models import Interaction
 from attendance_system.db.session import SessionLocal
-from attendance_system.core.config import settings
 from attendance_system.services.claude import generate_claude_response
 from attendance_system.services.whatsapp import send_whatsapp_message
-import logging
 
 logger = logging.getLogger(__name__)
 

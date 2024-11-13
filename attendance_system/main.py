@@ -1,19 +1,20 @@
+import json
 import logging
 import logging.config
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
-import uvicorn
-from pathlib import Path
-import json
 from datetime import datetime
+from pathlib import Path
 
-from attendance_system.core.config import settings
-from attendance_system.config import LogConfig
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
 from attendance_system.api.endpoints import websocket_router, whatsapp_router
-from attendance_system.db.session import init_db, check_database_connection
+from attendance_system.config import LogConfig
+from attendance_system.core.config import settings
+from attendance_system.db.session import check_database_connection, init_db
 from attendance_system.services import AttendanceManager
 
 # Configurar logging

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from attendance_system.services.attendance import AttendanceManager
+
 from attendance_system.core.config import settings
+from attendance_system.services.attendance import AttendanceManager
 
 router = APIRouter()
 

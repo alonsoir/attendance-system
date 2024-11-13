@@ -1,7 +1,9 @@
 import asyncio
-import aiohttp
-from attendance_system.core.config import settings
 import logging
+
+import aiohttp
+
+from attendance_system.core.config import settings
 
 logger = logging.getLogger(__name__)
 

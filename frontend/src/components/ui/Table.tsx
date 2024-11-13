@@ -1,6 +1,6 @@
 // src/components/ui/Table.tsx
-import React from 'react';
-import './Table.module.css';
+import React from "react";
+import "./Table.module.css";
 
 export const Table = ({ children }: { children: React.ReactNode }) => {
   return <table className="table">{children}</table>;

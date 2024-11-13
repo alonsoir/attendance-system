@@ -1,9 +1,10 @@
+import re
+from enum import Enum
+from typing import Any, Dict
+
 from .attendance import AttendanceManager
 from .claude import generate_claude_response
-from .whatsapp import send_whatsapp_message, handle_whatsapp_message
-from enum import Enum
-from typing import Dict, Any
-import re
+from .whatsapp import handle_whatsapp_message, send_whatsapp_message
 
 __all__ = [
     "AttendanceManager",

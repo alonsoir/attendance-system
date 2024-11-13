@@ -1,8 +1,10 @@
+import logging
+from contextlib import contextmanager
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 from attendance_system.core.config import settings
-from contextlib import contextmanager
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,7 @@ def init_db():
     """
     Inicializa la base de datos con datos iniciales si es necesario
     """
-    from attendance_system.db.models import User, ServiceStatus
+    from attendance_system.db.models import ServiceStatus, User
 
     db = SessionLocal()
     try:

@@ -1,6 +1,7 @@
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi import status
-from datetime import datetime, timedelta
 
 
 def test_health_check(client):
