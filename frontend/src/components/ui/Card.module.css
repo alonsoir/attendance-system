@@ -18,3 +18,18 @@
 .rounded {
   border-radius: 16px;
 }
+
+.cardHeader {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cardTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cardContent {
+  padding: 1rem;
+}

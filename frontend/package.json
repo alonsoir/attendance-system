@@ -54,26 +54,19 @@
     "@typescript-eslint/parser": "^6.12.0",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
-    "babel-loader": "^9.2.1",
-    "css-loader": "^7.1.2",
     "eslint": "^8.54.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.4",
-    "html-webpack-plugin": "^5.6.3",
     "jsdom": "^22.1.0",
     "postcss": "^8.4.31",
     "prettier": "^3.1.0",
     "prettier-plugin-tailwindcss": "^0.5.7",
-    "style-loader": "^4.0.0",
     "tailwindcss": "^3.3.5",
     "typescript": "^5.6.3",
     "vite": "^4.5.0",
     "vite-plugin-pwa": "^0.17.0",
     "vite-tsconfig-paths": "^4.2.1",
-    "vitest": "^0.34.6",
-    "webpack": "^5.96.1",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.1.0"
+    "vitest": "^0.34.6"
   }
 }

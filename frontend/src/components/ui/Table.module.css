@@ -1,25 +1,26 @@
-/* src/components/ui/Table.module.css */
 .table {
   width: 100%;
   border-collapse: collapse;
-  margin: 20px 0;
+  margin: 1rem 0;
 }
 
-.table-header {
-  background-color: #f4f4f4;
-  padding: 8px;
+.tableHeader {
+  background-color: #f9fafb;
+  font-weight: 600;
+}
+
+.tableHead {
+  padding: 0.75rem;
   text-align: left;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
 }
 
-.table-cell {
-  padding: 8px;
-  border: 1px solid #ddd;
+.tableCell {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.table-row:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-.table-row:hover {
-  background-color: #f1f1f1;
+.tableRow:hover {
+  background-color: #f9fafb;
 }

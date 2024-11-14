@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle,
@@ -6,8 +6,8 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Alert, AlertDescription } from "@/components/ui/Alert";
 
 interface ServiceStatus {
   name: string;
@@ -73,7 +73,7 @@ const ServiceStatus = () => {
 
   if (error) {
     return (
-      <Alert variant="destructive">
+      <Alert variant="error">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>{error}</AlertDescription>
       </Alert>

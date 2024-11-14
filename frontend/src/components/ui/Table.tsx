@@ -1,27 +1,33 @@
-// src/components/ui/Table.tsx
 import React from "react";
-import "./Table.module.css";
+import styles from "./Table.module.css";
 
-export const Table = ({ children }: { children: React.ReactNode }) => {
-  return <table className="table">{children}</table>;
+export interface TableProps {
+ children: React.ReactNode;
+ className?: string;
+}
+
+export const Table: React.FC<TableProps> = ({ children, className = "" }) => {
+ return <table className={`${styles.table} ${className}`}>{children}</table>;
 };
 
-export const TableBody = ({ children }: { children: React.ReactNode }) => {
-  return <tbody>{children}</tbody>;
+export const TableHeader: React.FC<TableProps> = ({ children, className = "" }) => {
+ return <thead className={`${styles.tableHeader} ${className}`}>{children}</thead>;
 };
 
-export const TableCell = ({ children }: { children: React.ReactNode }) => {
-  return <td className="table-cell">{children}</td>;
+export const TableBody: React.FC<TableProps> = ({ children, className = "" }) => {
+ return <tbody className={`${styles.tableBody} ${className}`}>{children}</tbody>;
 };
 
-export const TableHead = ({ children }: { children: React.ReactNode }) => {
-  return <thead>{children}</thead>;
+export const TableRow: React.FC<TableProps> = ({ children, className = "" }) => {
+ return <tr className={`${styles.tableRow} ${className}`}>{children}</tr>;
 };
 
-export const TableHeader = ({ children }: { children: React.ReactNode }) => {
-  return <th className="table-header">{children}</th>;
+export const TableCell: React.FC<TableProps> = ({ children, className = "" }) => {
+ return <td className={`${styles.tableCell} ${className}`}>{children}</td>;
 };
 
-export const TableRow = ({ children }: { children: React.ReactNode }) => {
-  return <tr className="table-row">{children}</tr>;
+export const TableHead: React.FC<TableProps> = ({ children, className = "" }) => {
+ return <th className={`${styles.tableHead} ${className}`}>{children}</th>;
 };
+
+export { Table as default };

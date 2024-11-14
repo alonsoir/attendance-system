@@ -7,9 +7,9 @@ import {
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2, Bell, Menu, X } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Alert, AlertDescription } from "@/components/ui/Alert";
 
 // Lazy loading de componentes
 const Dashboard = React.lazy(() => import("./components/Dashboard"));
@@ -165,7 +165,7 @@ const App = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Alerta de estado offline */}
             {!isOnline && (
-              <Alert variant="destructive" className="mb-4">
+              <Alert variant="error" className="mb-4">
                 <AlertDescription>{t("errors.offline")}</AlertDescription>
               </Alert>
             )}

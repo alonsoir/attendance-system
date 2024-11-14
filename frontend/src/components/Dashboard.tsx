@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
@@ -9,16 +9,16 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { ServiceStatus } from "./ServiceStatus";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import ServiceStatus from "./ServiceStatus"; // Cambiado a import default
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import {
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
+  TableBody,
   TableRow,
-} from "@/components/ui/table";
+  TableHead,
+  TableCell
+} from "@/components/ui/Table"; // Añadidos los imports faltantes
 
 interface Interaction {
   id: number;
