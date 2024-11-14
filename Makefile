@@ -189,9 +189,9 @@ poetry-install:
 compile-backend: clean-poetry poetry-lock poetry-install
 	@echo "✅ Compilación de backend completada con éxito."
 
-frontend-build: $(LOG_DIR)
+frontend-build:
 	$(call log_info, "Construyendo frontend")
-	@cd $(FRONTEND_PATH) && npm run build 2>> $(LOG_DIR)/$(LOG_FILE)
+	@cd $(FRONTEND_PATH) && npm run build
 	$(call log_success, "Frontend construido")
 
 # =============================================================================

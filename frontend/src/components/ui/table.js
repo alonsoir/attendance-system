@@ -1,5 +1,5 @@
 import { jsx as _jsx } from "react/jsx-runtime";
-import './Table.module.css';
+import "./Table.module.css";
 export const Table = ({ children }) => {
     return _jsx("table", { className: "table", children: children });
 };
