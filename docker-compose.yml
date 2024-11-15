@@ -23,7 +23,7 @@ services:
       - db
       - redis
     volumes:
-      - ./attendance_system:/app/attendance_system
+      - ./backend:/app/backend
     networks:
       - attendance-network
     healthcheck:

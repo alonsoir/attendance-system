@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from attendance_system.core.config import settings
-from attendance_system.db.models import Interaction, ServiceStatus, User
-from attendance_system.services.attendance import AttendanceManager
-from attendance_system.services.claude import generate_claude_response
-from attendance_system.services.whatsapp import (
+from backend.core.config import settings
+from backend.db.models import Interaction, ServiceStatus, User
+from backend.services.attendance import AttendanceManager
+from backend.services.claude import generate_claude_response
+from backend.services.whatsapp import (
     handle_whatsapp_message,
     send_whatsapp_message,
 )
@@ -71,7 +71,7 @@ async def test_send_whatsapp_message_invalid_phone():
 async def test_handle_whatsapp_message(mock_whatsapp_message):
     """Prueba el manejo de mensajes de WhatsApp."""
     with patch(
-        "attendance_system.services.attendance.AttendanceManager.process_whatsapp_message"
+        "backend.services.attendance.AttendanceManager.process_whatsapp_message"
     ) as mock_process:
         mock_process.return_value = {
             "status": "success",
@@ -95,7 +95,7 @@ async def test_attendance_manager_process_message(
 ):
     """Prueba el procesamiento de mensajes por el AttendanceManager."""
     with patch(
-        "attendance_system.services.claude.generate_claude_response"
+        "backend.services.claude.generate_claude_response"
     ) as mock_claude:
         mock_claude.return_value = {
             "sensitivity": 5,
@@ -184,7 +184,7 @@ async def test_get_dashboard_data(db_session, test_interaction):
 @pytest.mark.asyncio
 async def test_phone_number_validation():
     """Prueba la validación de números de teléfono."""
-    from attendance_system.services import PhoneNumberValidator
+    from backend.services import PhoneNumberValidator
 
     # Números españoles válidos
     assert PhoneNumberValidator.validate_phone("+34666777888", "ES")
@@ -203,7 +203,7 @@ async def test_phone_number_validation():
 @pytest.mark.asyncio
 async def test_message_formatter():
     """Prueba el formateador de mensajes."""
-    from attendance_system.services import MessageFormatter
+    from backend.services import MessageFormatter
 
     # Prueba con diferentes idiomas
     es_message = MessageFormatter.get_message(
@@ -271,7 +271,7 @@ async def test_interaction_sensitivity_calculation():
 
     for message, expected_sensitivity in test_cases:
         with patch(
-            "attendance_system.services.claude.generate_claude_response"
+            "backend.services.claude.generate_claude_response"
         ) as mock_claude:
             mock_claude.return_value = {
                 "sensitivity": expected_sensitivity,

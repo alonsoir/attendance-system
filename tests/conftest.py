@@ -6,18 +6,31 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from attendance_system.core.security import get_password_hash
-from attendance_system.db.base import Base
-from attendance_system.db.session import get_db
-from attendance_system.main import app
+from backend.core.security import get_password_hash
+from backend.db.base import Base
+from backend.db.session import get_db
+from backend.main import app
 
 # Crear base de datos de prueba
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_database():
+    Base.metadata.drop_all(bind=engine)  # Limpia todo
+    Base.metadata.create_all(bind=engine)  # Crea todas las tablas
+    yield
+    Base.metadata.drop_all(bind=engine)  # Limpia al terminar
+
+@pytest.fixture(scope="session", autouse=True)
+def create_test_db():
+    """Crea todas las tablas antes de los tests y las elimina después"""
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -68,7 +81,7 @@ def client(db_session) -> Generator:
 @pytest.fixture
 def test_user(db_session) -> Dict[str, Any]:
     """Fixture que crea un usuario de prueba."""
-    from attendance_system.db.models import User
+    from backend.db.models import User
 
     user = User(
         username="testuser",
@@ -85,7 +98,7 @@ def test_user(db_session) -> Dict[str, Any]:
 @pytest.fixture
 def test_interaction(db_session, test_user) -> Dict[str, Any]:
     """Fixture que crea una interacción de prueba."""
-    from attendance_system.db.models import Interaction
+    from backend.db.models import Interaction
 
     interaction = Interaction(
         student_name="Test Student",

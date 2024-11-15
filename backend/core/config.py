@@ -1,13 +1,31 @@
 from functools import lru_cache
 from typing import Optional
 
-#from pydantic import BaseSettings
+from pydantic import Field
+
+
 
 
 class Settings:
     PROJECT_NAME: str = "Attendance System"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
+    project_description: str = "Sistema de gestión de ausencias escolares"
+
+
+    # WhatsApp Settings
+    WHATSAPP_CALLBACK_TOKEN: str = Field(
+        default="default_callback_token",
+        description="Token for WhatsApp webhook verification"
+    )
+    WHATSAPP_PROVIDER: str = Field(
+        default="callmebot",
+        description="WhatsApp message provider (callmebot, meta, mock)"
+    )
+    META_API_KEY: str = Field(
+        default="",
+        description="API Key for Meta/WhatsApp Business API"
+    )
 
     # Security
     SECRET_KEY: str

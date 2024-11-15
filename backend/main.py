@@ -11,15 +11,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from attendance_system.api.endpoints import websocket_router, whatsapp_router
-from attendance_system.config import LogConfig
-from attendance_system.core.config import settings
-from attendance_system.db.session import check_database_connection, init_db
-from attendance_system.services import AttendanceManager
+from backend.api.endpoints import websocket_router, whatsapp_router
+from backend.config import LogConfig
+from backend.core.config import settings
+from backend.db.session import check_database_connection, init_db
+from backend.services import AttendanceManager
 
 # Configurar logging
 logging.config.dictConfig(LogConfig().dict())
-logger = logging.getLogger("attendance_system")
+logger = logging.getLogger("backend")
 
 
 @asynccontextmanager
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description=settings.DESCRIPTION,
+    description=settings.project_description,
     version=settings.VERSION,
     docs_url=f"{settings.API_V1_STR}/docs",
     redoc_url=f"{settings.API_V1_STR}/redoc",

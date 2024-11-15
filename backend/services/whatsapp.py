@@ -1,13 +1,14 @@
 import asyncio
 import json
 import logging
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 
 import aiohttp
 
-from attendance_system.core.config import settings
-from attendance_system.services import AttendanceManager
+from backend.core.config import settings
+# from backend.services import AttendanceManager
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,10 @@ class WhatsAppService:
         callback_token: Optional[str] = None,
         provider: MessageProvider = MessageProvider.CALLMEBOT,
     ):
-        self.meta_api_key = meta_api_key or settings.META_API_KEY
-        self.callback_token = callback_token or settings.WHATSAPP_CALLBACK_TOKEN
+        self.meta_api_key = meta_api_key or getattr(settings, 'META_API_KEY', '')
+        self.callback_token = callback_token or getattr(settings, 'WHATSAPP_CALLBACK_TOKEN', 'test_token')
         self.provider = provider
-        self.is_mock = not (self.meta_api_key and self.callback_token)
+        self.is_mock = not (self.meta_api_key and self.callback_token) or provider == MessageProvider.MOCK
 
         if self.is_mock:
             logger.warning(
@@ -97,33 +98,11 @@ class WhatsAppService:
         """
         Procesa un mensaje entrante de WhatsApp.
         """
-        try:
-            student_name = message_data.get("student_name")
-            tutor_phone = message_data.get("tutor_phone")
-
-            if not all([student_name, tutor_phone]):
-                raise ValueError("Datos incompletos en el mensaje")
-
-            # Procesar el mensaje
-            result = await AttendanceManager.process_whatsapp_message(message_data)
-
-            # Enviar respuesta
-            if result["status"] == "success":
-                try:
-                    await self.send_message(tutor_phone, result["response"])
-                except Exception as e:
-                    logger.error(f"Error sending response: {str(e)}")
-                    result["warning"] = "Message processed but response delivery failed"
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Error processing WhatsApp message: {str(e)}")
-            return {
-                "status": "error",
-                "message": str(e),
-                "timestamp": str(datetime.now()),
-            }
+        from backend.services.message_coordinator import process_message
+        return await process_message(
+            message_data=message_data,
+            send_response_callback=self.send_message
+        )
 
     async def verify_callback(self, token: str) -> bool:
         """

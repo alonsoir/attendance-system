@@ -525,7 +525,7 @@ docker-compose up -d db redis
 make migrate ENV=dev
 
 # Iniciar backend en modo desarrollo
-poetry run uvicorn attendance_system.main:app --reload --port 8000
+poetry run uvicorn backend.main:app --reload --port 8000
 ```
 
 ## 6. Probar el Backend

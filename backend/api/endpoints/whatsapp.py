@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body
 
-from attendance_system.core.config import settings
-from attendance_system.services.whatsapp import handle_whatsapp_message
+from backend.core.config import settings
+from backend.services.whatsapp import handle_whatsapp_message
 
 router = APIRouter()
 

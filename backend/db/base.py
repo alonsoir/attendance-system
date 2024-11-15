@@ -4,12 +4,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from attendance_system.core.config import settings
+from backend.core.config import settings
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.declarative import declared_attr
 
 logger = logging.getLogger(__name__)
 
-# Crear base declarativa para los modelos SQLAlchemy
-Base = declarative_base()
+class Base:
+    @declared_attr
+    def __tablename__(cls):
+        return cls.__name__.lower()
+
+Base = declarative_base(cls=Base)
+
+# Import models here to ensure they're registered
+
+from .models import User, Interaction, ServiceStatus, InteractionMessage
+
 
 
 def initialize_db():
@@ -30,7 +41,7 @@ def initialize_db():
         try:
             admin_exists = db.query(User).filter(User.username == "admin").first()
             if not admin_exists:
-                from attendance_system.core.security import get_password_hash
+                from backend.core.security import get_password_hash
 
                 admin_user = User(
                     username="admin",

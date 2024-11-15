@@ -3,8 +3,10 @@ from enum import Enum
 from typing import Any, Dict
 
 from .attendance import AttendanceManager
+from .service_status import check_service_status
 from .claude import generate_claude_response
 from .whatsapp import handle_whatsapp_message, send_whatsapp_message
+from .message_coordinator import process_message
 
 __all__ = [
     "AttendanceManager",
@@ -244,6 +246,6 @@ def is_valid_email(email: str) -> bool:
 
 def is_service_available(service_name: str) -> bool:
     """Checks if a service is available"""
-    from .attendance import AttendanceManager
-
-    return AttendanceManager.check_service_status(service_name)
+    """Checks if a service is available"""
+    import asyncio
+    return asyncio.run(check_service_status(service_name))

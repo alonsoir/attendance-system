@@ -17,7 +17,7 @@ LOG_FILE=make.log
 LOG_DIR=logs
 TIMESTAMP=$(shell date '+%Y-%m-%d %H:%M:%S')
 FRONTEND_PATH=frontend
-BACKEND_PATH=attendance_system
+BACKEND_PATH=backend
 
 # Emojis y Colores
 EMOJI_INFO = ℹ️
@@ -214,7 +214,7 @@ lint: $(LOG_DIR)
 
 test: $(LOG_DIR)
 	$(call log_info, "Ejecutando tests")
-	@poetry run pytest tests -v 2>> $(LOG_DIR)/$(LOG_FILE)
+	@PYTHONPATH=${PWD}/backend poetry run pytest tests -v
 	$(call log_success, "Tests completados")
 
 # =============================================================================

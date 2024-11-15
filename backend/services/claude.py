@@ -3,7 +3,7 @@ import logging
 
 import aiohttp
 
-from attendance_system.core.config import settings
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 

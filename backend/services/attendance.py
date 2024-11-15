@@ -5,12 +5,13 @@ from datetime import datetime
 
 import aiohttp
 from sqlalchemy.orm import sessionmaker
+from starlette.websockets import WebSocket
 
-from attendance_system.core.config import settings
-from attendance_system.db.models import Interaction
-from attendance_system.db.session import SessionLocal
-from attendance_system.services.claude import generate_claude_response
-from attendance_system.services.whatsapp import send_whatsapp_message
+from backend.core.config import settings
+from backend.db.models import Interaction
+from backend.db.session import SessionLocal
+from backend.services.claude import generate_claude_response
+from backend.services.whatsapp import send_whatsapp_message
 
 logger = logging.getLogger(__name__)
 

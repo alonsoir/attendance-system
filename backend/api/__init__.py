@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
-from attendance_system.core.config import settings
-from attendance_system.db.base import initialize_db
+from backend.core.config import settings
+from backend.db.base import initialize_db
 
 from .endpoints import websocket_router, whatsapp_router
 
