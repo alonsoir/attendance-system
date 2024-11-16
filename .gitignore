@@ -127,4 +127,4 @@ secrets/
 dump.rdb
 
 # Poetry
-poetry.lock
+poetry.lock!/.env-dev.backup-20241115135414

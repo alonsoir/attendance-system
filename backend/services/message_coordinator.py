@@ -6,8 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 async def process_message(
-        message_data: dict,
-        send_response_callback: Callable
+    message_data: dict, send_response_callback: Callable
 ) -> Dict[str, Any]:
     """
     Coordina el procesamiento de mensajes y el envío de respuestas.

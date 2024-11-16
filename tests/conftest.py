@@ -18,6 +18,7 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
     Base.metadata.drop_all(bind=engine)  # Limpia todo
@@ -25,12 +26,14 @@ def setup_database():
     yield
     Base.metadata.drop_all(bind=engine)  # Limpia al terminar
 
+
 @pytest.fixture(scope="session", autouse=True)
 def create_test_db():
     """Crea todas las tablas antes de los tests y las elimina después"""
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+
 
 @pytest.fixture(scope="session")
 def event_loop():

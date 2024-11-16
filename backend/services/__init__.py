@@ -248,4 +248,5 @@ def is_service_available(service_name: str) -> bool:
     """Checks if a service is available"""
     """Checks if a service is available"""
     import asyncio
+
     return asyncio.run(check_service_status(service_name))

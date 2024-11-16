@@ -1,33 +1,34 @@
 import logging
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from backend.core.config import settings
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.ext.declarative import declared_attr
 
 logger = logging.getLogger(__name__)
+
 
 class Base:
     @declared_attr
     def __tablename__(cls):
         return cls.__name__.lower()
 
+
 Base = declarative_base(cls=Base)
-
-# Import models here to ensure they're registered
-
-from .models import User, Interaction, ServiceStatus, InteractionMessage
-
 
 
 def initialize_db():
     """
     Inicializa la base de datos y crea todas las tablas necesarias.
     """
-    from .models import Interaction, User  # Importación aquí para evitar ciclos
+    from .models import (
+        User,
+        ServiceStatus,
+        Interaction,
+        InteractionMessage,
+    )  # Importar todos los modelos
 
     try:
         engine = create_engine(settings.DATABASE_URL)
@@ -39,6 +40,7 @@ def initialize_db():
         db = SessionLocal()
 
         try:
+            # Verificar y crear usuario admin
             admin_exists = db.query(User).filter(User.username == "admin").first()
             if not admin_exists:
                 from backend.core.security import get_password_hash
@@ -50,8 +52,19 @@ def initialize_db():
                     is_superuser=True,
                 )
                 db.add(admin_user)
-                db.commit()
-                logger.info("Usuario administrador creado")
+
+            # Verificar y crear estados de servicio iniciales
+            service_status = db.query(ServiceStatus).first()
+            if not service_status:
+                services = [
+                    ServiceStatus(service_name="claude", status=True),
+                    ServiceStatus(service_name="meta", status=True),
+                ]
+                db.bulk_save_objects(services)
+
+            db.commit()
+            logger.info("Base de datos inicializada con datos por defecto")
+
         finally:
             db.close()
 

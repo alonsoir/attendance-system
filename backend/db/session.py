@@ -59,7 +59,7 @@ async def check_database_connection():
         db.close()
 
 
-def init_db():
+async def init_db():
     """
     Inicializa la base de datos con datos iniciales si es necesario
     """
@@ -68,19 +68,17 @@ def init_db():
     db = SessionLocal()
     try:
         # Verificar si ya existen registros de estado de servicio
-        service_status = db.query(ServiceStatus).first()
+        service_status = await db.query(ServiceStatus).first()
         if not service_status:
-            # Crear registros iniciales de estado de servicio
             services = [
                 ServiceStatus(service_name="claude", status=True),
                 ServiceStatus(service_name="meta", status=True),
             ]
             db.bulk_save_objects(services)
-            db.commit()
+            await db.commit()
             logger.info("Estados de servicio iniciales creados")
-
     except Exception as e:
         logger.error(f"Error inicializando la base de datos: {str(e)}")
-        db.rollback()
+        await db.rollback()
     finally:
-        db.close()
+        await db.close()

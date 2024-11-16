@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 import aiohttp
 
 from backend.core.config import settings
+
 # from backend.services import AttendanceManager
 
 logger = logging.getLogger(__name__)
@@ -26,10 +27,15 @@ class WhatsAppService:
         callback_token: Optional[str] = None,
         provider: MessageProvider = MessageProvider.CALLMEBOT,
     ):
-        self.meta_api_key = meta_api_key or getattr(settings, 'META_API_KEY', '')
-        self.callback_token = callback_token or getattr(settings, 'WHATSAPP_CALLBACK_TOKEN', 'test_token')
+        self.meta_api_key = meta_api_key or getattr(settings, "META_API_KEY", "")
+        self.callback_token = callback_token or getattr(
+            settings, "WHATSAPP_CALLBACK_TOKEN", "test_token"
+        )
         self.provider = provider
-        self.is_mock = not (self.meta_api_key and self.callback_token) or provider == MessageProvider.MOCK
+        self.is_mock = (
+            not (self.meta_api_key and self.callback_token)
+            or provider == MessageProvider.MOCK
+        )
 
         if self.is_mock:
             logger.warning(
@@ -63,6 +69,8 @@ class WhatsAppService:
         """
         logger.info(f"MOCK WhatsApp message to {phone}: {message}")
         await asyncio.sleep(0.5)  # Simular latencia de red
+        raise ValueError(f"Mock {phone}!!! {message}")
+        '''
         return {
             "status": "success",
             "mock": True,
@@ -70,6 +78,7 @@ class WhatsAppService:
             "message": message,
             "timestamp": str(datetime.now()),
         }
+        '''
 
     async def _send_callmebot_message(self, phone: str, message: str) -> Dict[str, Any]:
         """
@@ -99,9 +108,9 @@ class WhatsAppService:
         Procesa un mensaje entrante de WhatsApp.
         """
         from backend.services.message_coordinator import process_message
+
         return await process_message(
-            message_data=message_data,
-            send_response_callback=self.send_message
+            message_data=message_data, send_response_callback=self.send_message
         )
 
     async def verify_callback(self, token: str) -> bool:

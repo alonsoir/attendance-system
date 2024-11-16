@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings
 
 class LogConfig:
     """Configuración de logging"""
+
     LOGGER_NAME: str = "backend"
     LOG_FORMAT: str = "%(levelprefix)s | %(asctime)s | %(message)s"
     LOG_LEVEL: str = "DEBUG"
@@ -38,8 +39,11 @@ class LogConfig:
                 },
             },
             "loggers": {
-                cls.LOGGER_NAME: {"handlers": ["default", "file"], "level": cls.LOG_LEVEL},
-            }
+                cls.LOGGER_NAME: {
+                    "handlers": ["default", "file"],
+                    "level": cls.LOG_LEVEL,
+                },
+            },
         }
 
 

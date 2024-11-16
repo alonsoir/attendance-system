@@ -4,27 +4,23 @@ from typing import Optional
 from pydantic import Field
 
 
-
-
 class Settings:
     PROJECT_NAME: str = "Attendance System"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
     project_description: str = "Sistema de gestión de ausencias escolares"
 
-
     # WhatsApp Settings
     WHATSAPP_CALLBACK_TOKEN: str = Field(
         default="default_callback_token",
-        description="Token for WhatsApp webhook verification"
+        description="Token for WhatsApp webhook verification",
     )
     WHATSAPP_PROVIDER: str = Field(
         default="callmebot",
-        description="WhatsApp message provider (callmebot, meta, mock)"
+        description="WhatsApp message provider (callmebot, meta, mock)",
     )
     META_API_KEY: str = Field(
-        default="",
-        description="API Key for Meta/WhatsApp Business API"
+        default="", description="API Key for Meta/WhatsApp Business API"
     )
 
     # Security
@@ -32,7 +28,13 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
 
     # External Services
-    ANTHROPIC_API_KEY: str
+    # ... otros settings ...
+    ANTHROPIC_API_KEY: str = Field(
+        default="test-key-12345",
+        env="ANTHROPIC_API_KEY",
+        description="API Key for Anthropic/Claude API",
+    )
+
     META_API_KEY: Optional[str] = None
 
     # Database

@@ -51,7 +51,9 @@ class InteractionMessage(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     sender_type = Column(String)  # system, tutor, claude
     content = Column(String)
-    message_metadata = Column(JSON, nullable=True)  # Cambiado de metadata a message_metadata
+    message_metadata = Column(
+        JSON, nullable=True
+    )  # Cambiado de metadata a message_metadata
 
     interaction = relationship("Interaction", back_populates="messages")
 

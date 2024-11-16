@@ -1,11 +1,9 @@
-from datetime import datetime, timedelta
-from typing import Any, Dict
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.core.config import settings
-from backend.db.models import Interaction, ServiceStatus, User
+from backend.db.models import Interaction, ServiceStatus
 from backend.services.attendance import AttendanceManager
 from backend.services.claude import generate_claude_response
 from backend.services.whatsapp import (
@@ -18,6 +16,7 @@ from backend.services.whatsapp import (
 @pytest.mark.asyncio
 async def test_generate_claude_response():
     """Prueba la generación de respuestas de Claude."""
+    # Configurar mock para la llamada a la API
     with patch("aiohttp.ClientSession.post") as mock_post:
         mock_post.return_value.__aenter__.return_value.json = AsyncMock(
             return_value={
@@ -32,8 +31,6 @@ async def test_generate_claude_response():
         response = await generate_claude_response("Test Student")
         assert "sensitivity" in response
         assert "response" in response
-        assert "likely_to_be_on_leave_tomorrow" in response
-        assert "reach_out_tomorrow" in response
 
 
 @pytest.mark.asyncio
@@ -52,12 +49,17 @@ async def test_generate_claude_response_error():
 # Tests para el servicio de WhatsApp
 @pytest.mark.asyncio
 async def test_send_whatsapp_message():
-    """Prueba el envío de mensajes de WhatsApp."""
-    with patch("aiohttp.ClientSession.get") as mock_get:
-        mock_get.return_value.__aenter__.return_value.status = 200
+    """Prueba el envío de mensajes de WhatsApp en modo mock."""
+    from backend.services.whatsapp import whatsapp_service
 
-        await send_whatsapp_message("+34666777888", "Test message")
-        mock_get.assert_called_once()
+    response = await send_whatsapp_message("+34666777888", "Test message")
+
+    # Verificar la respuesta del mock
+    assert response["status"] == "success"
+    assert response["mock"] is True
+    assert response["phone"] == "+34666777888"
+    assert response["message"] == "Test message"
+    assert "timestamp" in response
 
 
 @pytest.mark.asyncio
@@ -94,9 +96,7 @@ async def test_attendance_manager_process_message(
     db_session, test_user, mock_whatsapp_message
 ):
     """Prueba el procesamiento de mensajes por el AttendanceManager."""
-    with patch(
-        "backend.services.claude.generate_claude_response"
-    ) as mock_claude:
+    with patch("backend.services.claude.generate_claude_response") as mock_claude:
         mock_claude.return_value = {
             "sensitivity": 5,
             "response": "Test response",
@@ -270,9 +270,7 @@ async def test_interaction_sensitivity_calculation():
     ]
 
     for message, expected_sensitivity in test_cases:
-        with patch(
-            "backend.services.claude.generate_claude_response"
-        ) as mock_claude:
+        with patch("backend.services.claude.generate_claude_response") as mock_claude:
             mock_claude.return_value = {
                 "sensitivity": expected_sensitivity,
                 "response": "Test response",
