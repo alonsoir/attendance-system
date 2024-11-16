@@ -17,7 +17,7 @@ import {
   TableBody,
   TableRow,
   TableHead,
-  TableCell
+  TableCell,
 } from "@/components/ui/Table"; // Añadidos los imports faltantes
 
 interface Interaction {

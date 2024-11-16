@@ -1,6 +1,8 @@
+"""
+WebSocket endpoint for real-time updates.
+"""
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.core.config import settings
 from backend.services.attendance import AttendanceManager
 
 router = APIRouter()

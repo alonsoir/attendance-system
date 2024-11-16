@@ -22,25 +22,25 @@ class AttendanceManager:
     @classmethod
     async def process_whatsapp_message(cls, message_data: dict):
         try:
-            student_name = message_data.get("student_name")
-            tutor_phone = message_data.get("tutor_phone")
+            student_name = message_data.get('student_name')
+            tutor_phone = message_data.get('tutor_phone')
 
             if not all([student_name, tutor_phone]):
-                raise ValueError("Datos incompletos en el mensaje")
+                raise ValueError('Datos incompletos en el mensaje')
 
             authorized = await cls.verify_authorization(student_name, tutor_phone)
             if not authorized:
-                return {"status": "error", "message": "No autorizado"}
+                return {'status': 'error', 'message': 'No autorizado'}
 
             claude_response = await generate_claude_response(student_name)
             await cls.save_interaction(student_name, tutor_phone, claude_response)
             await cls.broadcast_update()
 
-            return {"status": "success", "response": claude_response}
+            return {'status': 'success', 'response': claude_response}
 
         except Exception as e:
-            logger.error(f"Error procesando mensaje de WhatsApp: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f'Error procesando mensaje de WhatsApp: {str(e)}')
+            return {'status': 'error', 'message': str(e)}
 
     @classmethod
     async def verify_authorization(cls, student_name: str, tutor_phone: str):
@@ -57,7 +57,7 @@ class AttendanceManager:
                 student_name=student_name,
                 tutor_phone=tutor_phone,
                 claude_response=claude_response,
-                status="active",
+                status='active',
             )
             session.add(interaction)
             session.commit()
@@ -69,10 +69,10 @@ class AttendanceManager:
         for connection in cls.active_connections.values():
             try:
                 await connection.send_json(
-                    {"type": "update", "data": await cls.get_dashboard_data()}
+                    {'type': 'update', 'data': await cls.get_dashboard_data()}
                 )
             except Exception as e:
-                logger.error(f"Error difundiendo actualización: {str(e)}")
+                logger.error(f'Error difundiendo actualización: {str(e)}')
 
     @classmethod
     async def get_dashboard_data(cls):
@@ -86,14 +86,14 @@ class AttendanceManager:
             )
 
             return {
-                "service_status": await cls.check_service_status(),
-                "interactions": [
+                'service_status': await cls.check_service_status(),
+                'interactions': [
                     {
-                        "id": i.id,
-                        "timestamp": i.timestamp.isoformat(),
-                        "student_name": i.student_name,
-                        "status": i.status,
-                        "claude_response": i.claude_response,
+                        'id': i.id,
+                        'timestamp': i.timestamp.isoformat(),
+                        'student_name': i.student_name,
+                        'status': i.status,
+                        'claude_response': i.claude_response,
                     }
                     for i in interactions
                 ],
@@ -105,8 +105,8 @@ class AttendanceManager:
     async def check_service_status(cls):
         async with aiohttp.ClientSession() as session:
             services = {
-                "claude": "https://status.anthropic.com",
-                "meta": "https://developers.facebook.com/status/dashboard/",
+                'claude': 'https://status.anthropic.com',
+                'meta': 'https://developers.facebook.com/status/dashboard/',
             }
             status = {}
             for service, url in services.items():

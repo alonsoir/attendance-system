@@ -1,3 +1,6 @@
+"""
+This module contains the FastAPI app instance.
+"""
 from .websocket import router as websocket_router
 from .whatsapp import router as whatsapp_router
 

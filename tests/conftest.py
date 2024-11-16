@@ -12,14 +12,14 @@ from backend.db.session import get_db
 from backend.main import app
 
 # Crear base de datos de prueba
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+SQLALCHEMY_DATABASE_URL = 'sqlite:///:memory:'
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def setup_database():
     Base.metadata.drop_all(bind=engine)  # Limpia todo
     Base.metadata.create_all(bind=engine)  # Crea todas las tablas
@@ -27,25 +27,25 @@ def setup_database():
     Base.metadata.drop_all(bind=engine)  # Limpia al terminar
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def create_test_db():
-    """Crea todas las tablas antes de los tests y las elimina después"""
+    '''Crea todas las tablas antes de los tests y las elimina después'''
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def event_loop():
-    """Create an instance of the default event loop for the test session."""
+    '''Create an instance of the default event loop for the test session.'''
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def test_db():
-    """Fixture que crea una base de datos de prueba y la limpia después de las pruebas."""
+    '''Fixture que crea una base de datos de prueba y la limpia después de las pruebas.'''
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
@@ -53,7 +53,7 @@ def test_db():
 
 @pytest.fixture
 def db_session(test_db):
-    """Fixture que proporciona una sesión de base de datos limpia para cada prueba."""
+    '''Fixture que proporciona una sesión de base de datos limpia para cada prueba.'''
     connection = test_db.connect()
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
@@ -67,7 +67,7 @@ def db_session(test_db):
 
 @pytest.fixture
 def client(db_session) -> Generator:
-    """Fixture que proporciona un cliente de prueba para la API."""
+    '''Fixture que proporciona un cliente de prueba para la API.'''
 
     def override_get_db():
         try:
@@ -83,72 +83,72 @@ def client(db_session) -> Generator:
 
 @pytest.fixture
 def test_user(db_session) -> Dict[str, Any]:
-    """Fixture que crea un usuario de prueba."""
+    '''Fixture que crea un usuario de prueba.'''
     from backend.db.models import User
 
     user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password=get_password_hash("testpass123"),
+        username='testuser',
+        email='test@example.com',
+        hashed_password=get_password_hash('testpass123'),
         is_active=True,
     )
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
-    return {"id": user.id, "username": user.username, "email": user.email}
+    return {'id': user.id, 'username': user.username, 'email': user.email}
 
 
 @pytest.fixture
 def test_interaction(db_session, test_user) -> Dict[str, Any]:
-    """Fixture que crea una interacción de prueba."""
+    '''Fixture que crea una interacción de prueba.'''
     from backend.db.models import Interaction
 
     interaction = Interaction(
-        student_name="Test Student",
-        tutor_phone="+34666777888",
-        status="active",
+        student_name='Test Student',
+        tutor_phone='+34666777888',
+        status='active',
         sensitivity_score=5,
         claude_response={
-            "sensitivity": 5,
-            "response": "Test response",
-            "likely_to_be_on_leave_tomorrow": False,
-            "reach_out_tomorrow": True,
+            'sensitivity': 5,
+            'response': 'Test response',
+            'likely_to_be_on_leave_tomorrow': False,
+            'reach_out_tomorrow': True,
         },
-        created_by_id=test_user["id"],
+        created_by_id=test_user['id'],
     )
     db_session.add(interaction)
     db_session.commit()
     db_session.refresh(interaction)
     return {
-        "id": interaction.id,
-        "student_name": interaction.student_name,
-        "tutor_phone": interaction.tutor_phone,
-        "status": interaction.status,
+        'id': interaction.id,
+        'student_name': interaction.student_name,
+        'tutor_phone': interaction.tutor_phone,
+        'status': interaction.status,
     }
 
 
 @pytest.fixture
 def mock_claude_response() -> Dict[str, Any]:
-    """Fixture que proporciona una respuesta simulada de Claude."""
+    '''Fixture que proporciona una respuesta simulada de Claude.'''
     return {
-        "sensitivity": 7,
-        "response": "The student is not feeling well.",
-        "likely_to_be_on_leave_tomorrow": True,
-        "reach_out_tomorrow": True,
+        'sensitivity': 7,
+        'response': 'The student is not feeling well.',
+        'likely_to_be_on_leave_tomorrow': True,
+        'reach_out_tomorrow': True,
     }
 
 
 @pytest.fixture
 def mock_whatsapp_message() -> Dict[str, Any]:
-    """Fixture que proporciona un mensaje simulado de WhatsApp."""
+    '''Fixture que proporciona un mensaje simulado de WhatsApp.'''
     return {
-        "student_name": "Test Student",
-        "tutor_phone": "+34666777888",
-        "message": "El estudiante está enfermo hoy.",
+        'student_name': 'Test Student',
+        'tutor_phone': '+34666777888',
+        'message': 'El estudiante está enfermo hoy.',
     }
 
 
 @pytest.fixture
 def mock_service_status() -> Dict[str, Any]:
-    """Fixture que proporciona un estado simulado de servicios externos."""
-    return {"claude": True, "meta": True}
+    '''Fixture que proporciona un estado simulado de servicios externos.'''
+    return {'claude': True, 'meta': True}

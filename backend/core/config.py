@@ -1,3 +1,6 @@
+"""
+Configuración de la aplicación.
+"""
 from functools import lru_cache
 from typing import Optional
 
@@ -5,22 +8,22 @@ from pydantic import Field
 
 
 class Settings:
-    PROJECT_NAME: str = "Attendance System"
-    VERSION: str = "0.1.0"
-    API_V1_STR: str = "/api/v1"
-    project_description: str = "Sistema de gestión de ausencias escolares"
+    PROJECT_NAME: str = 'Attendance System'
+    VERSION: str = '0.1.0'
+    API_V1_STR: str = '/api/v1'
+    project_description: str = 'Sistema de gestión de ausencias escolares'
 
     # WhatsApp Settings
     WHATSAPP_CALLBACK_TOKEN: str = Field(
-        default="default_callback_token",
-        description="Token for WhatsApp webhook verification",
+        default='default_callback_token',
+        description='Token for WhatsApp webhook verification',
     )
     WHATSAPP_PROVIDER: str = Field(
-        default="callmebot",
-        description="WhatsApp message provider (callmebot, meta, mock)",
+        default='callmebot',
+        description='WhatsApp message provider (callmebot, meta, mock)',
     )
     META_API_KEY: str = Field(
-        default="", description="API Key for Meta/WhatsApp Business API"
+        default='', description='API Key for Meta/WhatsApp Business API'
     )
 
     # Security
@@ -30,22 +33,22 @@ class Settings:
     # External Services
     # ... otros settings ...
     ANTHROPIC_API_KEY: str = Field(
-        default="test-key-12345",
-        env="ANTHROPIC_API_KEY",
-        description="API Key for Anthropic/Claude API",
+        default='test-key-12345',
+        env='ANTHROPIC_API_KEY',
+        description='API Key for Anthropic/Claude API',
     )
 
     META_API_KEY: Optional[str] = None
 
     # Database
-    DATABASE_URL: str = "sqlite:///./attendance.db"
+    DATABASE_URL: str = 'sqlite:///./attendance.db'
 
     # CORS
-    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
+    BACKEND_CORS_ORIGINS: list[str] = ['http://localhost:3000', 'http://localhost:8000']
 
     class Config:
         case_sensitive = True
-        env_file = ".env-dev"
+        env_file = '.env-dev'
 
 
 @lru_cache()

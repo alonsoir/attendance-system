@@ -1,9 +1,11 @@
+"""
+Base de datos para la aplicación.
+"""
 import logging
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 from backend.core.config import settings
 
@@ -20,20 +22,20 @@ Base = declarative_base(cls=Base)
 
 
 def initialize_db():
-    """
+    '''
     Inicializa la base de datos y crea todas las tablas necesarias.
-    """
-    from .models import (
-        User,
-        ServiceStatus,
+    '''
+    from .models import (  # Importar todos los modelos
         Interaction,
         InteractionMessage,
-    )  # Importar todos los modelos
+        ServiceStatus,
+        User,
+    )
 
     try:
         engine = create_engine(settings.DATABASE_URL)
         Base.metadata.create_all(bind=engine)
-        logger.info("Base de datos inicializada correctamente")
+        logger.info('Base de datos inicializada correctamente')
 
         # Crear usuario administrador por defecto si no existe
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -41,14 +43,14 @@ def initialize_db():
 
         try:
             # Verificar y crear usuario admin
-            admin_exists = db.query(User).filter(User.username == "admin").first()
+            admin_exists = db.query(User).filter(User.username == 'admin').first()
             if not admin_exists:
                 from backend.core.security import get_password_hash
 
                 admin_user = User(
-                    username="admin",
-                    email="admin@example.com",
-                    hashed_password=get_password_hash("admin"),
+                    username='admin',
+                    email='admin@example.com',
+                    hashed_password=get_password_hash('admin'),
                     is_superuser=True,
                 )
                 db.add(admin_user)
@@ -57,17 +59,17 @@ def initialize_db():
             service_status = db.query(ServiceStatus).first()
             if not service_status:
                 services = [
-                    ServiceStatus(service_name="claude", status=True),
-                    ServiceStatus(service_name="meta", status=True),
+                    ServiceStatus(service_name='claude', status=True),
+                    ServiceStatus(service_name='meta', status=True),
                 ]
                 db.bulk_save_objects(services)
 
             db.commit()
-            logger.info("Base de datos inicializada con datos por defecto")
+            logger.info('Base de datos inicializada con datos por defecto')
 
         finally:
             db.close()
 
     except Exception as e:
-        logger.error(f"Error inicializando la base de datos: {str(e)}")
+        logger.error(f'Error inicializando la base de datos: {str(e)}')
         raise
