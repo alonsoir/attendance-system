@@ -1,152 +1,118 @@
-"""
-Schemas for the interactions API
-"""
+import logging
+import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Union, Optional
 
-from pydantic import AnyHttpUrl, PostgresDsn, ValidationInfo, field_validator
+from dotenv import load_dotenv
+from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings
 
 
-class LogConfig:
-    """Configuración de logging"""
-
-    LOGGER_NAME: str = 'backend'
-    LOG_FORMAT: str = '%(levelprefix)s | %(asctime)s | %(message)s'
-    LOG_LEVEL: str = 'DEBUG'
-
-    @classmethod
-    def dict(cls) -> dict:
-        return {
-            'version': 1,
-            'disable_existing_loggers': False,
-            'formatters': {
-                'default': {
-                    '()': 'uvicorn.logging.DefaultFormatter',
-                    'fmt': cls.LOG_FORMAT,
-                    'datefmt': '%Y-%m-%d %H:%M:%S',
-                },
-            },
-            'handlers': {
-                'default': {
-                    'formatter': 'default',
-                    'class': 'logging.StreamHandler',
-                    'stream': 'ext://sys.stderr',
-                },
-                'file': {
-                    'formatter': 'default',
-                    'class': 'logging.handlers.RotatingFileHandler',
-                    'filename': 'backend.log',
-                    'maxBytes': 10000000,
-                    'backupCount': 5,
-                },
-            },
-            'loggers': {
-                cls.LOGGER_NAME: {
-                    'handlers': ['default', 'file'],
-                    'level': cls.LOG_LEVEL,
-                },
-            },
-        }
-
-
 class Settings(BaseSettings):
-    # API Settings
+    # General settings
     API_V1_STR: str = '/api/v1'
     PROJECT_NAME: str = 'Attendance System'
     VERSION: str = '0.1.0'
-    project_description: str = 'Sistema de gestión de ausencias escolares'
     BACKEND_PORT: str = '8000'
     FRONTEND_PORT: str = '3000'
     VITE_API_URL: str = 'http://localhost:8000/api/v1'
 
     # Environment
-    APP_ENV: str = 'development'
-    DEBUG: bool = True
+    APP_ENV: str = 'prod'
+    DEBUG: bool = False
     PROJECT_ROOT: Path = Path(__file__).parent.parent
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
-        'http://localhost:3000',
-        'http://localhost:8000',
-        'http://localhost:5173',
-    ]
+    BACKEND_CORS_ORIGINS: List[str] = []
 
-    @field_validator('BACKEND_CORS_ORIGINS')
+    @field_validator('BACKEND_CORS_ORIGINS', mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str) and not v.startswith('['):
             return [i.strip() for i in v.split(',')]
-        elif isinstance(v, (list, str)):
+        elif isinstance(v, list):
             return v
         raise ValueError(v)
 
     # Database
-    POSTGRES_SERVER: str = 'localhost'
-    POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str = 'postgres'
-    POSTGRES_PASSWORD: str = 'postgres'
-    POSTGRES_DB: str = 'attendance'
-    DATABASE_URI: Optional[PostgresDsn] = None
+    POSTGRES_SERVER: str
+    POSTGRES_PORT: int
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    DATABASE_URI: Optional[str] = None
 
-    @field_validator('DATABASE_URI')
+    @field_validator('DATABASE_URI', mode="before")
     @classmethod
-    def assemble_db_connection(cls, v: Optional[str], info: ValidationInfo) -> Any:
-        if isinstance(v, str):
+    def assemble_db_connection(cls, v: Optional[str], info: ValidationInfo) -> str:
+
+        print("assemble_db_connection!")
+        # Comprobamos si las variables de entorno están presentes antes de usarlas
+        postgres_user = info.data.get('POSTGRES_USER')
+        postgres_password = info.data.get('POSTGRES_PASSWORD')
+        postgres_server = info.data.get('POSTGRES_SERVER')
+        postgres_port = info.data.get('POSTGRES_PORT')
+        postgres_db = info.data.get('POSTGRES_DB')
+
+        print(postgres_user, postgres_password, postgres_server, postgres_port, postgres_db)
+
+        if not all([postgres_user, postgres_password, postgres_server, postgres_port, postgres_db]):
+            raise ValueError("CHECK!!! Algunas variables de configuración de PostgreSQL no están definidas")
+
+        return f"postgresql://{postgres_user}:{postgres_password}@{postgres_server}:{postgres_port}/{postgres_db}"
+
+    # Redis
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_URL: Optional[str] = None
+
+    @field_validator('REDIS_URL', mode="before")
+    @classmethod
+    def assemble_redis_url(cls, v: Optional[str], info: ValidationInfo) -> str:
+        if v:
             return v
-        return PostgresDsn.build(
-            scheme='postgresql',
-            username=info.data.get('POSTGRES_USER'),
-            password=info.data.get('POSTGRES_PASSWORD'),
-            host=info.data.get('POSTGRES_SERVER'),
-            port=int(info.data.get('POSTGRES_PORT', 5432)),  # Asegurar que es int
-            path=f'/{info.data.get("POSTGRES_DB") or ""}',
-        )
+        return f"redis://{info.data['REDIS_HOST']}:{info.data['REDIS_PORT']}/0"
 
     # JWT
-    SECRET_KEY: str = 'your-secret-key'
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    SECRET_KEY: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # External Services
-    ANTHROPIC_API_KEY: str = ''
-    DEV_ANTHROPIC_API_KEY: Optional[str] = None
-    META_API_KEY: Optional[str] = None
-    WHATSAPP_CALLBACK_TOKEN: Optional[str] = None
+    ANTHROPIC_API_KEY: str
+    META_API_KEY: Optional[str]
+    WHATSAPP_CALLBACK_TOKEN: Optional[str]
     WHATSAPP_PROVIDER: str = 'mock'
     ENABLE_WHATSAPP: bool = False
     MOCK_EXTERNAL_SERVICES: bool = True
 
-    # Cache & Redis
-    REDIS_HOST: str = 'localhost'
-    REDIS_PORT: str = '6379'
-    REDIS_URL: Optional[str] = None
-    CACHE_TTL_SECONDS: int = 3600  # 1 hour
-
-    # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = 60
-
     # Monitoring
-    SENTRY_DSN: Optional[str] = None
     ENABLE_METRICS: bool = True
-    PROMETHEUS_PORT: str = '9090'
-    GRAFANA_PORT: str = '3001'
-    GRAFANA_ADMIN_PASSWORD: str = 'admin'
-
-    # Internationalization
-    DEFAULT_LANGUAGE: str = 'es-ES'
-    SUPPORTED_LANGUAGES: List[str] = ['en-US', 'es-ES']
+    PROMETHEUS_PORT: int
+    GRAFANA_PORT: int
+    GRAFANA_ADMIN_PASSWORD: str
 
     class Config:
         case_sensitive = True
-        env_file = '.env-dev'
         env_file_encoding = 'utf-8'
-        extra = 'ignore'
 
-    def get_supported_languages(self) -> List[Dict[str, str]]:
-        return [
-            {'code': 'en-US', 'name': 'English (US)'},
-            {'code': 'es-ES', 'name': 'Español (España)'},
-        ]
+    def __init__(self, **kwargs):
+        # Determina el archivo .env según APP_ENV
+        if "APP_ENV" in kwargs:
+            env = kwargs["APP_ENV"]
+        else:
+            env = "dev"
 
+        # Carga el archivo .env correspondiente
+        env_file = f".env-{env}"
+        load_dotenv(dotenv_path=env_file, verbose=True)  # Carga el archivo .env correspondiente
+        # Verificación de que las variables de entorno están disponibles
+        print(f"Loaded environment file: {env_file}")
+        print(f"POSTGRES_USER: {os.getenv('POSTGRES_USER')}")
+        print(f"POSTGRES_PASSWORD: {os.getenv('POSTGRES_PASSWORD')}")
 
-settings = Settings()
+        # Configura la variable env_file en Pydantic
+        self.Config.env_file = env_file
+        print(f"trying to load env_file {env_file}")
+        super().__init__(**kwargs)
+        logging.basicConfig(level=logging.INFO)
+        logging.info(f"Configuración cargada desde: {self.Config.env_file}")

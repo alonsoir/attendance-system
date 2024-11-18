@@ -1,15 +1,10 @@
-import asyncio
 from typing import Any, Dict, Generator
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.core.security import get_password_hash
-from backend.db.base import Base
-from backend.db.session import get_db
-from backend.main import app
 
 # Crear base de datos de prueba
 SQLALCHEMY_DATABASE_URL = 'sqlite:///:memory:'
@@ -17,6 +12,85 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+import os
+
+import pytest
+from backend.config import Settings
+from dotenv import load_dotenv
+
+load_dotenv(".env-dev")
+
+
+@pytest.fixture
+def settings_dev():
+    """Carga configuraciones desde `.env-dev`."""
+    return Settings(APP_ENV="dev")
+
+
+def test_env_dev_loaded(settings_dev):
+    assert os.environ.get("POSTGRES_USER") == "postgres"
+    assert os.environ.get("POSTGRES_PASSWORD") == "postgres"
+    assert os.environ.get("POSTGRES_SERVER") == "localhost"
+    assert os.environ.get("POSTGRES_PORT") == "5432"
+    assert os.environ.get("POSTGRES_DB") == "attendance_dev"
+    assert os.environ.get("SECRET_KEY") == "secret_key"
+    assert os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES") == "60"
+    assert os.environ.get("ALGORITHM") == "HS256"
+    assert os.environ.get("BACKEND_CORS_ORIGINS") == "http://localhost:3000"
+    assert os.environ.get("BACKEND_PORT") == "8000"
+    assert os.environ.get("DATABASE_URI") == "postgresql://postgres:postgres@localhost:5432/attendance_dev"
+
+
+def test_settings_dev(settings_dev):
+    assert settings_dev.APP_ENV == "dev"
+    assert settings_dev.DEBUG is True  # O el valor esperado
+
+
+load_dotenv(".env-prod")
+
+
+@pytest.fixture
+def settings_prod():
+    """Carga configuraciones desde `.env-prod`."""
+    return Settings(APP_ENV="prod")
+
+
+def test_settings_prod(settings_prod):
+    assert settings_prod.APP_ENV == "prod"
+
+
+from backend.db.base import Base
+from backend.db.session import get_db, get_db_context, check_database_connection, init_db
+from backend.db.session import engine
+
+from backend.main import app
+
+import pytest
+import asyncio
+
+@pytest.fixture(scope='session', autouse=True)
+def event_loop():
+    """Crea un loop de eventos para pytest-asyncio"""
+    loop = asyncio.get_event_loop()
+    yield loop
+    loop.close()
+
+
+def test_database_connection(settings_dev,test_db):
+    # Aquí puedes interactuar con la base de datos para verificar que se ha creado correctamente
+    assert test_db is not None
+
+
+
+@pytest.fixture(scope='session')
+def test_db():
+    '''Fixture que crea una base de datos de prueba y la limpia después de las pruebas.'''
+    # Crea la base de datos
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    # Limpia la base de datos después de las pruebas
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -27,6 +101,11 @@ def setup_database():
     Base.metadata.drop_all(bind=engine)  # Limpia al terminar
 
 
+def test_setup_database(settings_dev,setup_database, create_test_db, db_session, client,test_user ):
+    assert db_session is not None
+
+
+
 @pytest.fixture(scope='session', autouse=True)
 def create_test_db():
     '''Crea todas las tablas antes de los tests y las elimina después'''
@@ -35,20 +114,7 @@ def create_test_db():
     Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture(scope='session')
-def event_loop():
-    '''Create an instance of the default event loop for the test session.'''
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
-
-@pytest.fixture(scope='session')
-def test_db():
-    '''Fixture que crea una base de datos de prueba y la limpia después de las pruebas.'''
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture

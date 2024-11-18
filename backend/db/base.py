@@ -22,9 +22,9 @@ Base = declarative_base(cls=Base)
 
 
 def initialize_db():
-    '''
+    """
     Inicializa la base de datos y crea todas las tablas necesarias.
-    '''
+    """
     from .models import (  # Importar todos los modelos
         Interaction,
         InteractionMessage,

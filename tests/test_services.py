@@ -12,7 +12,7 @@ from backend.services.whatsapp import handle_whatsapp_message, send_whatsapp_mes
 # Tests para el servicio de Claude
 @pytest.mark.asyncio
 async def test_generate_claude_response():
-    '''Prueba la generación de respuestas de Claude.'''
+    """Prueba la generación de respuestas de Claude."""
     # Configurar mock para la llamada a la API
     with patch('aiohttp.ClientSession.post') as mock_post:
         mock_post.return_value.__aenter__.return_value.json = AsyncMock(
@@ -46,7 +46,7 @@ async def test_generate_claude_response_error():
 # Tests para el servicio de WhatsApp
 @pytest.mark.asyncio
 async def test_send_whatsapp_message():
-    '''Prueba el envío de mensajes de WhatsApp en modo mock.'''
+    """Prueba el envío de mensajes de WhatsApp en modo mock."""
     from backend.services.whatsapp import whatsapp_service
 
     response = await send_whatsapp_message('+34666777888', 'Test message')
@@ -61,14 +61,14 @@ async def test_send_whatsapp_message():
 
 @pytest.mark.asyncio
 async def test_send_whatsapp_message_invalid_phone():
-    '''Prueba el envío de mensajes a números inválidos.'''
+    """Prueba el envío de mensajes a números inválidos."""
     with pytest.raises(ValueError):
         await send_whatsapp_message('invalid-phone', 'Test message')
 
 
 @pytest.mark.asyncio
 async def test_handle_whatsapp_message(mock_whatsapp_message):
-    '''Prueba el manejo de mensajes de WhatsApp.'''
+    """Prueba el manejo de mensajes de WhatsApp."""
     with patch(
         'backend.services.attendance.AttendanceManager.process_whatsapp_message'
     ) as mock_process:
@@ -92,6 +92,7 @@ async def test_handle_whatsapp_message(mock_whatsapp_message):
 async def test_attendance_manager_process_message(
     db_session, test_user, mock_whatsapp_message
 ):
+    print(mock_whatsapp_message)
     '''Prueba el procesamiento de mensajes por el AttendanceManager.'''
     with patch('backend.services.claude.generate_claude_response') as mock_claude:
         mock_claude.return_value = {

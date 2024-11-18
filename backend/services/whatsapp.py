@@ -1,7 +1,10 @@
 import asyncio
 import logging
+import re
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict
+from typing import Optional
 
 import aiohttp
 
@@ -10,6 +13,23 @@ from backend.core.config import settings
 # from backend.services import AttendanceManager
 
 logger = logging.getLogger(__name__)
+
+
+def validate_phone_number(phone: str) -> bool:
+    """
+    Valida el formato del número de teléfono.
+    Acepta formatos:
+    - España: +34XXXXXXXXX (9 dígitos después del +34)
+    - Estados Unidos: +1XXXXXXXXXX (10 dígitos después del +1)
+    """
+    # Patrones para diferentes países
+    patterns = {
+        "ES": r"^\+34[6789]\d{8}$",  # Móviles y fijos españoles
+        "US": r"^\+1\d{10}$",  # Números de EE. UU.
+    }
+
+    # Verificar contra todos los patrones
+    return any(re.match(pattern, phone) for pattern in patterns.values())
 
 
 class MessageProvider(str, Enum):
@@ -23,7 +43,7 @@ class WhatsAppService:
         self,
         meta_api_key: Optional[str] = None,
         callback_token: Optional[str] = None,
-        provider: MessageProvider = MessageProvider.CALLMEBOT,
+        provider: MessageProvider = MessageProvider.MOCK,
     ):
         self.meta_api_key = meta_api_key or getattr(settings, 'META_API_KEY', '')
         self.callback_token = callback_token or getattr(
@@ -43,13 +63,15 @@ class WhatsAppService:
         logger.info(f'WhatsApp service initialized with provider: {self.provider}')
 
     async def send_message(self, phone: str, message: str) -> Dict[str, Any]:
-        '''
+        """
         Envía un mensaje de WhatsApp usando el proveedor configurado.
-        '''
+        """
+        # Validar el número de teléfono primero
+        if not validate_phone_number(phone):
+            raise ValueError(f"Invalid phone number. FORMAT!: {phone}")
         try:
             if self.is_mock:
                 return await self._send_mock_message(phone, message)
-
             if self.provider == MessageProvider.CALLMEBOT:
                 return await self._send_callmebot_message(phone, message)
             elif self.provider == MessageProvider.META:
@@ -62,13 +84,12 @@ class WhatsAppService:
             raise
 
     async def _send_mock_message(self, phone: str, message: str) -> Dict[str, Any]:
-        '''
+        """
         Simula el envío de un mensaje y lo registra.
-        '''
+        """
         logger.info(f'MOCK WhatsApp message to {phone}: {message}')
         await asyncio.sleep(0.5)  # Simular latencia de red
-        raise ValueError(f'Mock {phone}!!! {message}')
-        '''
+
         return {
             'status': 'success',
             'mock': True,
@@ -76,12 +97,12 @@ class WhatsAppService:
             'message': message,
             'timestamp': str(datetime.now()),
         }
-        '''
+
 
     async def _send_callmebot_message(self, phone: str, message: str) -> Dict[str, Any]:
-        '''
+        """
         Envía un mensaje usando CallMeBot.
-        '''
+        """
         url = f'https://api.callmebot.com/whatsapp.php?phone={phone}&text={message}&apikey={self.meta_api_key}'
         logger.info(f'Enviando mensaje a {phone} via CallMeBot')
 
@@ -95,16 +116,16 @@ class WhatsAppService:
                 }
 
     async def _send_meta_message(self, phone: str, message: str) -> Dict[str, Any]:
-        '''
+        """
         Envía un mensaje usando la API oficial de Meta/WhatsApp.
-        '''
+        """
         # Implementar cuando tengamos acceso a la API oficial
         raise NotImplementedError('Meta WhatsApp API not implemented yet')
 
     async def handle_message(self, message_data: dict) -> Dict[str, Any]:
-        '''
+        """
         Procesa un mensaje entrante de WhatsApp.
-        '''
+        """
         from backend.services.message_coordinator import process_message
 
         return await process_message(
@@ -112,17 +133,17 @@ class WhatsAppService:
         )
 
     async def verify_callback(self, token: str) -> bool:
-        '''
+        """
         Verifica el token de callback de WhatsApp.
-        '''
+        """
         if self.is_mock:
             return True
         return token == self.callback_token
 
     def get_status(self) -> Dict[str, Any]:
-        '''
+        """
         Devuelve el estado actual del servicio.
-        '''
+        """
         return {
             'mode': 'mock' if self.is_mock else 'live',
             'provider': self.provider,

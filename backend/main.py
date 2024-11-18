@@ -1,5 +1,4 @@
 import json
-import logging
 import logging.config
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -10,15 +9,14 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from gunicorn.config import LogConfig
 
 from backend.api.endpoints import websocket_router, whatsapp_router
-from backend.config import LogConfig
 from backend.core.config import settings
 from backend.db.session import check_database_connection, init_db
 from backend.services import AttendanceManager
 
 # Configurar logging
-logging.config.dictConfig(LogConfig().dict())
 logger = logging.getLogger("backend")
 
 
