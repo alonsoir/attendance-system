@@ -5,14 +5,14 @@ setup:
 
 build:
   docker:
-    web: Dockerfile
-    worker: Dockerfile
+    backend: backend/Dockerfile
+    frontend: frontend/Dockerfile
 
 release:
   command:
     - alembic upgrade head
-  image: web
+  image: backend
 
 run:
-  web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+  backend: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
   worker: celery -A backend.worker worker --loglevel=info

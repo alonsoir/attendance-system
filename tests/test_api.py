@@ -48,8 +48,8 @@ def test_get_interactions(client, test_interaction):
 
 
 def test_get_interaction_detail(client, test_interaction):
-    '''Prueba la obtención del detalle de una interacción.'''
-    response = client.get(f'/api/v1/interactions/{test_interaction['id']}')
+    """Prueba la obtención del detalle de una interacción."""
+    response = client.get(f'/api/v1/interactions/{test_interaction["id"]}')
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data['student_name'] == test_interaction['student_name']
@@ -60,7 +60,7 @@ def test_update_interaction(client, test_interaction):
     '''Prueba la actualización de una interacción.'''
     update_data = {'status': 'resolved', 'sensitivity_score': 3}
     response = client.patch(
-        f'/api/v1/interactions/{test_interaction['id']}', json=update_data
+        f'/api/v1/interactions/{test_interaction["id"]}', json=update_data
     )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -84,7 +84,7 @@ async def test_websocket_updates(client, test_interaction):
         # Actualizar una interacción
         update_data = {'status': 'resolved'}
         response = client.patch(
-            f'/api/v1/interactions/{test_interaction['id']}', json=update_data
+            f'/api/v1/interactions/{test_interaction["id"]}', json=update_data
         )
         assert response.status_code == status.HTTP_200_OK
 

@@ -2,58 +2,60 @@
 Configuración de la aplicación.
 """
 from functools import lru_cache
-from typing import Optional
+from typing import List
 
-from pydantic import Field
+from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsError
+from pydantic import field_validator, Field
 
-
-class Settings:
-    PROJECT_NAME: str = 'Attendance System'
-    VERSION: str = '0.1.0'
-    API_V1_STR: str = '/api/v1'
-    project_description: str = 'Sistema de gestión de ausencias escolares'
-
-    # WhatsApp Settings
-    WHATSAPP_CALLBACK_TOKEN: str = Field(
-        default='default_callback_token',
-        description='Token for WhatsApp webhook verification',
-    )
-    WHATSAPP_PROVIDER: str = Field(
-        default='callmebot',
-        description='WhatsApp message provider (callmebot, meta, mock)',
-    )
-    META_API_KEY: str = Field(
-        default='', description='API Key for Meta/WhatsApp Business API'
-    )
-
-    # Security
+class Settings(BaseSettings):
+    PROJECT_NAME: str
+    PROJECT_DESCRIPTION: str
+    VERSION: str
+    API_V1_STR: str
+    BACKEND_CORS_ORIGINS: List[str] = Field(default=["http://localhost:8000"])
+    ENABLE_METRICS: bool
+    PROMETHEUS_PORT: int
+    GRAFANA_PORT: int
+    GRAFANA_ADMIN_PASSWORD: str
+    BACKEND_PORT: int
+    ENABLE_WHATSAPP_CALLBACK: bool
+    MOCK_EXTERNAL_SERVICES: bool
+    POSTGRES_SERVER: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: int
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_URL: str
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
-
-    # External Services
-    # ... otros settings ...
-    ANTHROPIC_API_KEY: str = Field(
-        default='test-key-12345',
-        env='ANTHROPIC_API_KEY',
-        description='API Key for Anthropic/Claude API',
-    )
-
-    META_API_KEY: Optional[str] = None
-
-    # Database
-    DATABASE_URL: str = 'sqlite:///./attendance.db'
-
-    # CORS
-    BACKEND_CORS_ORIGINS: list[str] = ['http://localhost:3000', 'http://localhost:8000']
+    ANTHROPIC_API_KEY: str
+    WHATSAPP_CALLBACK_TOKEN: str
+    WHATSAPP_PROVIDER: str
+    FRONTEND_PORT: int
+    VITE_API_URL: str
 
     class Config:
-        case_sensitive = True
-        env_file = '.env-dev'
+        env_file = ".env-development"
+        env_file_encoding = "utf-8"
 
+    @classmethod
+    def parse_cors_origins(cls, value: str) -> List[str]:
+        return [url.strip() for url in value.split(",") if url.strip()]
 
-@lru_cache()
-def get_settings() -> Settings:
-    return Settings()
+    def print_settings(self):
+        model_dump = self.model_dump()
+        print(f"Settings cargados: {model_dump}")
 
+@lru_cache
+def get_settings():
+    settings = Settings()
+    # Transformar BACKEND_CORS_ORIGINS si es necesario
+    if isinstance(settings.BACKEND_CORS_ORIGINS, str):
+        settings.BACKEND_CORS_ORIGINS = Settings.parse_cors_origins(
+            settings.BACKEND_CORS_ORIGINS
+        )
+    return settings
 
 settings = get_settings()

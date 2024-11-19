@@ -73,10 +73,10 @@ build/
 .env
 .env.local
 .env.*.local
-.env-dev
-.env-prod
-!.env-dev.example
-!.env-prod.example
+.env-development
+.env-production
+!.env-development.example
+!.env-production.example
 
 # System
 .DS_Store

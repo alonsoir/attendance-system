@@ -24,10 +24,10 @@ Esto verificará que tengas instalado:
 
 ```bash
 # Copiar archivos de ejemplo
-cp .env-dev.example .env-dev
+cp .env-development.example .env-development
 
-# Editar .env-dev con tus credenciales
-nano .env-dev
+# Editar .env-development con tus credenciales
+nano .env-development
 ```
 
 Variables críticas a configurar:

@@ -58,10 +58,10 @@ Un sistema de gestión de asistencia escolar moderno que utiliza IA (Claude) y W
 1. Copia los archivos de ejemplo:
 ```bash
 # Desarrollo
-cp .env-dev.example .env-dev
+cp .env-development.example .env-development
 
 # Producción
-cp .env-prod.example .env-prod
+cp .env-production.example .env-production
 ```
 
 2. Configura las variables sensibles:
@@ -478,10 +478,10 @@ Esto verificará que tengas instalado:
 
 ```bash
 # Copiar archivos de ejemplo
-cp .env-dev.example .env-dev
+cp .env-development.example .env-development
 
-# Editar .env-dev con tus credenciales
-nano .env-dev
+# Editar .env-development con tus credenciales
+nano .env-development
 ```
 
 Variables críticas a configurar:

@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "Generic Password - commit://staged/backend/config.py", "match": "6e0d657eb1f0fbc40cf0b8f3c3873ef627cc9cb7c4108d1c07d979c04bc8a4bb"}]}
+{"last_found_secrets": [{"match": "6e0d657eb1f0fbc40cf0b8f3c3873ef627cc9cb7c4108d1c07d979c04bc8a4bb", "name": "Generic Password - commit://staged/.env-dev.backup-20241115135414"}, {"match": "f6d1bb1c823145753113ed785c65ce99d7fbe38053cf9f149d70d191ae709ab1", "name": "Claude API Key - commit://staged/.env-dev.backup-20241115135414"}]}

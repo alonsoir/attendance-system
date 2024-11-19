@@ -1,89 +1,24 @@
 version: '3.8'
 
 services:
-  api:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      args:
-        - APP_ENV=${APP_ENV}
     ports:
-      - "${BACKEND_PORT}:8000"
-    environment:
-      - APP_ENV=${APP_ENV}
-      - DATABASE_URI=${DATABASE_URI}
-      - REDIS_URL=${REDIS_URL}
-      - SECRET_KEY=${SECRET_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - META_API_KEY=${META_API_KEY}
-      - WHATSAPP_CALLBACK_TOKEN=${WHATSAPP_CALLBACK_TOKEN}
-    env_file:
-      - ${ENV_FILE}
-    depends_on:
-      - db
-      - redis
+      - "5000:5000" # Exponer puerto del backend
     volumes:
-      - ./backend:/app/backend
-    networks:
-      - attendance-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - ./backend:/app # Opcional para desarrollo
+    environment:
+      - APP_ENV=production
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=${VITE_API_URL}
     ports:
-      - "${FRONTEND_PORT}:80"
-    env_file:
-      - ${ENV_FILE}
-    depends_on:
-      - api
-    networks:
-      - attendance-network
-
-  db:
-    image: postgres:14-alpine
+      - "3000:3000" # Exponer puerto del frontend
+    volumes:
+      - ./frontend:/app # Opcional para desarrollo
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-    ports:
-      - "${POSTGRES_PORT}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - attendance-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD}
-    ports:
-      - "${REDIS_PORT}:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - attendance-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
-  redis_data:
-
-networks:
-  attendance-network:
-    driver: bridge
+      - NODE_ENV=production

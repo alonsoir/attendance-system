@@ -13,8 +13,8 @@ def create_app():
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
-        openapi_url=f'{settings.API_V1_STR}/openapi.json',
-        docs_url=f'{settings.API_V1_STR}/docs',
+        openapi_url=f"{settings.API_V1_STR}/openapi.json",
+        docs_url=f"{settings.API_V1_STR}/docs",
     )
 
     initialize_db()

@@ -10,8 +10,7 @@ RUN pip install "poetry==$POETRY_VERSION"
 
 # Configurar poetry
 ENV POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
-    APP_ENV=$APP_ENV
+    POETRY_VIRTUALENVS_CREATE=false
 
 # Carpeta de trabajo
 WORKDIR /app
@@ -28,13 +27,6 @@ RUN if [ "$APP_ENV" = "production" ] ; then \
 
 # Copiar código fuente
 COPY . .
-
-# Instalar el proyecto
-RUN if [ "$APP_ENV" = "production" ] ; then \
-        poetry install --no-dev ; \
-    else \
-        poetry install ; \
-    fi
 
 # Etapa de producción
 FROM python:3.10-slim
@@ -57,7 +49,7 @@ COPY --from=builder /app /app
 EXPOSE 8000
 
 # Script de inicio
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+COPY backend-entrypoint.sh /backend-entrypoint.sh
+RUN chmod +x /backend-entrypoint.sh
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
+ENTRYPOINT ["/backend-entrypoint.sh"]

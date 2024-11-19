@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
-from backend.core.config import settings  # Asegúrate de tener los parámetros del .env aquí
+from backend.core.config import (
+    settings,
+)  # Asegúrate de tener los parámetros del .env aquí
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,9 @@ AsyncSessionLocal = sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
+logger.info(f"OK! {DATABASE_URI} {engine}")
+
 
 # Contexto asíncrono para manejar sesiones de base de datos
 @asynccontextmanager
@@ -62,9 +67,9 @@ async def check_database_connection():
 
 # Inicialización de la base de datos con datos predeterminados
 async def init_db():
-    '''
+    """
     Inicializa la base de datos con datos iniciales si es necesario.
-    '''
+    """
     from backend.db.models import ServiceStatus, User
 
     async with AsyncSessionLocal() as db:  # Usa 'async with' para crear una sesión asincrónica
