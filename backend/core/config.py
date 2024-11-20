@@ -2,18 +2,16 @@
 Configuración de la aplicación.
 """
 from functools import lru_cache
-from typing import List
 
-from pydantic_settings import BaseSettings
-from pydantic_settings import BaseSettings, SettingsError
-from pydantic import field_validator, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     PROJECT_NAME: str
     PROJECT_DESCRIPTION: str
     VERSION: str
     API_V1_STR: str
-    BACKEND_CORS_ORIGINS: List[str] = Field(default=["http://localhost:8000"])
+    BACKEND_CORS_ORIGINS: str
     ENABLE_METRICS: bool
     PROMETHEUS_PORT: int
     GRAFANA_PORT: int
@@ -35,27 +33,19 @@ class Settings(BaseSettings):
     WHATSAPP_PROVIDER: str
     FRONTEND_PORT: int
     VITE_API_URL: str
-
+    '''
     class Config:
-        env_file = ".env-development"
+        env_file = "../.env-development"
         env_file_encoding = "utf-8"
-
-    @classmethod
-    def parse_cors_origins(cls, value: str) -> List[str]:
-        return [url.strip() for url in value.split(",") if url.strip()]
-
+    '''
+    model_config = SettingsConfigDict(env_file=".env-development")
     def print_settings(self):
         model_dump = self.model_dump()
-        print(f"Settings cargados: {model_dump}")
+        print(f"Settings cargados(backend/core/config.py): {model_dump}")
 
 @lru_cache
 def get_settings():
     settings = Settings()
-    # Transformar BACKEND_CORS_ORIGINS si es necesario
-    if isinstance(settings.BACKEND_CORS_ORIGINS, str):
-        settings.BACKEND_CORS_ORIGINS = Settings.parse_cors_origins(
-            settings.BACKEND_CORS_ORIGINS
-        )
+    settings.print_settings()
     return settings
 
-settings = get_settings()

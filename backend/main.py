@@ -12,14 +12,14 @@ from fastapi.staticfiles import StaticFiles
 from gunicorn.config import LogConfig
 
 from backend.api.endpoints import websocket_router, whatsapp_router
-from backend.core.config import settings
+from backend.core.config import get_settings
 from backend.db.session import check_database_connection, init_db
 from backend.services import AttendanceManager
 
 # Configurar logging
 logger = logging.getLogger("backend")
 
-
+settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """

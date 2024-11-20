@@ -3,12 +3,12 @@ This package manages API-related operations.
 """
 from fastapi import FastAPI
 
-from backend.core.config import settings
+from backend.core.config import get_settings
 from backend.db.base import initialize_db
 
 from .endpoints import websocket_router, whatsapp_router
 
-
+settings = get_settings()
 def create_app():
     app = FastAPI(
         title=settings.PROJECT_NAME,

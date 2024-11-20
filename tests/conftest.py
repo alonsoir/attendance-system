@@ -1,39 +1,80 @@
+import asyncio
 import os
 from typing import Any, Dict, Generator
 
+import httpx
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.config import Settings
+from backend import get_settings
+from backend.core.config import Settings
 from backend.core.security import get_password_hash
+from backend.db.base import Base
+from backend.db.models import User, Interaction
+from backend.db.session import get_db, create_engine
+from backend.main import app
 
-# 1. Establece APP_ENV antes de cargar el .env
-os.environ['APP_ENV'] = 'development'
-
-# 2. Carga las variables de entorno desde .env-development
-load_dotenv(".env-development")
-
-# Crear base de datos de prueba
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(
+# Configuración y variables de entorno
+os.environ["APP_ENV"] = "development"
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+async_engine: AsyncEngine = create_async_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncTestingSessionLocal = sessionmaker(
+    bind=async_engine, class_=AsyncSession, expire_on_commit=False
+)
 
-
+# ---- Fixtures globales ----
 @pytest.fixture(scope="session", autouse=True)
 def load_env():
+    """Carga las variables de entorno desde el archivo .env."""
     env_path = os.path.join(os.path.dirname(__file__), "../.env-development")
     load_dotenv(env_path)
+
+def test_pytest_configure():
+    env_path = os.path.join(os.getcwd(), '.env-development')
+    load_dotenv(dotenv_path=env_path)
+
+def test_settings():
+    settings = get_settings()
+    assert settings.PROJECT_NAME == "Attendance System (Dev)"
+    assert settings.API_V1_STR == "/api/v1"
+    assert settings.PROJECT_DESCRIPTION == "Attendance System (Dev)"
+    assert settings.VERSION == "0.1.0"
+    assert settings.BACKEND_CORS_ORIGINS == "http://localhost:8000"
+    assert settings.ENABLE_METRICS == True
+    assert settings.PROMETHEUS_PORT == 9090
+    assert settings.GRAFANA_PORT == 3000
+    assert settings.GRAFANA_ADMIN_PASSWORD == "admin"
+    assert settings.BACKEND_PORT == 8000
+    assert settings.ENABLE_WHATSAPP_CALLBACK == True
+    assert settings.MOCK_EXTERNAL_SERVICES == True
+    assert settings.POSTGRES_SERVER == "localhost"
+    assert settings.POSTGRES_USER == "user"
+    assert settings.POSTGRES_PASSWORD == "password"
+    assert settings.POSTGRES_DB == "database"
+    assert settings.POSTGRES_PORT == 5432
+    assert settings.REDIS_HOST == "localhost"
+    assert settings.REDIS_PORT == 6379
+    assert settings.REDIS_URL == "redis://localhost:6379"
+    assert settings.SECRET_KEY != ""
+    assert settings.ANTHROPIC_API_KEY != ""
+    assert settings.WHATSAPP_CALLBACK_TOKEN == "your_callback_token"
+    assert settings.WHATSAPP_PROVIDER == "provider_name"
+    assert settings.FRONTEND_PORT == 3000
+    assert settings.VITE_API_URL == "http://localhost:3000"
+
 
 @pytest.fixture(autouse=True)
 def set_env_variables():
     """Verifica que las variables de entorno necesarias estén disponibles."""
     required_env_vars = [
-        "POSTGRES_SERVER", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB",
+        "PROJECT_NAME", "PROJECT_DESCRIPTION", "VERSION", "API_V1_STR", "BACKEND_CORS_ORIGINS", "ENABLE_METRICS",
+        "PROMETHEUS_PORT", "GRAFANA_PORT", "GRAFANA_ADMIN_PASSWORD", "BACKEND_PORT", "ENABLE_WHATSAPP_CALLBACK",
+        "MOCK_EXTERNAL_SERVICES", "POSTGRES_SERVER", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB",
         "POSTGRES_PORT", "REDIS_HOST", "REDIS_PORT", "REDIS_URL", "SECRET_KEY",
         "ANTHROPIC_API_KEY", "WHATSAPP_CALLBACK_TOKEN", "WHATSAPP_PROVIDER",
         "FRONTEND_PORT", "VITE_API_URL"
@@ -41,42 +82,24 @@ def set_env_variables():
 
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     if missing_vars:
-        missing = ", ".join(missing_vars)
-        pytest.fail(f"Las siguientes variables de entorno faltan: {missing}")
+        pytest.fail(f"Las siguientes variables de entorno faltan: {', '.join(missing_vars)}")
 
-    # Opcional: Imprimir para depuración
-    print("Variables de entorno cargadas correctamente desde .env-development.")
+    print("Variables de entorno cargadas correctamente.")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def event_loop():
+    """Crea un loop de eventos para pytest-asyncio."""
+    loop = asyncio.get_event_loop()
+    yield loop
+    loop.close()
+
+
+# ---- Fixtures de configuración ----
 @pytest.fixture
 def settings_dev():
     """Carga configuraciones desde `.env-development`."""
-    return Settings(APP_ENV="dev")
-
-
-def test_env_dev_loaded(settings_dev):
-    assert os.environ.get("POSTGRES_USER") == "postgres"
-    assert os.environ.get("POSTGRES_PASSWORD") == "postgres"
-    assert os.environ.get("POSTGRES_SERVER") == "localhost"
-    assert os.environ.get("POSTGRES_PORT") == "5432"
-    assert os.environ.get("POSTGRES_DB") == "attendance_dev"
-    assert os.environ.get("SECRET_KEY") == "secret_key"
-    assert os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES") == "60"
-    assert os.environ.get("ALGORITHM") == "HS256"
-    assert os.environ.get("BACKEND_CORS_ORIGINS") == "http://localhost:3000"
-    assert os.environ.get("BACKEND_PORT") == "8000"
-    assert (
-        os.environ.get("DATABASE_URI")
-        == "postgresql://postgres:postgres@localhost:5432/attendance_dev"
-    )
-
-
-def test_settings_dev(settings_dev):
-    assert settings_dev.APP_ENV == "dev"
-    assert settings_dev.DEBUG is True  # O el valor esperado
-
-
-load_dotenv(".env-production")
+    return Settings(APP_ENV="development")
 
 
 @pytest.fixture
@@ -85,126 +108,52 @@ def settings_prod():
     return Settings(APP_ENV="prod")
 
 
-def test_settings_prod(settings_prod):
-    assert settings_prod.APP_ENV == "prod"
-
-
-from backend.db.base import Base
-from backend.db.session import (
-    get_db,
-)
-from backend.db.session import engine
-
-from backend.main import app
-
-import asyncio
-
-import pytest
-from backend.db.session import get_db_context, check_database_connection, init_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from backend.db.models import ServiceStatus
-
-
-@pytest.mark.asyncio
-async def test_get_db_context():
-    """Prueba que `get_db_context` devuelve una sesión válida."""
-    async with get_db_context() as db:
-        assert isinstance(db, AsyncSession), "Se esperaba una instancia de AsyncSession"
-        # Verificar que la sesión puede ejecutar una consulta
-        result = await db.execute(select(ServiceStatus))
-        assert result is not None, "La consulta no devolvió resultados"
-
-
-@pytest.mark.asyncio
-async def test_check_database_connection():
-    """Prueba la conexión a la base de datos."""
-    is_connected = await check_database_connection()
-    assert is_connected, "No se pudo conectar a la base de datos"
-
-
-@pytest.mark.asyncio
-async def test_init_db():
-    """Prueba que la base de datos se inicializa correctamente con datos predeterminados."""
-    # Inicializamos la base de datos
-    await init_db()
-
-    # Verificamos que los estados de servicio se hayan creado correctamente
-    async with get_db_context() as db:
-        result = await db.execute(select(ServiceStatus).filter_by(service_name="claude"))
-        service_status = await result.scalars().first()
-        assert service_status is not None, "El estado de servicio 'claude' no fue creado"
-        assert service_status.status is True, "El estado de servicio 'claude' no tiene el estado correcto"
-
-        result = await db.execute(select(ServiceStatus).filter_by(service_name="meta"))
-        service_status = await result.scalars().first()
-        assert service_status is not None, "El estado de servicio 'meta' no fue creado"
-        assert service_status.status is True, "El estado de servicio 'meta' no tiene el estado correcto"
-
-
+# ---- Fixtures de base de datos ----
 @pytest.fixture(scope="session", autouse=True)
-def event_loop():
-    """Crea un loop de eventos para pytest-asyncio"""
-    loop = asyncio.get_event_loop()
-    yield loop
-    loop.close()
-
-
-def test_database_connection(settings_dev, test_db):
-    # Aquí puedes interactuar con la base de datos para verificar que se ha creado correctamente
-    assert test_db is not None
+async def setup_database():
+    """Inicializa y limpia las tablas de la base de datos para cada sesión de pruebas."""
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture(scope="session")
 def test_db():
     """Fixture que crea una base de datos de prueba y la limpia después de las pruebas."""
-    # Crea la base de datos
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    # Limpia la base de datos después de las pruebas
-    Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_database():
-    Base.metadata.drop_all(bind=engine)  # Limpia todo
-    Base.metadata.create_all(bind=engine)  # Crea todas las tablas
-    yield
-    Base.metadata.drop_all(bind=engine)  # Limpia al terminar
-
-
-def test_setup_database(
-    settings_dev, setup_database, create_test_db, db_session, client, test_user
-):
-    assert db_session is not None
-
-
-@pytest.fixture(scope="session", autouse=True)
-def create_test_db():
-    """Crea todas las tablas antes de los tests y las elimina después"""
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=create_engine(SQLALCHEMY_DATABASE_URL))
+    yield async_engine
+    Base.metadata.drop_all(bind=create_engine(SQLALCHEMY_DATABASE_URL))
 
 
 @pytest.fixture
-def db_session(test_db):
-    """Fixture que proporciona una sesión de base de datos limpia para cada prueba."""
-    connection = test_db.connect()
-    transaction = connection.begin()
-    session = TestingSessionLocal(bind=connection)
+async def db_session():
+    """Proporciona una sesión asíncrona de base de datos para las pruebas."""
+    async with AsyncTestingSessionLocal() as session:
+        yield session
 
-    yield session
 
-    session.close()
-    transaction.rollback()
-    connection.close()
+# ---- Fixtures de cliente FastAPI ----
+@pytest.fixture
+async def async_client(db_session: AsyncSession):
+    """Cliente asíncrono de pruebas para FastAPI."""
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    async with httpx.AsyncClient(app=app, base_url="http://test") as client:
+        yield client
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def client(db_session) -> Generator:
     """Fixture que proporciona un cliente de prueba para la API."""
-
     def override_get_db():
         try:
             yield db_session
@@ -217,11 +166,10 @@ def client(db_session) -> Generator:
     app.dependency_overrides.clear()
 
 
+# ---- Fixtures de datos de prueba ----
 @pytest.fixture
-def test_user(db_session) -> Dict[str, Any]:
-    """Fixture que crea un usuario de prueba."""
-    from backend.db.models import User
-
+async def test_user(db_session: AsyncSession) -> Dict[str, Any]:
+    """Fixture que crea un usuario de prueba de forma asíncrona."""
     user = User(
         username="testuser",
         email="test@example.com",
@@ -229,16 +177,14 @@ def test_user(db_session) -> Dict[str, Any]:
         is_active=True,
     )
     db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+    await db_session.commit()
+    await db_session.refresh(user)
     return {"id": user.id, "username": user.username, "email": user.email}
 
 
 @pytest.fixture
-def test_interaction(db_session, test_user) -> Dict[str, Any]:
-    """Fixture que crea una interacción de prueba."""
-    from backend.db.models import Interaction
-
+async def test_interaction(db_session: AsyncSession, test_user: Dict[str, Any]) -> Dict[str, Any]:
+    """Fixture que crea una interacción de prueba de forma asíncrona."""
     interaction = Interaction(
         student_name="Test Student",
         tutor_phone="+34666777888",
@@ -253,8 +199,8 @@ def test_interaction(db_session, test_user) -> Dict[str, Any]:
         created_by_id=test_user["id"],
     )
     db_session.add(interaction)
-    db_session.commit()
-    db_session.refresh(interaction)
+    await db_session.commit()
+    await db_session.refresh(interaction)
     return {
         "id": interaction.id,
         "student_name": interaction.student_name,

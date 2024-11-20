@@ -2,11 +2,11 @@ import logging
 
 import aiohttp
 
-from backend.core.config import settings
+from backend.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-
+settings = get_settings()
 async def generate_claude_response(student_name: str) -> dict:
     prompt = {
         "role": "user",

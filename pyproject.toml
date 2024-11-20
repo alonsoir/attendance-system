@@ -59,6 +59,7 @@ pytz = "^2023.3"
 aiofiles = "^23.2.1"
 python-magic = "^0.4.27"
 tenacity = "^8.2.3"
+aiosqlite = "^0.20.0"
 
 [tool.poetry.group.dev.dependencies]
 # Testing
@@ -99,6 +100,7 @@ sphinx = "^7.0.0"
 sphinx-rtd-theme = "^1.3.0"
 sphinx-autodoc-typehints = "^1.24.0"
 furo = "^2023.6.16"
+pytest-dotenv = "^0.5.2"
 
 
 [tool.poetry.group.prod.dependencies]

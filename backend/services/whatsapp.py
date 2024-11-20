@@ -8,13 +8,13 @@ from typing import Optional
 
 import aiohttp
 
-from backend.core.config import settings
+from backend.core.config import get_settings
 
 # from backend.services import AttendanceManager
 
 logger = logging.getLogger(__name__)
 
-
+settings = get_settings()
 def validate_phone_number(phone: str) -> bool:
     """
     Valida el formato del número de teléfono.

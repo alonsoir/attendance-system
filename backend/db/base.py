@@ -7,10 +7,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-from backend.core.config import settings
+from backend.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+settings = get_settings()
 
 class Base:
     @declared_attr
