@@ -12,7 +12,6 @@ def test_health_check(client):
     assert 'version' in data
     assert 'services' in data
 
-
 def test_whatsapp_webhook(client, mock_whatsapp_message):
     '''Prueba el endpoint del webhook de WhatsApp.'''
     response = client.post('/api/v1/webhook/whatsapp', json=mock_whatsapp_message)

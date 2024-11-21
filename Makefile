@@ -165,6 +165,13 @@ test:
 	@poetry run pytest tests > $(LOG_DIR)/backend-test.log; tail -n 10 $(LOG_DIR)/backend-test.log
 
 
+# Ejecuta solo los tests unitarios
+tests-unit:
+	@poetry run pytest tests/unit/ > $(LOG_DIR)/backend-unit-test.log; tail -n 10 $(LOG_DIR)/backend-unit-test.log
+
+# Ejecuta solo los tests de integración
+tests-integration:
+	@poetry run pytest tests/integration/ > $(LOG_DIR)/backend-integration-test.log; tail -n 10 $(LOG_DIR)/backend-integration-test.log
 # =============================================================================
 # DOCKER
 # =============================================================================

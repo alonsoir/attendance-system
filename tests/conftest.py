@@ -1,12 +1,15 @@
 import asyncio
 import os
+from pathlib import Path
 from typing import Any, Dict, Generator
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend import get_settings
@@ -27,17 +30,46 @@ AsyncTestingSessionLocal = sessionmaker(
     bind=async_engine, class_=AsyncSession, expire_on_commit=False
 )
 
+@pytest.fixture(scope="session")
+def async_engine():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=True)
+    return engine
+
 # ---- Fixtures globales ----
 @pytest.fixture(scope="session", autouse=True)
-def load_env():
+def load_env_development():
     """Carga las variables de entorno desde el archivo .env."""
-    env_path = os.path.join(os.path.dirname(__file__), "../.env-development")
-    load_dotenv(env_path)
+    env_path = Path(__file__).resolve().parent.parent / ".env-development"
+    if not os.path.exists(env_path):
+        raise FileNotFoundError(f"No se encontró el archivo .env en {env_path}")
 
-def test_pytest_configure():
-    env_path = os.path.join(os.getcwd(), '.env-development')
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(env_path,override=True)
+    print("Cargando variables de entorno (.env-development)...")
+    for key, value in os.environ.items():
+        if os.getenv(key) == "Attendance System (Dev)":
+            print(f"{os.getenv(key)} = {value} found!")
+            assert os.getenv(key) == "Attendance System (Dev)"
+'''
+@pytest.fixture(scope="session", autouse=True)
+def load_env_production():
+    """Carga las variables de entorno desde el archivo .env."""
+    env_path = Path(__file__).resolve().parent.parent / ".env-production"
+    if not os.path.exists(env_path):
+        raise FileNotFoundError(f"No se encontró el archivo .env en {env_path}")
 
+    load_dotenv(env_path,override=True)
+    print("Cargando variables de entorno (.env-production)...")
+    for key, value in os.environ.items():
+        if os.getenv(key) == "Attendance System (Prod)":
+            print(f"{os.getenv(key)} found!")
+            assert os.getenv(key) == "Attendance System (Prod)"
+'''
+@pytest.fixture(scope="session", autouse=True)
+def test_project_name():
+    settings = Settings()
+    assert settings.PROJECT_NAME == "Attendance System (Dev)", f"Valor obtenido: {settings.PROJECT_NAME}"
+
+@pytest.fixture(scope="session", autouse=True)
 def test_settings():
     settings = get_settings()
     assert settings.PROJECT_NAME == "Attendance System (Dev)"
@@ -62,8 +94,8 @@ def test_settings():
     assert settings.REDIS_URL == "redis://localhost:6379"
     assert settings.SECRET_KEY != ""
     assert settings.ANTHROPIC_API_KEY != ""
-    assert settings.WHATSAPP_CALLBACK_TOKEN == "your_callback_token"
-    assert settings.WHATSAPP_PROVIDER == "provider_name"
+    assert settings.WHATSAPP_CALLBACK_TOKEN == "9295095"
+    assert settings.WHATSAPP_PROVIDER == "callmebot"
     assert settings.FRONTEND_PORT == 3000
     assert settings.VITE_API_URL == "http://localhost:3000"
 
@@ -128,12 +160,23 @@ def test_db():
     Base.metadata.drop_all(bind=create_engine(SQLALCHEMY_DATABASE_URL))
 
 
-@pytest.fixture
-async def db_session():
-    """Proporciona una sesión asíncrona de base de datos para las pruebas."""
-    async with AsyncTestingSessionLocal() as session:
+@pytest.fixture(scope="function")
+async def db_session(async_engine):
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async_session = sessionmaker(
+        async_engine, expire_on_commit=False, class_=AsyncSession
+    )
+    async with async_session() as session:
         yield session
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
+@pytest.fixture
+def mock_callmebot_client():
+    client = AsyncMock()
+    client.send_message.return_value = {"status": "success"}
+    return client
 
 # ---- Fixtures de cliente FastAPI ----
 @pytest.fixture

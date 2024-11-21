@@ -152,13 +152,6 @@ class WhatsAppService:
             },
         }
 
-
-# Instancia global del servicio
-whatsapp_service = WhatsAppService(
-    provider=getattr(settings, "WHATSAPP_PROVIDER", MessageProvider.CALLMEBOT)
-)
-
-
 # Funciones de conveniencia para mantener compatibilidad con código existente
 async def send_whatsapp_message(phone: str, message: str) -> Dict[str, Any]:
     return await whatsapp_service.send_message(phone, message)
@@ -166,3 +159,6 @@ async def send_whatsapp_message(phone: str, message: str) -> Dict[str, Any]:
 
 async def handle_whatsapp_message(message_data: dict) -> Dict[str, Any]:
     return await whatsapp_service.handle_message(message_data)
+
+# Instancia global del servicio
+whatsapp_service = WhatsAppService(provider=getattr(settings, "WHATSAPP_PROVIDER", MessageProvider.CALLMEBOT))

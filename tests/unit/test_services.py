@@ -1,25 +1,81 @@
-import os
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
-
+from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock
 import pytest
-
 from backend.db.models import Interaction, ServiceStatus
 from backend.services.attendance import AttendanceManager
 from backend.services.claude import generate_claude_response
+from backend.services.whatsapp import WhatsAppService, MessageProvider
 from backend.services.whatsapp import handle_whatsapp_message, send_whatsapp_message
 
-# Tests para el servicio de Claude
-@pytest.mark.asyncio
-async def test_generate_claude_response():
-    """Prueba la generación de respuestas de Claude."""
-
-    response = await generate_claude_response("Test Student")
-    assert "sensitivity" in response
-    assert "response" in response
-
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
+async def test_send_message_to_callmebot():
+    # Configuración del servicio
+    service = WhatsAppService(meta_api_key="9295095", provider=MessageProvider.CALLMEBOT)
+    phone = "+34667519829"
+    message = "Hello, this is a test, from test_send_message_to_callmebot..."
+    expected_url = (
+        f"https://api.callmebot.com/whatsapp.php?"
+        f"phone={phone}&text={message}&apikey=9295095"
+    )
+    mock_response_text = "Message Sent Successfully"
+
+    # Mock de `aiohttp.ClientSession.get`
+    with patch("aiohttp.ClientSession.get") as mock_get:
+        # Configuración del mock para simular una respuesta exitosa
+        mock_response = AsyncMock()
+        mock_response.text = AsyncMock(return_value=mock_response_text)
+        mock_response.status = 200
+
+        mock_get.return_value.__aenter__.return_value = mock_response
+
+        # Llamada a la función
+        response = await service._send_callmebot_message(phone=phone, message=message)
+
+        # Verificaciones
+        assert response == {
+            "status": "success",
+            "provider": "callmebot",
+            "response": mock_response_text,
+        }
+        mock_get.assert_called_once_with(expected_url)
+
+@pytest.mark.unittest
+@pytest.mark.asyncio
+async def test_generate_claude_response_mock():
+    """Prueba la generación de respuestas de Claude con un mock."""
+    mock_response = {
+        "content": [
+            {
+                "text": "Mock response with sensitivity",
+                "type": "text",
+            }
+        ],
+        "id": "mock_id",
+        "model": "mock-model",
+        "role": "assistant",
+    }
+
+    with patch(
+        "backend.services.claude.generate_claude_response",
+        new=AsyncMock(return_value=mock_response),
+    ):
+        response = await generate_claude_response("Test Student")
+
+        # Imprime para depuración
+        print(response)
+
+        # Valida correctamente
+        assert "content" in response
+        assert any(
+            "Attendance" in msg.get("text", "") for msg in response.get("content", [])
+        ), "El mensaje debería contener 'Attendance'."
+
+
+@pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_generate_claude_response_error():
     """Prueba el manejo de errores en las respuestas de Claude."""
     with patch("aiohttp.ClientSession.post") as mock_post:
@@ -34,6 +90,7 @@ async def test_generate_claude_response_error():
 
 # Tests para el servicio de WhatsApp
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_send_whatsapp_message():
     """Prueba el envío de mensajes de WhatsApp en modo mock."""
 
@@ -48,6 +105,7 @@ async def test_send_whatsapp_message():
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_send_whatsapp_message_invalid_phone():
     """Prueba el envío de mensajes a números inválidos."""
     with pytest.raises(ValueError):
@@ -55,11 +113,18 @@ async def test_send_whatsapp_message_invalid_phone():
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_handle_whatsapp_message(mock_whatsapp_message):
     """Prueba el manejo de mensajes de WhatsApp."""
+
+    async def mock_send_response(tutor_phone, response):
+        return {"status": "mocked", "tutor_phone": tutor_phone, "response": response}
+
     with patch(
-        "backend.services.attendance.AttendanceManager.process_whatsapp_message"
-    ) as mock_process:
+            "backend.services.attendance.AttendanceManager.process_whatsapp_message"
+    ) as mock_process, patch(
+        "backend.services.whatsapp.WhatsAppService.send_message", new=mock_send_response
+    ):
         mock_process.return_value = {
             "status": "success",
             "response": {
@@ -77,6 +142,7 @@ async def test_handle_whatsapp_message(mock_whatsapp_message):
 
 # Tests para el AttendanceManager
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_attendance_manager_process_message(
     db_session, test_user, mock_whatsapp_message
 ):
@@ -96,6 +162,7 @@ async def test_attendance_manager_process_message(
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_check_service_status():
     """Prueba la verificación del estado de los servicios."""
     with patch("aiohttp.ClientSession.get") as mock_get:
@@ -109,6 +176,7 @@ async def test_check_service_status():
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_broadcast_update(db_session):
     """Prueba la difusión de actualizaciones."""
     mock_websocket = MagicMock()
@@ -120,6 +188,7 @@ async def test_broadcast_update(db_session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_save_interaction(db_session, test_user):
     """Prueba el guardado de interacciones."""
     interaction_data = {
@@ -149,6 +218,7 @@ async def test_save_interaction(db_session, test_user):
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_verify_authorization():
     """Prueba la verificación de autorización."""
     result = await AttendanceManager.verify_authorization(
@@ -158,6 +228,7 @@ async def test_verify_authorization():
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_get_dashboard_data(db_session, test_interaction):
     """Prueba la obtención de datos para el dashboard."""
     data = await AttendanceManager.get_dashboard_data()
@@ -168,6 +239,7 @@ async def test_get_dashboard_data(db_session, test_interaction):
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_phone_number_validation():
     """Prueba la validación de números de teléfono."""
     from backend.services import PhoneNumberValidator
@@ -187,6 +259,7 @@ async def test_phone_number_validation():
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_message_formatter():
     """Prueba el formateador de mensajes."""
     from backend.services import MessageFormatter
@@ -206,6 +279,7 @@ async def test_message_formatter():
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_error_handling():
     """Prueba el manejo de errores en los servicios."""
     # Prueba de error en Claude
@@ -222,6 +296,7 @@ async def test_error_handling():
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_service_status_updates(db_session):
     """Prueba las actualizaciones de estado de servicios."""
     # Crear un nuevo estado de servicio
@@ -245,6 +320,7 @@ async def test_service_status_updates(db_session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_interaction_sensitivity_calculation():
     """Prueba el cálculo de sensibilidad de las interacciones."""
     # Probar diferentes escenarios
