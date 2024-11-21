@@ -632,4 +632,14 @@ make docker-build ENV=dev
    - Docker es mejor para probar el sistema completo
    - Usar profiling en desarrollo: `make profile ENV=dev`
 
-¿Necesitas que detalle algún paso específico o que añada más información sobre algún aspecto en particular?
+4. **Testing**
+   - Ejecutar tests unitarios: `make test-unit`
+   - Ejecutar tests de integración: `make test-integration`
+   - Verificar cobertura: `make test-coverage`
+   - Ejecutar tests en Docker: `make docker-test`
+   - Ejecutar tests en producción: `make deploy ENV=prod`
+   - Ejecutar tests en producción con Docker: `make docker-deploy ENV=prod`
+   - Ejecutar tests en producción con Docker y Docker Compose: `make docker-compose-test ENV=prod`
+   - Ejecutar tests en producción con Docker Compose: `make docker-compose-test ENV=prod`
+   - Ejecutar tests en producción con Docker Compose y Docker Swarm: `make docker-compose-test ENV=prod`
+   
