@@ -33,11 +33,7 @@ class Settings(BaseSettings):
     WHATSAPP_PROVIDER: str
     FRONTEND_PORT: int
     VITE_API_URL: str
-    '''
-    class Config:
-        env_file = "../.env-development"
-        env_file_encoding = "utf-8"
-    '''
+    # todo refactorize this to load different settings for each environment
     model_config = SettingsConfigDict(env_file=".env-development")
     def print_settings(self):
         model_dump = self.model_dump()

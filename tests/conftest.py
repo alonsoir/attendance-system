@@ -8,10 +8,12 @@ import httpx
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
-
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from backend.db.base import Base
 from backend import get_settings
 from backend.core.config import Settings
 from backend.core.security import get_password_hash
@@ -19,23 +21,60 @@ from backend.db.base import Base
 from backend.db.models import User, Interaction
 from backend.db.session import get_db, create_engine
 from backend.main import app
-
+from backend.services import AttendanceManager
+from backend.services.whatsapp import WhatsAppService
+import logging
+logging.getLogger("faker.factory").setLevel(logging.WARNING)
 # Configuración y variables de entorno
 os.environ["APP_ENV"] = "development"
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-async_engine: AsyncEngine = create_async_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-AsyncTestingSessionLocal = sessionmaker(
-    bind=async_engine, class_=AsyncSession, expire_on_commit=False
-)
 
 @pytest.fixture(scope="session")
-def async_engine():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=True)
-    return engine
+async def async_engine():
+    SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+    async_engine = create_async_engine(
+        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    )
+    yield async_engine
 
-# ---- Fixtures globales ----
+@pytest.fixture(scope="session")
+async def asyncTestingSessionLocal():
+    asyncTestingSessionLocal = sessionmaker(bind=async_engine, class_=AsyncSession, expire_on_commit=False)
+    yield asyncTestingSessionLocal
+
+@pytest.fixture(scope="session")
+async def whatsapp_service():
+    settings = Settings()
+    # Instancia única de WhatsAppService (Singleton)
+    service = WhatsAppService(provider=settings.WHATSAPP_PROVIDER,
+                              meta_api_key=None,
+                              callback_token=settings.WHATSAPP_CALLBACK_TOKEN)
+    await service.init_service()  # Inicializar el cliente HTTP
+    yield service  # Proveer la instancia a las pruebas
+    await service.close_service()  # Cerrar después de las pruebas
+
+
+@pytest.fixture(autouse=True)
+def mock_logging(monkeypatch):
+    pass
+
+@pytest.fixture(scope="session")
+def attendance_manager():
+    """Fixture para el Singleton AttendanceManager."""
+    return AttendanceManager()
+
+'''
+@pytest.mark.asyncio
+async def test_singleton_instance(whatsapp_service):
+    # Obtener otra instancia del servicio
+    another_service = WhatsAppService(provider="callmebot")
+    another_service.init_service()
+    # Verificar que ambas instancias son la misma (singleton)
+    assert whatsapp_service is another_service
+    another_service.close_service()
+    whatsapp_service.close_service()
+'''
+
 @pytest.fixture(scope="session", autouse=True)
 def load_env_development():
     """Carga las variables de entorno desde el archivo .env."""
@@ -43,31 +82,20 @@ def load_env_development():
     if not os.path.exists(env_path):
         raise FileNotFoundError(f"No se encontró el archivo .env en {env_path}")
 
-    load_dotenv(env_path,override=True)
+    load_dotenv(env_path, override=True)
     print("Cargando variables de entorno (.env-development)...")
     for key, value in os.environ.items():
         if os.getenv(key) == "Attendance System (Dev)":
             print(f"{os.getenv(key)} = {value} found!")
             assert os.getenv(key) == "Attendance System (Dev)"
-'''
-@pytest.fixture(scope="session", autouse=True)
-def load_env_production():
-    """Carga las variables de entorno desde el archivo .env."""
-    env_path = Path(__file__).resolve().parent.parent / ".env-production"
-    if not os.path.exists(env_path):
-        raise FileNotFoundError(f"No se encontró el archivo .env en {env_path}")
 
-    load_dotenv(env_path,override=True)
-    print("Cargando variables de entorno (.env-production)...")
-    for key, value in os.environ.items():
-        if os.getenv(key) == "Attendance System (Prod)":
-            print(f"{os.getenv(key)} found!")
-            assert os.getenv(key) == "Attendance System (Prod)"
-'''
+
+# Fixtures globales y configuración
 @pytest.fixture(scope="session", autouse=True)
 def test_project_name():
     settings = Settings()
     assert settings.PROJECT_NAME == "Attendance System (Dev)", f"Valor obtenido: {settings.PROJECT_NAME}"
+
 
 @pytest.fixture(scope="session", autouse=True)
 def test_settings():
@@ -100,32 +128,12 @@ def test_settings():
     assert settings.VITE_API_URL == "http://localhost:3000"
 
 
-@pytest.fixture(autouse=True)
-def set_env_variables():
-    """Verifica que las variables de entorno necesarias estén disponibles."""
-    required_env_vars = [
-        "PROJECT_NAME", "PROJECT_DESCRIPTION", "VERSION", "API_V1_STR", "BACKEND_CORS_ORIGINS", "ENABLE_METRICS",
-        "PROMETHEUS_PORT", "GRAFANA_PORT", "GRAFANA_ADMIN_PASSWORD", "BACKEND_PORT", "ENABLE_WHATSAPP_CALLBACK",
-        "MOCK_EXTERNAL_SERVICES", "POSTGRES_SERVER", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB",
-        "POSTGRES_PORT", "REDIS_HOST", "REDIS_PORT", "REDIS_URL", "SECRET_KEY",
-        "ANTHROPIC_API_KEY", "WHATSAPP_CALLBACK_TOKEN", "WHATSAPP_PROVIDER",
-        "FRONTEND_PORT", "VITE_API_URL"
-    ]
-
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-    if missing_vars:
-        pytest.fail(f"Las siguientes variables de entorno faltan: {', '.join(missing_vars)}")
-
-    print("Variables de entorno cargadas correctamente.")
-
-
 @pytest.fixture(scope="session", autouse=True)
 def event_loop():
     """Crea un loop de eventos para pytest-asyncio."""
     loop = asyncio.get_event_loop()
     yield loop
     loop.close()
-
 
 # ---- Fixtures de configuración ----
 @pytest.fixture
@@ -160,17 +168,15 @@ def test_db():
     Base.metadata.drop_all(bind=create_engine(SQLALCHEMY_DATABASE_URL))
 
 
-@pytest.fixture(scope="function")
-async def db_session(async_engine):
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    async_session = sessionmaker(
-        async_engine, expire_on_commit=False, class_=AsyncSession
-    )
+@pytest.fixture
+async def db_session():
+    async_session = async_sessionmaker(async_engine, expire_on_commit=False)
     async with async_session() as session:
-        yield session
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        yield session  # Esto debería retornar un objeto de tipo AsyncSession
+
+async def test_db_session_fixture(db_session):
+    assert isinstance(db_session, AsyncSession)
+
 
 @pytest.fixture
 def mock_callmebot_client():

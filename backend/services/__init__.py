@@ -6,13 +6,11 @@ from .attendance import AttendanceManager
 from .claude import generate_claude_response
 from .message_coordinator import process_message
 from .service_status import check_service_status
-from .whatsapp import handle_whatsapp_message, send_whatsapp_message
 
 __all__ = [
     "AttendanceManager",
     "generate_claude_response",
-    "send_whatsapp_message",
-    "handle_whatsapp_message",
+    "process_message",
 ]
 
 

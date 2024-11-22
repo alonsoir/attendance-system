@@ -16,7 +16,7 @@ async def process_message(
         tutor_phone = message_data.get("tutor_phone")
 
         if not all([student_name, tutor_phone]):
-            raise ValueError("Datos incompletos en el mensaje")
+            raise ValueError("Incomplete data in the message. I need student_name and tutor_phone.")
 
         # Importación local para evitar ciclos
         from backend.services.attendance import AttendanceManager
