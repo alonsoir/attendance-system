@@ -1,41 +1,71 @@
 import asyncio
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, Generator
 from unittest.mock import AsyncMock
 
 import httpx
-import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from backend.db.base import Base
+
 from backend import get_settings
 from backend.core.config import Settings
 from backend.core.security import get_password_hash
-from backend.db.base import Base
 from backend.db.models import User, Interaction
 from backend.db.session import get_db, create_engine
 from backend.main import app
 from backend.services import AttendanceManager
 from backend.services.whatsapp import WhatsAppService
-import logging
+
 logging.getLogger("faker.factory").setLevel(logging.WARNING)
+# Ajustar el nivel de logging global
+logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 # Configuración y variables de entorno
 os.environ["APP_ENV"] = "development"
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
+import pytest
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from backend.db.models import Base
+
+
 @pytest.fixture(scope="session")
 async def async_engine():
-    SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-    async_engine = create_async_engine(
-        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    """Create a test database engine."""
+    engine = create_async_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        echo=True
     )
-    yield async_engine
+
+    # Crear las tablas
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    yield engine
+
+    # Limpiar después de todas las pruebas
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.fixture
+async def db_session(async_engine) -> AsyncSession:
+    """Provide a database session for testing."""
+    async_session = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
+
+    async with async_session() as session:
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()
 
 @pytest.fixture(scope="session")
 async def asyncTestingSessionLocal():
@@ -150,14 +180,18 @@ def settings_prod():
 
 # ---- Fixtures de base de datos ----
 @pytest.fixture(scope="session", autouse=True)
-async def setup_database():
+async def setup_database(async_engine):
     """Inicializa y limpia las tablas de la base de datos para cada sesión de pruebas."""
+
     async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # Opcional: Realiza operaciones como eliminar tablas antiguas
         await conn.run_sync(Base.metadata.create_all)
-    yield
+
+    yield  # Aquí se ejecutan las pruebas
+
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
 
 
 @pytest.fixture(scope="session")
@@ -169,7 +203,7 @@ def test_db():
 
 
 @pytest.fixture
-async def db_session():
+async def db_session(async_engine):
     async_session = async_sessionmaker(async_engine, expire_on_commit=False)
     async with async_session() as session:
         yield session  # Esto debería retornar un objeto de tipo AsyncSession
@@ -261,12 +295,7 @@ async def test_interaction(db_session: AsyncSession, test_user: Dict[str, Any]) 
 @pytest.fixture
 def mock_claude_response() -> Dict[str, Any]:
     """Fixture que proporciona una respuesta simulada de Claude."""
-    return {
-        "sensitivity": 7,
-        "response": "The student is not feeling well.",
-        "likely_to_be_on_leave_tomorrow": True,
-        "reach_out_tomorrow": True,
-    }
+    return AsyncMock(return_value={"message": "Test response"})
 
 
 @pytest.fixture
