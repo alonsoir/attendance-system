@@ -55,7 +55,7 @@ class WhatsAppService:
             settings, "WHATSAPP_CALLBACK_TOKEN", "test_token"
         )
         self.provider = provider
-        self.is_mock = not (self.meta_api_key and self.callback_token) or provider == MessageProvider.MOCK
+        self.is_mock = provider == MessageProvider.MOCK
 
         if self.is_mock:
             logger.warning("WhatsApp service running in MOCK mode - messages will be logged but not sent")
@@ -97,6 +97,9 @@ class WhatsAppService:
         except aiohttp.ClientError as e:
             logger.error(f"HTTP error while sending message: {e}")
             raise
+        except NotImplementedError as e:
+            logger.error(f"NotImplementedError. Error while sending message: {e}")
+            raise Exception("Network Error")
         except Exception as e:
             logger.exception(f"Unexpected error while sending message: {e}")
             raise Exception("Network Error")

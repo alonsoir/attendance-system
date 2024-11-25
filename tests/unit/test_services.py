@@ -70,37 +70,17 @@ async def test_send_message_to_callmebot():
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_send_whatsapp_message():
-    """Prueba el envío de mensajes de WhatsApp en modo mock con provider Meta."""
-    # Configuración del servicio
-    service = WhatsAppService(provider=MessageProvider.META,
-                              meta_api_key=None,
-                              callback_token=None)
-    await service.init_service()  # Inicializar el cliente HTTP
+    """Prueba el envío de mensajes de WhatsApp con provider Meta. Verifica NotImplementedError."""
+    service = WhatsAppService(provider=MessageProvider.META)
+    await service.init_service()
 
     phone = "+34667519829"
-    message = "Hello, this is a test, from test_send_whatsapp_message..."
+    message = "Hello, this is a test..."
 
-    mock_response_text = 'Hello, this is a test, from test_send_whatsapp_message...'
+    with pytest.raises(NotImplementedError, match="Meta WhatsApp API not implemented yet"):
+        await service._send_meta_message(phone=phone, message=message)
 
-    # Mock de `aiohttp.ClientSession.get`
-    with patch("aiohttp.ClientSession.get") as mock_get:
-        # Configuración del mock para simular una respuesta exitosa
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=mock_response_text)
-        mock_response.status = 200
-
-        mock_get.return_value.__aenter__.return_value = mock_response
-
-        # Llamada a la función
-        response = await service.send_message(phone=phone, message=message)
-
-        assert (
-                response.get("status") == "success" or
-                response.get("phone") == phone or
-                response.get("message") == message
-        )
-
-        await service.close_service()
+    await service.close_service()
 
 
 @pytest.mark.asyncio
