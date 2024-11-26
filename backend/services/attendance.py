@@ -61,6 +61,10 @@ class AttendanceManager:
                 return {"status": "error", "message": "Unauthorized access"}
 
             claude_response = await generate_claude_response(student_name)
+            # Aquí puedes agregar más validaciones y procesamiento según tus necesidades
+            # Con cuidado porque claude_response puede ser None o puede devolver un diccionario vacío, o un error.
+            # Asegúrate de manejar estos casos correctamente.
+            # todo agregar validaciones a claude_response
 
             async with get_db() as session:
                 try:
