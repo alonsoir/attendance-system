@@ -193,3 +193,29 @@ async def test_message_data_conversion(coordinator, valid_message_data):
     assert dict_data["student_name"] == valid_message_data["student_name"]
     assert dict_data["tutor_phone"] == valid_message_data["tutor_phone"]
     assert isinstance(dict_data["timestamp"], datetime)
+
+import pytest
+from unittest.mock import patch, AsyncMock
+from backend.services.message_coordinator import MessageCoordinator
+
+@patch('backend.services.whatsapp.WhatsAppService.send_message')
+async def test_message_coordinator_send_response(mock_send_whatsapp):
+    '''Prueba el envío de respuesta en MessageCoordinator.'''
+    mock_send_whatsapp.return_value = {"status": "success"}
+
+    message_coordinator = MessageCoordinator.get_instance()
+    await message_coordinator.send_response("+34612345678", "Hello, tutor!")
+
+    mock_send_whatsapp.assert_called_once_with("+34612345678", "Hello, tutor!")
+
+@patch('backend.services.whatsapp.WhatsAppService.send_message')
+async def test_message_coordinator_send_response_error(mock_send_whatsapp):
+    '''Prueba el envío de respuesta cuando hay un error.'''
+    mock_send_whatsapp.side_effect = Exception("Network error")
+
+    message_coordinator = MessageCoordinator.get_instance()
+    with pytest.raises(Exception) as exc:
+        await message_coordinator.send_response("+34612345678", "Hello, tutor!")
+
+    assert "Network error" in str(exc.value)
+    mock_send_whatsapp.assert_called_once_with("+34612345678", "Hello, tutor!")

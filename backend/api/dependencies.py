@@ -8,14 +8,14 @@ from sqlalchemy.orm import Session
 
 from backend.core.security import verify_password
 from backend.db.models import User
-from backend.db.session import SessionLocal
+from backend.db.session import AsyncSessionLocal
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 def get_db():
     try:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         yield db
     finally:
         db.close()
