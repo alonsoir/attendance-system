@@ -4,13 +4,11 @@ from typing import Dict
 
 from .attendance import AttendanceManager
 from .claude import generate_claude_response
-from backend.services.message_coordinator import MessageCoordinator
 from .service_status import check_service_status
 
 __all__ = [
     "AttendanceManager",
-    "generate_claude_response",
-    "MessageCoordinator",
+    "generate_claude_response"
 ]
 
 

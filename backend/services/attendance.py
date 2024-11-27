@@ -1,15 +1,43 @@
 import logging
+from datetime import datetime
+from typing import Dict, Any
 
 import aiohttp
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.future import select
 from starlette.websockets import WebSocket
-
-from backend.db.models import Interaction
-from backend.db.session import get_db
-from backend.services.claude import generate_claude_response
+from backend.core.config import get_settings
+from backend.services.whatsapp import WhatsAppService
+from backend.services.claude import ClaudeService
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MessageData:
+    """Estructura de datos para validar mensajes entrantes y salientes entre Claude, WhatsApp y la BD"""
+    id: int
+    student_name: str
+    tutor_phone: str
+    college_phone: str
+    college_name: str
+    message_content: str = ""
+    tutor_name: str = ""
+    timestamp: datetime = datetime.now()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "student_name": self.student_name,
+            "tutor_phone": self.tutor_phone,
+            "college_phone": self.college_phone,
+            "college_name": self.college_name,
+            "message_content": self.message_content,
+            "tutor_name": self.tutor_name,
+            "timestamp": self.timestamp
+        }
+
+    def get(self, param, param1):
+        return self.get(param, param1)
 
 
 class AttendanceManager:
@@ -35,97 +63,204 @@ class AttendanceManager:
             AttendanceManager()
         return AttendanceManager._instance
 
-    import logging
-
-    # En el método `process_whatsapp_message`, agrega logs para verificar el flujo.
-    logging.basicConfig(level=logging.DEBUG)
-
-    async def process_whatsapp_message(self, message_data: dict):
-        """Process incoming WhatsApp messages."""
+    async def process_whatsapp_message_from_tutor_to_claude(self, message_data: MessageData) -> Dict[str, Any]:
         try:
-            student_name = message_data.get("student_name")
-            tutor_phone = message_data.get("tutor_phone")
+            # Validar y procesar el mensaje
+            validated_data = self._validate_message_data(message_data)
+            logger.info(f"Processing message for student: {validated_data.student_name}")
+            response: Dict[str,Any] = await self._receive_message_from_tutor(validated_data)
 
-            # Validaciones en orden correcto
-            if student_name is None:
-                raise ValueError("null_name")
-            if not student_name:  # Esto captura strings vacíos
-                raise ValueError("empty_name")
-            if len(student_name) > 100:
-                raise ValueError("name_too_long")
-            if not tutor_phone or len(tutor_phone) < 10:
-                raise ValueError("invalid_phone")
+            # Guardar la interacción en la base de datos
+            data_from_tutor_to_be_saved: MessageData = MessageData(
+               #id=validated_data.id,
+               student_name=validated_data.student_name,
+               tutor_phone=validated_data.tutor_phone,
+               college_phone=validated_data.college_phone,
+               college_name=validated_data.college_name,
+               message_content=response["message"],
+               tutor_name=validated_data.tutor_name,
+               timestamp=datetime.now()
+            )
+            # Guardar la interacción en la base de datos
+            await self._save_interaction_to_db(data_from_tutor_to_be_saved)
 
-            authorized = await self.verify_authorization(student_name, tutor_phone)
-            if not authorized:
-                return {"status": "error", "message": "Unauthorized access"}
 
-            claude_response = await generate_claude_response(student_name)
-            # Aquí puedes agregar más validaciones y procesamiento según tus necesidades
-            # Con cuidado porque claude_response puede ser None o puede devolver un diccionario vacío, o un error.
-            # Asegúrate de manejar estos casos correctamente.
-            # todo agregar validaciones a claude_response
+            return {
+                "status": "success",
+                "response": "Message processed successfully"
+            }
 
-            async with get_db() as session:
-                try:
-                    interaction = Interaction(
-                        student_name=student_name,
-                        tutor_phone=tutor_phone,
-                        claude_response=claude_response,
-                        status="active",
-                    )
-                    session.add(interaction)
-                    await session.commit()
-                except SQLAlchemyError as e:
-                    await session.rollback()
-                    logger.error(f"Database error during interaction save: {str(e)}")
-                    return {"status": "error", "message": f"Database error: {str(e)}"}
-
-            try:
-                await self.broadcast_update()
-            except Exception as e:
-                logger.error(f"Error during broadcast: {str(e)}")
-
-            return {"status": "success", "response": claude_response}
-
-        except ValueError as ve:
+        except ValueError as e:
             # Re-lanzar las excepciones de validación
-            logger.error(f"Validation error: {str(ve)}")
+            logger.error(f"Validation error: {str(e)}")
             raise
         except Exception as e:
-            logger.error(f"General error processing WhatsApp message: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            return {
+                "status": "error",
+                "message": f"Processing failed: {str(e)}",
+                "error_type": e.__class__.__name__
+            }
 
-    async def verify_authorization(self, student_name: str, tutor_phone: str):
-        """
-        Verifies if the student is authorized for the operation.
-        """
-        # TODO Placeholder for real authorization logic
-        logger.info(f"Verifying authorization for {student_name} with tutor_phone {tutor_phone}")
+    async def process_whatsapp_message_from_college_to_tutor(self, message_data: dict) -> Dict[str, Any]:
+        try:
+            # Validar y procesar el mensaje
+            validated_data = self._validate_message_data(message_data)
+            logger.info(f"Processing message for tutor: {validated_data.tutor_name} "
+                        f"from college: {validated_data.college_name}")
+
+            # Enviar mensaje al tutor
+            response: MessageData = await self._send_message_to_tutor(validated_data)
+
+            # Guardar la interacción en la base de datos. id lo genera la base de datos
+            await self._save_interaction_to_db(response)
+
+            # Esperar respuesta del tutor
+            # tutor_response = await self._wait_for_tutor_response(validated_data)
+
+            # Generar PDF con la conversación completa
+            # await self._generate_pdf_report(validated_data, tutor_response)
+
+            # Enviar PDF al colegio
+            # await self._send_report_to_college(validated_data.college_phone)
+
+            return {
+                "status": "success",
+                "response": "Message processed successfully"
+            }
+
+        except ValueError as e:
+            # Re-lanzar las excepciones de validación
+            logger.error(f"Validation error: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            return {
+                "status": "error",
+                "message": f"Processing failed: {str(e)}",
+                "error_type": e.__class__.__name__
+            }
+
+    def _validate_phone_number(self, phone: str) -> bool:
+        import re
+        phone_pattern = r'^\+34[6789]\d{8}$|^\+1\d{10}$'
+        return bool(re.match(phone_pattern, phone))
+
+    def _validate_college_name(self, college_name: str) -> bool:
+        """Valida el nombre del colegio"""
         return True
 
-    async def save_interaction(self, db_session, student_name: str, tutor_phone: str, claude_response: dict):
-        """
-        Saves the interaction to the database.
-        """
-        try:
-            interaction = Interaction(
-                student_name=student_name,
-                tutor_phone=tutor_phone,
-                claude_response=claude_response,
-                status="active",
-            )
-            db_session.add(interaction)
-            await db_session.commit()
-        except SQLAlchemyError as e:
-            logger.error(f"Database error while saving interaction: {str(e)}")
-            await db_session.rollback()
-            raise
+    def _validate_message_data(self, message_data: MessageData) -> MessageData:
+        """Valida y convierte los datos del mensaje."""
+        errors = []
 
-    async def broadcast_update(self):
+        student_name = message_data.get("student_name", "").strip()
+        if not student_name:
+            errors.append("student_name is required")
+
+        tutor_phone = message_data.get("tutor_phone", "").strip()
+        if not tutor_phone:
+            errors.append("tutor_phone is required")
+        elif not self._validate_phone_number(tutor_phone):
+            errors.append("Invalid tutor phone number format")
+
+        college_phone = message_data.get("college_phone", "").strip()
+        if not college_phone:
+            errors.append("college_phone is required")
+        elif not self._validate_phone_number(college_phone):
+            errors.append("Invalid college phone number format")
+
+        college_name = message_data.get("college_name", "").strip()
+        if not college_name:
+            errors.append("college_name is required")
+        elif not self._validate_college_name(college_phone):
+            errors.append("Invalid college name number format")
+
+        message_content = message_data.get("message_content", "").strip()
+        if not message_content:
+            errors.append("message_content is required")
+
+        if errors:
+            raise ValueError(f"Message validation failed: {', '.join(errors)}")
+
+        return MessageData(
+            student_name=student_name,
+            tutor_phone=tutor_phone,
+            college_phone=college_phone,
+            college_name=college_name,
+            message_content=message_content,
+            tutor_name=message_data.get("tutor_name", "").strip(),
+            timestamp=datetime.now()
+        )
+
+    async def _receive_message_from_tutor(self)-> Dict[str, Any]:
         """
-        Sends updates to all connected clients.
+        Simula la recepción de un mensaje de un tutor.
+            "status": "success",
+            "mock": True,
+            "phone": tutor_phone,
+            "message": message,
+            "provider": "mock",
+            "response": message,
+            "timestamp": str(datetime.now()),
         """
+        response: Dict[str, Any] = WhatsAppService.get_instance().get_message_from_tutor()
+        logger.info(response)
+        return response
+
+    async def _send_message_to_tutor(self, validated_data: MessageData) -> MessageData:
+        message = (f"Hola, {validated_data.tutor_name}. Soy Attendance Manager, nos ha contactado el colegio "
+                   f"{validated_data.college_name} solicitando información sobre el estudiante "
+                   f"{validated_data.student_name}. ¿Puedes proporcionarnos el estado actual de "
+                   f"{validated_data.student_name}?")
+        """
+        response is a dictionary with the following keys:
+        {
+            "status": "success",
+            "mock": True,
+            "phone": phone,
+            "message": message,
+            "provider": "mock",
+            "response": message,
+            "timestamp": str(datetime.now()),
+        }
+        """
+
+
+        response: Dict[str, Any] = await WhatsAppService.get_instance().send_message(validated_data.tutor_phone, message)
+        print(response)
+        return response
+
+    async def _save_interaction_to_db(self, data_to_be_saved_from_tutor: MessageData) -> None:
+        """Guarda la interacción en la base de datos."""
+        pass
+
+    async def _wait_for_tutor_response(self, validated_data: MessageData) -> Dict[str, Any]:
+        tutor_response = await ClaudeService.get_instance().wait_for_tutor_response(
+            validated_data.student_name,
+            validated_data.tutor_phone
+        )
+
+        # Guardar la respuesta del tutor en la base de datos
+
+        return tutor_response
+
+    async def _generate_pdf_report(self, validated_data: MessageData, tutor_response: Dict[str, Any]) -> None:
+        """Genera un PDF con la conversación completa."""
+        # Lógica para generar el PDF con la conversación
+        pdf_content = f"Estudiante: {validated_data.student_name}\n" \
+                      f"Colegio: {validated_data.message_content}\n" \
+                      f"Tutor: {validated_data.tutor_name} ({validated_data.tutor_phone})\n" \
+                      f"Mensaje inicial: {validated_data.message_content}\n" \
+                      f"Respuesta del tutor: {tutor_response['message']}\n" \
+                      f"Timestamp: {tutor_response['timestamp']}"
+        await AttendanceManager.get_instance().save_pdf_report(validated_data.student_name, pdf_content)
+
+    async def _send_report_to_college(self, college_phone: str) -> None:
+        # Lógica para enviar el PDF al colegio
+        await WhatsAppService.get_instance().send_message(college_phone, "Adjunto encontrará el reporte de la conversación.")
+
+    async def broadcast_update(self, client_id: int, websocket: WebSocket):
         if not self.active_connections:
             logger.debug("No active connections to broadcast to")
             return
@@ -151,63 +286,14 @@ class AttendanceManager:
             logger.info(f"Removing disconnected client {client_id}")
             self.active_connections.pop(client_id, None)
 
-    async def get_dashboard_data(self):
-        """
-        Retrieves dashboard data.
-        """
-        logger.debug("Entering get_dashboard_data")
-        try:
-            logger.debug("Fetching service status")
-            service_status = await self.check_service_status()
-            logger.debug(f"Service status: {service_status}")
+    def add_connection(self, client_id: int, websocket: WebSocket):
+        self.active_connections[client_id] = websocket
 
-            logger.debug("Starting database session")
-            async with get_db() as db_session:
-                try:
-                    logger.debug("Executing database query")
-                    result = await db_session.execute(
-                        select(Interaction).order_by(Interaction.timestamp.desc()).limit(100)
-                    )
-                    logger.debug("Getting scalars from result")
-                    scalars_result = result.scalars()
-                    logger.debug("Getting all from scalars")
-                    interactions = scalars_result.all()
-                    logger.debug(f"Found {len(interactions)} interactions")
-
-                    formatted_interactions = [
-                        {
-                            "id": i.id,
-                            "timestamp": i.timestamp.isoformat(),
-                            "student_name": i.student_name,
-                            "status": i.status,
-                            "claude_response": i.claude_response,
-                        }
-                        for i in interactions
-                    ]
-                    logger.debug(f"Formatted {len(formatted_interactions)} interactions")
-
-                    response = {
-                        "service_status": service_status,
-                        "interactions": formatted_interactions,
-                    }
-                    logger.debug("Successfully prepared response")
-                    return response
-
-                except SQLAlchemyError as e:
-                    logger.error(f"Database error while fetching dashboard data: {str(e)}")
-                    return {"service_status": service_status, "interactions": []}
-                except Exception as e:
-                    logger.error(f"Unexpected error in database operations: {str(e)}")
-                    return {"service_status": service_status, "interactions": []}
-        except Exception as e:
-            logger.error(f"Error fetching dashboard data: {str(e)}")
-            return {"service_status": {}, "interactions": []}
+    def remove_connection(self, client_id: int):
+        self.active_connections.pop(client_id, None)
 
     @classmethod
     async def check_service_status(cls):
-        """
-        Verifies the status of external services.
-        """
         async with aiohttp.ClientSession() as session:
             services = {
                 "claude": "https://status.anthropic.com",
@@ -220,16 +306,7 @@ class AttendanceManager:
                         status[service] = response.status == 200
                 except Exception:
                     status[service] = False
-            return status
+        return status
 
-    def add_connection(self, client_id: int, websocket: WebSocket):
-        """
-        Adds a new client connection.
-        """
-        self.active_connections[client_id] = websocket
-
-    def remove_connection(self, client_id: int):
-        """
-        Removes an existing client connection.
-        """
-        self.active_connections.pop(client_id, None)
+    async def cleanup(self):
+        logger.info("Cleaning up MessageCoordinator resources...")

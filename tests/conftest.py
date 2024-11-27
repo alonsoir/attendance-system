@@ -35,9 +35,7 @@ from backend.db.models import Base
 async def async_engine():
     """Create a test database engine."""
     engine = create_async_engine(
-        SQLALCHEMY_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        echo=True
+        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}, echo=True
     )
 
     # Crear las tablas
@@ -55,9 +53,7 @@ async def async_engine():
 async def db_session(async_engine) -> AsyncSession:
     """Provide a database session for testing."""
     async_session = async_sessionmaker(
-        async_engine,
-        class_=AsyncSession,
-        expire_on_commit=False
+        async_engine, class_=AsyncSession, expire_on_commit=False
     )
 
     async with async_session() as session:
@@ -67,18 +63,24 @@ async def db_session(async_engine) -> AsyncSession:
             await session.rollback()
             await session.close()
 
+
 @pytest.fixture(scope="session")
 async def asyncTestingSessionLocal():
-    asyncTestingSessionLocal = sessionmaker(bind=async_engine, class_=AsyncSession, expire_on_commit=False)
+    asyncTestingSessionLocal = sessionmaker(
+        bind=async_engine, class_=AsyncSession, expire_on_commit=False
+    )
     yield asyncTestingSessionLocal
+
 
 @pytest.fixture(scope="session")
 async def whatsapp_service():
     settings = Settings()
     # Instancia única de WhatsAppService (Singleton)
-    service = WhatsAppService(provider=settings.WHATSAPP_PROVIDER,
-                              meta_api_key=None,
-                              callback_token=settings.WHATSAPP_CALLBACK_TOKEN)
+    service = WhatsAppService(
+        provider=settings.WHATSAPP_PROVIDER,
+        meta_api_key=None,
+        callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
+    )
     await service.init_service()  # Inicializar el cliente HTTP
     yield service  # Proveer la instancia a las pruebas
     await service.close_service()  # Cerrar después de las pruebas
@@ -88,12 +90,14 @@ async def whatsapp_service():
 def mock_logging(monkeypatch):
     pass
 
+
 @pytest.fixture(scope="session")
 def attendance_manager():
     """Fixture para el Singleton AttendanceManager."""
     return AttendanceManager()
 
-'''
+
+"""
 @pytest.mark.asyncio
 async def test_singleton_instance(whatsapp_service):
     # Obtener otra instancia del servicio
@@ -103,7 +107,8 @@ async def test_singleton_instance(whatsapp_service):
     assert whatsapp_service is another_service
     another_service.close_service()
     whatsapp_service.close_service()
-'''
+"""
+
 
 @pytest.fixture(scope="session", autouse=True)
 def load_env_development():
@@ -124,7 +129,9 @@ def load_env_development():
 @pytest.fixture(scope="session", autouse=True)
 def test_project_name():
     settings = Settings()
-    assert settings.PROJECT_NAME == "Attendance System (Dev)", f"Valor obtenido: {settings.PROJECT_NAME}"
+    assert (
+        settings.PROJECT_NAME == "Attendance System (Dev)"
+    ), f"Valor obtenido: {settings.PROJECT_NAME}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -165,6 +172,7 @@ def event_loop():
     yield loop
     loop.close()
 
+
 # ---- Fixtures de configuración ----
 @pytest.fixture
 def settings_dev():
@@ -193,7 +201,6 @@ async def setup_database(async_engine):
         await conn.run_sync(Base.metadata.drop_all)
 
 
-
 @pytest.fixture(scope="session")
 def test_db():
     """Fixture que crea una base de datos de prueba y la limpia después de las pruebas."""
@@ -208,6 +215,7 @@ async def db_session(async_engine):
     async with async_session() as session:
         yield session  # Esto debería retornar un objeto de tipo AsyncSession
 
+
 async def test_db_session_fixture(db_session):
     assert isinstance(db_session, AsyncSession)
 
@@ -218,10 +226,12 @@ def mock_callmebot_client():
     client.send_message.return_value = {"status": "success"}
     return client
 
+
 # ---- Fixtures de cliente FastAPI ----
 @pytest.fixture
 async def async_client(db_session: AsyncSession):
     """Cliente asíncrono de pruebas para FastAPI."""
+
     def override_get_db():
         try:
             yield db_session
@@ -237,6 +247,7 @@ async def async_client(db_session: AsyncSession):
 @pytest.fixture
 def client(db_session) -> Generator:
     """Fixture que proporciona un cliente de prueba para la API."""
+
     def override_get_db():
         try:
             yield db_session
@@ -266,7 +277,9 @@ async def test_user(db_session: AsyncSession) -> Dict[str, Any]:
 
 
 @pytest.fixture
-async def test_interaction(db_session: AsyncSession, test_user: Dict[str, Any]) -> Dict[str, Any]:
+async def test_interaction(
+    db_session: AsyncSession, test_user: Dict[str, Any]
+) -> Dict[str, Any]:
     """Fixture que crea una interacción de prueba de forma asíncrona."""
     interaction = Interaction(
         student_name="Test Student",

@@ -20,6 +20,8 @@ from backend.services import AttendanceManager
 logger = logging.getLogger("backend")
 
 settings = get_settings()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """

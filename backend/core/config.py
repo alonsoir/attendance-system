@@ -35,13 +35,14 @@ class Settings(BaseSettings):
     VITE_API_URL: str
     # todo refactorize this to load different settings for each environment
     model_config = SettingsConfigDict(env_file=".env-development")
+
     def print_settings(self):
         model_dump = self.model_dump()
         print(f"Settings cargados(backend/core/config.py): {model_dump}")
 
+
 @lru_cache
 def get_settings():
     settings = Settings()
-    #settings.print_settings()
+    # settings.print_settings()
     return settings
-

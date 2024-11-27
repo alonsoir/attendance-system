@@ -12,11 +12,13 @@ settings = get_settings()
 # Construir la DATABASE_URI desde el archivo .env
 DATABASE_URI = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_SERVER}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 
+
 # Crear el motor asincrónico
 def create_engine(db_uri: str):
     return create_async_engine(db_uri, echo=True)
 
-async_engine=create_engine(DATABASE_URI)
+
+async_engine = create_engine(DATABASE_URI)
 # Crear el fabricante de sesiones asincrónicas
 AsyncSessionLocal = sessionmaker(
     bind=async_engine,
@@ -71,10 +73,14 @@ async def init_db():
     async with AsyncSessionLocal() as db:  # Usa 'async with' para crear una sesión asincrónica
         try:
             # Verificar si ya existen registros de estado de servicio
-            result_claude = await db.execute(select(ServiceStatus).filter(ServiceStatus.service_name == "claude"))
+            result_claude = await db.execute(
+                select(ServiceStatus).filter(ServiceStatus.service_name == "claude")
+            )
             service_status_claude = await result_claude.scalars().first()
 
-            result_meta = await db.execute(select(ServiceStatus).filter(ServiceStatus.service_name == "meta"))
+            result_meta = await db.execute(
+                select(ServiceStatus).filter(ServiceStatus.service_name == "meta")
+            )
             service_status_meta = await result_meta.scalars().first()
 
             if not service_status_claude and not service_status_meta:
@@ -87,6 +93,6 @@ async def init_db():
                 logger.info("Estados de servicio iniciales creados")
         except Exception as e:
             logger.error(f"Error inicializando la base de datos: {str(e)}")
-            await db.rollback() # Esto es necesario?
+            await db.rollback()  # Esto es necesario?
         finally:
-            await db.close() # Esto es necesario?
+            await db.close()  # Esto es necesario?

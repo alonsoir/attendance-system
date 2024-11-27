@@ -9,6 +9,8 @@ from backend.db.base import initialize_db
 from .endpoints import websocket_router, whatsapp_router
 
 settings = get_settings()
+
+
 def create_app():
     app = FastAPI(
         title=settings.PROJECT_NAME,

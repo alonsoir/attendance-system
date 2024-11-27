@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+
 class Base:
     @declared_attr
     def __tablename__(cls):

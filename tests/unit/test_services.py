@@ -31,9 +31,11 @@ async def test_send_message_to_callmebot():
     settings = get_settings()
     # Configuración del servicio
 
-    service = WhatsAppService(provider=MessageProvider.CALLMEBOT,
-                              meta_api_key=None,
-                              callback_token=settings.WHATSAPP_CALLBACK_TOKEN)
+    service = WhatsAppService(
+        provider=MessageProvider.CALLMEBOT,
+        meta_api_key=None,
+        callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
+    )
     await service.init_service()  # Inicializar el cliente HTTP
 
     phone = "+34667519829"
@@ -43,7 +45,7 @@ async def test_send_message_to_callmebot():
         f"phone={phone}&text={message}&apikey=9295095"
     )
 
-    mock_response_text = 'Hello, this is a test, from test_send_message_to_callmebot...'
+    mock_response_text = "Hello, this is a test, from test_send_message_to_callmebot..."
 
     # Mock de `aiohttp.ClientSession.get`
     with patch("aiohttp.ClientSession.get") as mock_get:
@@ -58,9 +60,9 @@ async def test_send_message_to_callmebot():
         response = await service.send_message(phone=phone, message=message)
 
         assert (
-                response.get("status") == "success" or
-                response.get("phone") == phone or
-                response.get("message") == message
+            response.get("status") == "success"
+            or response.get("phone") == phone
+            or response.get("message") == message
         )
 
         await service.close_service()
@@ -77,7 +79,9 @@ async def test_send_whatsapp_message():
     phone = "+34667519829"
     message = "Hello, this is a test..."
 
-    with pytest.raises(NotImplementedError, match="Meta WhatsApp API not implemented yet"):
+    with pytest.raises(
+        NotImplementedError, match="Meta WhatsApp API not implemented yet"
+    ):
         await service._send_meta_message(phone=phone, message=message)
 
     await service.close_service()
@@ -89,9 +93,9 @@ async def test_send_whatsapp_message_invalid_phone():
     """Prueba el envío de mensajes a números inválidos."""
     """Prueba el envío de mensajes de WhatsApp en modo mock con provider Meta."""
     # Configuración del servicio
-    service = WhatsAppService(provider=MessageProvider.META,
-                              meta_api_key=None,
-                              callback_token=None)
+    service = WhatsAppService(
+        provider=MessageProvider.META, meta_api_key=None, callback_token=None
+    )
     await service.init_service()
 
     with pytest.raises(ValueError):
@@ -108,9 +112,11 @@ async def test_send_whatsapp_message_invalid_phone():
     settings = get_settings()
     # Configuración del servicio
 
-    service = WhatsAppService(provider=MessageProvider.CALLMEBOT,
-                              meta_api_key=None,
-                              callback_token=settings.WHATSAPP_CALLBACK_TOKEN)
+    service = WhatsAppService(
+        provider=MessageProvider.CALLMEBOT,
+        meta_api_key=None,
+        callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
+    )
     await service.init_service()
 
     with pytest.raises(ValueError):
@@ -139,7 +145,11 @@ async def test_process_whatsapp_message(mock_whatsapp_message, attendance_manage
         },
     }
 
-    with patch.object(attendance_manager, "process_whatsapp_message", AsyncMock(return_value=expected_response)):
+    with patch.object(
+        attendance_manager,
+        "process_whatsapp_message",
+        AsyncMock(return_value=expected_response),
+    ):
         result = await attendance_manager.process_whatsapp_message(mock_message)
         assert result["status"] == "success"
         assert "response" in result
@@ -188,13 +198,10 @@ def attendance_manager():
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_process_whatsapp_message_success(
-        attendance_manager, mock_db_session, mock_claude_response
+    attendance_manager, mock_db_session, mock_claude_response
 ):
     """Test successful processing of a WhatsApp message."""
-    message_data = {
-        "student_name": "John Doe",
-        "tutor_phone": "+1234567890"
-    }
+    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
 
     with patch("backend.services.attendance.get_db", return_value=mock_db_session):
         response = await attendance_manager.process_whatsapp_message(message_data)
@@ -209,20 +216,22 @@ async def test_process_whatsapp_message_incomplete_data(attendance_manager):
     """Test processing a WhatsApp message with incomplete data."""
     incomplete_message_data = {"student_name": "John Doe"}  # Missing tutor_phone
 
-    response = await attendance_manager.process_whatsapp_message(incomplete_message_data)
+    response = await attendance_manager.process_whatsapp_message(
+        incomplete_message_data
+    )
 
     assert response["status"] == "error"
     assert "Incomplete data" in response["message"]
 
 
 @pytest.mark.asyncio
-@patch("backend.services.attendance.AttendanceManager.verify_authorization", AsyncMock(return_value=False))
+@patch(
+    "backend.services.attendance.AttendanceManager.verify_authorization",
+    AsyncMock(return_value=False),
+)
 async def test_process_whatsapp_message_unauthorized(attendance_manager):
     """Test unauthorized access when processing a WhatsApp message."""
-    message_data = {
-        "student_name": "John Doe",
-        "tutor_phone": "+1234567890"
-    }
+    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
 
     response = await attendance_manager.process_whatsapp_message(message_data)
 
@@ -231,13 +240,13 @@ async def test_process_whatsapp_message_unauthorized(attendance_manager):
 
 
 @pytest.mark.asyncio
-@patch("backend.services.attendance.generate_claude_response", AsyncMock(side_effect=Exception("API error")))
+@patch(
+    "backend.services.attendance.generate_claude_response",
+    AsyncMock(side_effect=Exception("API error")),
+)
 async def test_process_whatsapp_message_exception(attendance_manager):
     """Test handling an unexpected exception."""
-    message_data = {
-        "student_name": "John Doe",
-        "tutor_phone": "+1234567890"
-    }
+    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
 
     response = await attendance_manager.process_whatsapp_message(message_data)
 
@@ -248,9 +257,7 @@ async def test_process_whatsapp_message_exception(attendance_manager):
 @pytest.mark.asyncio
 async def test_process_whatsapp_message_incomplete_data(attendance_manager):
     """Test WhatsApp message processing with missing data."""
-    message_data = {
-        "student_name": "John Doe"  # Missing tutor_phone
-    }
+    message_data = {"student_name": "John Doe"}  # Missing tutor_phone
 
     with pytest.raises(ValueError) as exc_info:
         await attendance_manager.process_whatsapp_message(message_data)
@@ -269,10 +276,7 @@ async def test_process_whatsapp_message_db_error(attendance_manager):
     mock_session.add = AsyncMock()
     mock_session.close = AsyncMock()
 
-    message_data = {
-        "student_name": "John Doe",
-        "tutor_phone": "+1234567890"
-    }
+    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
 
     # Create a mock async session factory that mirrors the real implementation
     @asynccontextmanager
@@ -285,15 +289,25 @@ async def test_process_whatsapp_message_db_error(attendance_manager):
     # Patch get_db to return our mock session
     with patch("backend.services.attendance.get_db", return_value=mock_get_db()):
         # Simulate verify_authorization to return True
-        with patch.object(attendance_manager, "verify_authorization", return_value=True):
+        with patch.object(
+            attendance_manager, "verify_authorization", return_value=True
+        ):
             # Simulate generate_claude_response
-            with patch("backend.services.attendance.generate_claude_response",
-                       return_value={"response": "Test response"}):
-                response = await attendance_manager.process_whatsapp_message(message_data)
+            with patch(
+                "backend.services.attendance.generate_claude_response",
+                return_value={"response": "Test response"},
+            ):
+                response = await attendance_manager.process_whatsapp_message(
+                    message_data
+                )
 
     # Verify error response
-    assert response["status"] == "error", f"Expected error status but got {response['status']}"
-    assert "DB Error" in response["message"], f"Expected 'DB Error' in message but got: {response['message']}"
+    assert (
+        response["status"] == "error"
+    ), f"Expected error status but got {response['status']}"
+    assert (
+        "DB Error" in response["message"]
+    ), f"Expected 'DB Error' in message but got: {response['message']}"
 
     # Verify proper session usage
     mock_session.add.assert_called_once()
@@ -323,7 +337,9 @@ async def test_edge_cases(attendance_manager):
         logger.debug(f"Received expected error: {str(exc_info.value)}")
 
     # Verificación opcional
-    assert not attendance_manager.active_connections, "No deberían quedar conexiones activas"
+    assert (
+        not attendance_manager.active_connections
+    ), "No deberían quedar conexiones activas"
 
 
 @pytest.mark.asyncio
@@ -333,8 +349,8 @@ async def test_network_errors():
     service = ClaudeService.get_instance()
 
     # Test timeout error
-    with patch.object(service, '_session', new=None):  # Reset session
-        with patch('aiohttp.ClientSession.post') as mock_post:
+    with patch.object(service, "_session", new=None):  # Reset session
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.side_effect = ServerTimeoutError("Connection timeout")
 
             response = await service.generate_response("Test", "Test message")
@@ -344,8 +360,8 @@ async def test_network_errors():
             assert not response["reach_out_tomorrow"]
 
     # Test connection error
-    with patch.object(service, '_session', new=None):  # Reset session
-        with patch('aiohttp.ClientSession.post') as mock_post:
+    with patch.object(service, "_session", new=None):  # Reset session
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.side_effect = ClientConnectionError("Connection failed")
 
             response = await service.generate_response("Test", "Test message")
@@ -353,6 +369,7 @@ async def test_network_errors():
             assert response["sensitivity"] == 5
             assert not response["likely_to_be_on_leave_tomorrow"]
             assert not response["reach_out_tomorrow"]
+
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
@@ -363,19 +380,21 @@ async def test_concurrent_access():
     mock_session = AsyncMock()
     mock_context = AsyncMock()
     mock_context.json.return_value = {
-        "content": [{
-            "text": '{"sensitivity": 5, "response": "Test response", "likely_to_be_on_leave_tomorrow": false, "reach_out_tomorrow": true}'
-        }]
+        "content": [
+            {
+                "text": '{"sensitivity": 5, "response": "Test response", "likely_to_be_on_leave_tomorrow": false, "reach_out_tomorrow": true}'
+            }
+        ]
     }
     mock_session.post.return_value = mock_context
 
     # Patch directamente el _session en lugar de get_session
-    with patch.object(service, '_session', mock_session):
+    with patch.object(service, "_session", mock_session):
         # Ejecutar llamadas concurrentes
         responses = await asyncio.gather(
             service.generate_response("Test1", "Test message"),
             service.generate_response("Test2", "Test message"),
-            service.generate_response("Test3", "Test message")
+            service.generate_response("Test3", "Test message"),
         )
 
         # Verificar que todas las respuestas son válidas
@@ -389,13 +408,16 @@ async def test_concurrent_access():
         # Verificar que se usó la misma sesión para todas las llamadas
         assert mock_session.post.call_count == 3
 
+
 @pytest.mark.asyncio
 async def test_broadcast_update_success(attendance_manager, mock_websocket):
     """Test successful broadcasting of updates to all connected clients."""
     attendance_manager.add_connection(1, mock_websocket)
     attendance_manager.add_connection(2, mock_websocket)
 
-    with patch.object(attendance_manager, "get_dashboard_data", return_value={"test_data": "value"}):
+    with patch.object(
+        attendance_manager, "get_dashboard_data", return_value={"test_data": "value"}
+    ):
         await attendance_manager.broadcast_update()
 
     assert mock_websocket.send_json.call_count == 2
@@ -407,7 +429,9 @@ async def test_broadcast_update_connection_error(attendance_manager, mock_websoc
     mock_websocket.send_json.side_effect = RuntimeError("Connection closed")
     attendance_manager.add_connection(1, mock_websocket)
 
-    with patch.object(attendance_manager, "get_dashboard_data", return_value={"test_data": "value"}):
+    with patch.object(
+        attendance_manager, "get_dashboard_data", return_value={"test_data": "value"}
+    ):
         await attendance_manager.broadcast_update()
 
     mock_websocket.send_json.assert_called_once()
@@ -441,7 +465,7 @@ async def test_get_dashboard_data(attendance_manager):
         tutor_phone="+1234567890",
         claude_response={"message": "Test response"},
         status="active",
-        timestamp=datetime.now()
+        timestamp=datetime.now(),
     )
 
     # Crear una clase mock para simular el resultado de scalars()
@@ -486,22 +510,30 @@ async def test_get_dashboard_data(attendance_manager):
 
     # Aplicar los patches
     with patch("backend.services.attendance.get_db", return_value=mock_get_db()):
-        with patch.object(attendance_manager, "check_service_status",
-                          side_effect=mock_service_status):
+        with patch.object(
+            attendance_manager, "check_service_status", side_effect=mock_service_status
+        ):
             logger.debug("Calling get_dashboard_data")
             dashboard_data = await attendance_manager.get_dashboard_data()
             logger.debug(f"Received dashboard_data: {dashboard_data}")
 
     # Verificaciones con logging
     logger.debug(f"Verifying dashboard_data: {dashboard_data}")
-    assert "interactions" in dashboard_data, "interactions key missing from dashboard_data"
-    assert len(
-        dashboard_data["interactions"]) == 1, f"Expected 1 interaction, got {len(dashboard_data['interactions'])}"
+    assert (
+        "interactions" in dashboard_data
+    ), "interactions key missing from dashboard_data"
+    assert (
+        len(dashboard_data["interactions"]) == 1
+    ), f"Expected 1 interaction, got {len(dashboard_data['interactions'])}"
 
     interaction = dashboard_data["interactions"][0]
-    assert interaction["student_name"] == "John Doe", f"Expected John Doe, got {interaction['student_name']}"
+    assert (
+        interaction["student_name"] == "John Doe"
+    ), f"Expected John Doe, got {interaction['student_name']}"
     assert interaction["id"] == 1, f"Expected id 1, got {interaction['id']}"
-    assert interaction["status"] == "active", f"Expected status active, got {interaction['status']}"
+    assert (
+        interaction["status"] == "active"
+    ), f"Expected status active, got {interaction['status']}"
 
     # Verificar las llamadas a los mocks
     assert mock_session.execute.called, "execute was not called"
@@ -535,7 +567,9 @@ async def test_save_interaction():
 
     # async def save_interaction(self, db_session, student_name: str, tutor_phone: str, claude_response: dict):
 
-    await manager.save_interaction(mock_db_session, mock_student_name, mock_tutor_phone, mock_claude_response)
+    await manager.save_interaction(
+        mock_db_session, mock_student_name, mock_tutor_phone, mock_claude_response
+    )
 
     mock_db_session.add.assert_called_once()
     mock_db_session.commit.assert_called_once()
@@ -546,19 +580,23 @@ async def test_generate_claude_response_mock():
     mock_response = {
         "content": [
             {
-                "text": json.dumps({
-                    "sensitivity": 7,
-                    "response": "Mock response with sensitivity",
-                    "likely_to_be_on_leave_tomorrow": False,
-                    "reach_out_tomorrow": True
-                }),
+                "text": json.dumps(
+                    {
+                        "sensitivity": 7,
+                        "response": "Mock response with sensitivity",
+                        "likely_to_be_on_leave_tomorrow": False,
+                        "reach_out_tomorrow": True,
+                    }
+                ),
                 "type": "text",
             }
         ],
     }
 
-    with patch("backend.services.claude.ClaudeService.generate_response",
-               new=AsyncMock(return_value=mock_response)):
+    with patch(
+        "backend.services.claude.ClaudeService.generate_response",
+        new=AsyncMock(return_value=mock_response),
+    ):
         response = await generate_claude_response("Test Student")
         assert "content" in response
         assert len(response["content"]) > 0
@@ -577,21 +615,22 @@ async def test_generate_claude_response_error():
 
     # Crear un mock que simule el context manager
     mock_context = AsyncMock()
-    mock_context.__aenter__.side_effect = Exception("API Error")  # Simula una excepción en el context manager
+    mock_context.__aenter__.side_effect = Exception(
+        "API Error"
+    )  # Simula una excepción en el context manager
     mock_context.__aexit__ = AsyncMock()
 
     mock_session = AsyncMock()
     mock_session.post.return_value = mock_context
 
     # Hacer patch directamente de _session
-    with patch.object(claude_service, '_session', mock_session):
+    with patch.object(claude_service, "_session", mock_session):
         response = await generate_claude_response("Test Student")
 
         # Verificaciones del resultado
         assert response["sensitivity"] == 5  # valor por defecto
         assert "Error" in response["response"]
         # assert response["response"] == "Error: API Error"  # Verificación exacta del mensaje
-
 
 
 @pytest.mark.asyncio
@@ -629,20 +668,20 @@ async def test_broadcast_update(db_session):
     # Mock de get_dashboard_data para evitar llamadas reales a la base de datos
     mock_dashboard_data = {
         "service_status": {"claude": True, "meta": True},
-        "interactions": []
+        "interactions": [],
     }
 
     # Aplicar el patch para get_dashboard_data
-    with patch.object(attendance_manager, 'get_dashboard_data',
-                      return_value=mock_dashboard_data):
+    with patch.object(
+        attendance_manager, "get_dashboard_data", return_value=mock_dashboard_data
+    ):
         # Llamar al método de instancia
         await attendance_manager.broadcast_update()
 
     # Verificar que se llamó send_json con los datos correctos
-    mock_websocket.send_json.assert_called_once_with({
-        "type": "update",
-        "data": mock_dashboard_data
-    })
+    mock_websocket.send_json.assert_called_once_with(
+        {"type": "update", "data": mock_dashboard_data}
+    )
 
     # Opcionalmente, verificar que solo se llamó una vez
     assert mock_websocket.send_json.call_count == 1
@@ -694,15 +733,21 @@ async def test_error_handling():
     """Prueba el manejo de errores en los servicios."""
     claude_service = ClaudeService.get_instance()
     mock_session = AsyncMock()
-    with patch.object(claude_service, '_session', new=mock_session):
+    with patch.object(claude_service, "_session", new=mock_session):
         # Parchear el método post de la sesión mock
         mock_session.post.return_value.__aenter__.return_value.json.return_value = {
-            "content": [{"text": json.dumps({
-                "sensitivity": 5,
-                "response": "This is a test response.",
-                "likely_to_be_on_leave_tomorrow": False,
-                "reach_out_tomorrow": True
-            })}]
+            "content": [
+                {
+                    "text": json.dumps(
+                        {
+                            "sensitivity": 5,
+                            "response": "This is a test response.",
+                            "likely_to_be_on_leave_tomorrow": False,
+                            "reach_out_tomorrow": True,
+                        }
+                    )
+                }
+            ]
         }
 
     settings = get_settings()
@@ -710,20 +755,19 @@ async def test_error_handling():
     service = WhatsAppService(
         provider=MessageProvider.CALLMEBOT,
         meta_api_key=None,
-        callback_token=settings.WHATSAPP_CALLBACK_TOKEN
+        callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
     await service.init_service()
     phone = "NOT_A_VALID_PHONENUMBER"
 
     # Mock del cliente HTTP
-    with patch("aiohttp.ClientSession.get", side_effect=ValueError(f"Invalid phone number: {phone}")) as mock_get:
+    with patch(
+        "aiohttp.ClientSession.get",
+        side_effect=ValueError(f"Invalid phone number: {phone}"),
+    ) as mock_get:
         with pytest.raises(ValueError):
             await service.send_message(phone, "Test message")
     await service.close_service()
-
-
-
-
 
 
 @pytest.mark.asyncio
@@ -733,9 +777,7 @@ async def test_service_status_updates(db_session):
     try:
         # Crear un nuevo estado de servicio
         service = ServiceStatus(
-            service_name="test_service",
-            status=True,
-            last_check=datetime.utcnow()
+            service_name="test_service", status=True, last_check=datetime.utcnow()
         )
 
         # Añadir la entidad a la sesión (sin await)
@@ -757,7 +799,9 @@ async def test_service_status_updates(db_session):
         # Verificaciones
         assert updated_service is not None, "Service not found"
         assert not updated_service.status, "Status should be False"
-        assert updated_service.error_message == "Test error", "Error message not updated"
+        assert (
+            updated_service.error_message == "Test error"
+        ), "Error message not updated"
 
     except Exception as e:
         await db_session.rollback()
@@ -768,19 +812,19 @@ async def test_service_status_updates(db_session):
 def mock_claude_response():
     """Fixture para crear respuestas mock de Claude."""
 
-    def create_response(sensitivity, response="Test response",
-                        leave_tomorrow=False, reach_out=True):
-        return json.dumps({
-            "sensitivity": sensitivity,
-            "response": response,
-            "likely_to_be_on_leave_tomorrow": leave_tomorrow,
-            "reach_out_tomorrow": reach_out,
-        })
+    def create_response(
+        sensitivity, response="Test response", leave_tomorrow=False, reach_out=True
+    ):
+        return json.dumps(
+            {
+                "sensitivity": sensitivity,
+                "response": response,
+                "likely_to_be_on_leave_tomorrow": leave_tomorrow,
+                "reach_out_tomorrow": reach_out,
+            }
+        )
 
     return create_response
-
-
-
 
 
 class MockResponse:
@@ -804,25 +848,35 @@ class AsyncContextManagerMock:
     async def __aexit__(self, exc_type, exc, tb):
         self.exit_called = True
 
+
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_interaction_sensitivity_calculation():
-    with patch('aiohttp.ClientSession') as mock_session_class:
+    with patch("aiohttp.ClientSession") as mock_session_class:
         claude_service = ClaudeService.get_instance()
 
         mock_response = AsyncMock()
         mock_session = mock_session_class.return_value
         mock_session.post.return_value.__aenter__.return_value.json.return_value = {
-            "content": [{"text": json.dumps({
-                "sensitivity": 7,
-                "response": "Test response",
-                "likely_to_be_on_leave_tomorrow": False,
-                "reach_out_tomorrow": True
-            })}]
+            "content": [
+                {
+                    "text": json.dumps(
+                        {
+                            "sensitivity": 7,
+                            "response": "Test response",
+                            "likely_to_be_on_leave_tomorrow": False,
+                            "reach_out_tomorrow": True,
+                        }
+                    )
+                }
+            ]
         }
 
-        response = await claude_service.generate_response("Test Student", "El estudiante está enfermo")
+        response = await claude_service.generate_response(
+            "Test Student", "El estudiante está enfermo"
+        )
         assert response["sensitivity"] == 7
+
 
 @pytest.fixture(autouse=True)
 async def cleanup_claude_service():
@@ -857,9 +911,7 @@ async def test_interaction_sensitivity_invalid_json():
     claude_service = ClaudeService.get_instance()
 
     mock_context = AsyncMock()
-    mock_context.json.return_value = {
-        "content": [{"text": "Invalid JSON response"}]
-    }
+    mock_context.json.return_value = {"content": [{"text": "Invalid JSON response"}]}
 
     mock_session = AsyncMock()
     mock_session.post.return_value = mock_context
