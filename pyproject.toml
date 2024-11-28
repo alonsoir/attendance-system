@@ -62,6 +62,7 @@ tenacity = "^8.2.3"
 aiosqlite = "^0.20.0"
 pytest = "^8.3.3"
 pytest-asyncio = "^0.24.0"
+phonenumbers = "^8.13.50"
 
 [tool.poetry.group.dev.dependencies]
 # Testing

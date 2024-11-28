@@ -185,38 +185,98 @@ VALIDATION_RULES = {
     },
 }
 
+import phonenumbers
+from phonenumbers import NumberParseException
+
 
 class PhoneNumberValidator:
     @staticmethod
-    def validate_phone(phone: str, region: Region = Region.ES) -> bool:
-        """Validates phone number format for specific region"""
-        pattern = PHONE_PATTERNS[region]["pattern"]
-        return bool(re.match(pattern, phone))
+    def validate_phone(phone: str) -> bool:
+        """
+        Valida el número de teléfono internacionalmente, aceptando números con o sin el prefijo '+'.
+
+        Args:
+            phone (str): Número de teléfono a validar.
+
+        Returns:
+            bool: True si es válido, False en caso contrario.
+        """
+        # Asegurarse de que el número tenga el prefijo '+'.
+        if not phone.startswith("+"):
+            phone = f"+{phone}"
+
+        try:
+            # Intenta analizar el número
+            parsed = phonenumbers.parse(phone, None)
+            return phonenumbers.is_valid_number(parsed)
+        except NumberParseException:
+            return False
 
     @staticmethod
-    def format_phone(phone: str, region: Region = Region.ES) -> str:
-        """Formats phone number according to region standard"""
-        # Remove all non-numeric characters
-        cleaned = re.sub(r"[^\d]", "", phone)
+    def format_phone(phone: str) -> str:
+        """
+        Formatea el número de teléfono en formato internacional E.164.
 
-        if region == Region.US:
-            if len(cleaned) == 10:
-                return f"+1{cleaned}"
-            elif len(cleaned) == 11 and cleaned.startswith("1"):
-                return f"+{cleaned}"
+        Args:
+            phone (str): Número de teléfono a formatear.
 
-        elif region == Region.ES:
-            if len(cleaned) == 9:
-                return f"+34{cleaned}"
-            elif len(cleaned) == 11 and cleaned.startswith("34"):
-                return f"+{cleaned}"
+        Returns:
+            str: Número de teléfono en formato E.164.
 
-        raise ValueError(f"Invalid phone number format for region {region}")
+        Raises:
+            ValueError: Si el número no es válido.
+        """
+        if not phone.startswith("+"):
+            phone = f"+{phone}"
+
+        try:
+            parsed = phonenumbers.parse(phone, None)
+            if phonenumbers.is_valid_number(parsed):
+                return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+            else:
+                raise ValueError("Número de teléfono inválido")
+        except NumberParseException as e:
+            raise ValueError(f"Error al analizar el número: {e}")
 
     @staticmethod
-    def get_example_number(region: Region = Region.ES) -> str:
-        """Returns an example valid phone number for the region"""
-        return PHONE_PATTERNS[region]["example"]
+    def get_region(phone: str) -> str:
+        """
+        Obtiene la región asociada al número de teléfono.
+
+        Args:
+            phone (str): Número de teléfono.
+
+        Returns:
+            str: Código de la región (ej. 'US', 'ES').
+
+        Raises:
+            ValueError: Si el número no es válido.
+        """
+        if not phone.startswith("+"):
+            phone = f"+{phone}"
+
+        try:
+            parsed = phonenumbers.parse(phone, None)
+            if phonenumbers.is_valid_number(parsed):
+                return phonenumbers.region_code_for_number(parsed)
+            else:
+                raise ValueError("Número de teléfono inválido")
+        except NumberParseException as e:
+            raise ValueError(f"Error al analizar el número: {e}")
+
+    @staticmethod
+    def get_example_number(region: str = "US") -> str:
+        """
+        Devuelve un número de teléfono de ejemplo válido para una región específica.
+
+        Args:
+            region (str): Código de la región (ej. 'US', 'ES').
+
+        Returns:
+            str: Número de teléfono de ejemplo en formato E.164.
+        """
+        example_number = phonenumbers.example_number(region)
+        return phonenumbers.format_number(example_number, phonenumbers.PhoneNumberFormat.E164)
 
 
 class MessageFormatter:

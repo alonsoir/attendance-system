@@ -5,13 +5,28 @@ from typing import Dict, Any
 import aiohttp
 from starlette.websockets import WebSocket
 from backend.core.config import get_settings
+from backend.services import PhoneNumberValidator
 from backend.services.whatsapp import WhatsAppService
 from backend.services.claude import ClaudeService
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class IncomingMessage:
+    """Estructura de datos para mensajes entrantes de WhatsApp"""
+    sender_phone: str
+    sender_name: str
+    message_content: str
+    timestamp: int
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "sender_phone": self.sender_phone,
+            "sender_name": self.sender_name,
+            "message_content": self.message_content,
+            "timestamp": self.timestamp,
+        }
 @dataclass
 class MessageData:
     """Estructura de datos para validar mensajes entrantes y salientes entre Claude, WhatsApp y la BD"""
@@ -65,21 +80,19 @@ class AttendanceManager:
         return AttendanceManager._instance
 
     async def process_whatsapp_message_from_tutor_to_claude(
-        self, message_data: MessageData
+        self, message_data: IncomingMessage
     ) -> Dict[str, Any]:
         try:
             # Validar y procesar el mensaje
-            validated_data = self._validate_message_data(message_data)
+            validated_data = self._validate_incoming_message_data(message_data)
             logger.info(
                 f"Processing message for student: {validated_data.student_name}"
             )
-            response: Dict[str, Any] = await self._receive_message_from_tutor(
-                validated_data
-            )
+            response: Dict[str, Any] = await self._receive_message_from_tutor(validated_data)
 
             # Guardar la interacción en la base de datos
             data_from_tutor_to_be_saved: MessageData = MessageData(
-                # id=validated_data.id,
+                id=validated_data.id,
                 student_name=validated_data.student_name,
                 tutor_phone=validated_data.tutor_phone,
                 college_phone=validated_data.college_phone,
@@ -96,7 +109,7 @@ class AttendanceManager:
         except ValueError as e:
             # Re-lanzar las excepciones de validación
             logger.error(f"Validation error: {str(e)}")
-            raise
+            raise ValueError("Validation failed")
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}", exc_info=True)
             return {
@@ -146,19 +159,59 @@ class AttendanceManager:
             }
 
     def _validate_phone_number(self, phone: str) -> bool:
-        import re
 
-        phone_pattern = r"^\+34[6789]\d{8}$|^\+1\d{10}$"
-        return bool(re.match(phone_pattern, phone))
+        return PhoneNumberValidator.validate_phone(phone)
 
     def _validate_college_name(self, college_name: str) -> bool:
         """Valida el nombre del colegio"""
         return True
 
+    def _validate_incoming_message_data(self, incoming: IncomingMessage):
+        """
+        Valida y convierte los datos del mensaje.
+
+        Args:
+            incoming (IncomingMessage): Objeto que contiene los datos del mensaje entrante.
+
+        Returns:
+            List[str]: Lista de errores encontrados, si los hay.
+
+        Raises:
+            ValueError: Si se detectan errores en los datos.
+        """
+        errors = []
+
+        # Validar sender_phone
+        sender_phone = incoming['sender_phone']
+        is_valid_sender_phone = PhoneNumberValidator.validate_phone(sender_phone)
+        if not sender_phone or not is_valid_sender_phone:
+            errors.append("sender_phone is required")
+
+        # Validar sender_name
+        sender_name = incoming['sender_name'].strip()
+        if not sender_name:
+            errors.append("sender_name is required")
+
+        # Validar message_content
+        message_content = incoming['message_content'].strip()
+        if not message_content:
+            errors.append("message_content is required")
+
+        # Validar timestamp
+        if not isinstance(incoming['timestamp'], int) or int(incoming['timestamp']) <= 0:
+            errors.append("timestamp is invalid or required")
+
+        if errors:
+            raise ValueError(f"Validation errors: {errors}")
+
+        return True  # Si no hay errores, la validación fue exitosa
+
     def _validate_message_data(self, message_data: MessageData) -> MessageData:
         """Valida y convierte los datos del mensaje."""
         errors = []
-
+        id = message_data.get("id", "")
+        if not id:
+            errors.append("id is required")
         student_name = message_data.get("student_name", "").strip()
         if not student_name:
             errors.append("student_name is required")
@@ -189,6 +242,7 @@ class AttendanceManager:
             raise ValueError(f"Message validation failed: {', '.join(errors)}")
 
         return MessageData(
+            id=id,
             student_name=student_name,
             tutor_phone=tutor_phone,
             college_phone=college_phone,
@@ -209,9 +263,7 @@ class AttendanceManager:
             "response": message,
             "timestamp": str(datetime.now()),
         """
-        response: Dict[
-            str, Any
-        ] = WhatsAppService.get_instance().get_message_from_tutor()
+        response: Dict[str, Any] = WhatsAppService.get_instance().get_message_from_tutor()
         logger.info(response)
         return response
 
@@ -329,4 +381,4 @@ class AttendanceManager:
         return status
 
     async def cleanup(self):
-        logger.info("Cleaning up MessageCoordinator resources...")
+        logger.info("Cleaning up AttendanceManager resources...")
