@@ -37,7 +37,7 @@ async def test_send_message_to_callmebot_integration():
 async def test_generate_claude_response_integration_es():
     """Prueba la generación de respuestas reales de Claude, en español"""
     claude_service = ClaudeService.get_instance()
-    response = await claude_service.generate_response(
+    response = await claude_service.generate_response_when_college(
         student_name="Test Student", message="El estudiante está enfermo."
     )
 
@@ -75,7 +75,7 @@ async def test_generate_claude_response_integration_es():
 async def test_generate_claude_response_integration_english():
     """Prueba la generación de respuestas reales de Claude, en ingles"""
     claude_service = ClaudeService.get_instance()
-    response = await claude_service.generate_response(
+    response = await claude_service.generate_response_when_college(
         student_name="Test Student", message="The student is sick."
     )
 

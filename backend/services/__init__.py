@@ -6,10 +6,7 @@ from .attendance import AttendanceManager
 from .claude import generate_claude_response
 from .service_status import check_service_status
 
-__all__ = [
-    "AttendanceManager",
-    "generate_claude_response"
-]
+__all__ = ["AttendanceManager", "generate_claude_response"]
 
 
 class Language(str, Enum):

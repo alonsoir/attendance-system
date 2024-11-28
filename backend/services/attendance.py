@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MessageData:
     """Estructura de datos para validar mensajes entrantes y salientes entre Claude, WhatsApp y la BD"""
+
     id: int
     student_name: str
     tutor_phone: str
@@ -33,7 +34,7 @@ class MessageData:
             "college_name": self.college_name,
             "message_content": self.message_content,
             "tutor_name": self.tutor_name,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
 
     def get(self, param, param1):
@@ -63,32 +64,34 @@ class AttendanceManager:
             AttendanceManager()
         return AttendanceManager._instance
 
-    async def process_whatsapp_message_from_tutor_to_claude(self, message_data: MessageData) -> Dict[str, Any]:
+    async def process_whatsapp_message_from_tutor_to_claude(
+        self, message_data: MessageData
+    ) -> Dict[str, Any]:
         try:
             # Validar y procesar el mensaje
             validated_data = self._validate_message_data(message_data)
-            logger.info(f"Processing message for student: {validated_data.student_name}")
-            response: Dict[str,Any] = await self._receive_message_from_tutor(validated_data)
+            logger.info(
+                f"Processing message for student: {validated_data.student_name}"
+            )
+            response: Dict[str, Any] = await self._receive_message_from_tutor(
+                validated_data
+            )
 
             # Guardar la interacción en la base de datos
             data_from_tutor_to_be_saved: MessageData = MessageData(
-               #id=validated_data.id,
-               student_name=validated_data.student_name,
-               tutor_phone=validated_data.tutor_phone,
-               college_phone=validated_data.college_phone,
-               college_name=validated_data.college_name,
-               message_content=response["message"],
-               tutor_name=validated_data.tutor_name,
-               timestamp=datetime.now()
+                # id=validated_data.id,
+                student_name=validated_data.student_name,
+                tutor_phone=validated_data.tutor_phone,
+                college_phone=validated_data.college_phone,
+                college_name=validated_data.college_name,
+                message_content=response["message"],
+                tutor_name=validated_data.tutor_name,
+                timestamp=datetime.now(),
             )
             # Guardar la interacción en la base de datos
             await self._save_interaction_to_db(data_from_tutor_to_be_saved)
 
-
-            return {
-                "status": "success",
-                "response": "Message processed successfully"
-            }
+            return {"status": "success", "response": "Message processed successfully"}
 
         except ValueError as e:
             # Re-lanzar las excepciones de validación
@@ -99,15 +102,19 @@ class AttendanceManager:
             return {
                 "status": "error",
                 "message": f"Processing failed: {str(e)}",
-                "error_type": e.__class__.__name__
+                "error_type": e.__class__.__name__,
             }
 
-    async def process_whatsapp_message_from_college_to_tutor(self, message_data: dict) -> Dict[str, Any]:
+    async def process_whatsapp_message_from_college_to_tutor(
+        self, message_data: dict
+    ) -> Dict[str, Any]:
         try:
             # Validar y procesar el mensaje
             validated_data = self._validate_message_data(message_data)
-            logger.info(f"Processing message for tutor: {validated_data.tutor_name} "
-                        f"from college: {validated_data.college_name}")
+            logger.info(
+                f"Processing message for tutor: {validated_data.tutor_name} "
+                f"from college: {validated_data.college_name}"
+            )
 
             # Enviar mensaje al tutor
             response: MessageData = await self._send_message_to_tutor(validated_data)
@@ -124,10 +131,7 @@ class AttendanceManager:
             # Enviar PDF al colegio
             # await self._send_report_to_college(validated_data.college_phone)
 
-            return {
-                "status": "success",
-                "response": "Message processed successfully"
-            }
+            return {"status": "success", "response": "Message processed successfully"}
 
         except ValueError as e:
             # Re-lanzar las excepciones de validación
@@ -138,12 +142,13 @@ class AttendanceManager:
             return {
                 "status": "error",
                 "message": f"Processing failed: {str(e)}",
-                "error_type": e.__class__.__name__
+                "error_type": e.__class__.__name__,
             }
 
     def _validate_phone_number(self, phone: str) -> bool:
         import re
-        phone_pattern = r'^\+34[6789]\d{8}$|^\+1\d{10}$'
+
+        phone_pattern = r"^\+34[6789]\d{8}$|^\+1\d{10}$"
         return bool(re.match(phone_pattern, phone))
 
     def _validate_college_name(self, college_name: str) -> bool:
@@ -190,10 +195,10 @@ class AttendanceManager:
             college_name=college_name,
             message_content=message_content,
             tutor_name=message_data.get("tutor_name", "").strip(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
-    async def _receive_message_from_tutor(self)-> Dict[str, Any]:
+    async def _receive_message_from_tutor(self) -> Dict[str, Any]:
         """
         Simula la recepción de un mensaje de un tutor.
             "status": "success",
@@ -204,15 +209,19 @@ class AttendanceManager:
             "response": message,
             "timestamp": str(datetime.now()),
         """
-        response: Dict[str, Any] = WhatsAppService.get_instance().get_message_from_tutor()
+        response: Dict[
+            str, Any
+        ] = WhatsAppService.get_instance().get_message_from_tutor()
         logger.info(response)
         return response
 
     async def _send_message_to_tutor(self, validated_data: MessageData) -> MessageData:
-        message = (f"Hola, {validated_data.tutor_name}. Soy Attendance Manager, nos ha contactado el colegio "
-                   f"{validated_data.college_name} solicitando información sobre el estudiante "
-                   f"{validated_data.student_name}. ¿Puedes proporcionarnos el estado actual de "
-                   f"{validated_data.student_name}?")
+        message = (
+            f"Hola, {validated_data.tutor_name}. Soy Attendance Manager, nos ha contactado el colegio "
+            f"{validated_data.college_name} solicitando información sobre el estudiante "
+            f"{validated_data.student_name}. ¿Puedes proporcionarnos el estado actual de "
+            f"{validated_data.student_name}?"
+        )
         """
         response is a dictionary with the following keys:
         {
@@ -226,39 +235,51 @@ class AttendanceManager:
         }
         """
 
-
-        response: Dict[str, Any] = await WhatsAppService.get_instance().send_message(validated_data.tutor_phone, message)
+        response: Dict[str, Any] = await WhatsAppService.get_instance().send_message(
+            validated_data.tutor_phone, message
+        )
         print(response)
         return response
 
-    async def _save_interaction_to_db(self, data_to_be_saved_from_tutor: MessageData) -> None:
+    async def _save_interaction_to_db(
+        self, data_to_be_saved_from_tutor: MessageData
+    ) -> None:
         """Guarda la interacción en la base de datos."""
         pass
 
-    async def _wait_for_tutor_response(self, validated_data: MessageData) -> Dict[str, Any]:
+    async def _wait_for_tutor_response(
+        self, validated_data: MessageData
+    ) -> Dict[str, Any]:
         tutor_response = await ClaudeService.get_instance().wait_for_tutor_response(
-            validated_data.student_name,
-            validated_data.tutor_phone
+            validated_data.student_name, validated_data.tutor_phone
         )
 
         # Guardar la respuesta del tutor en la base de datos
 
         return tutor_response
 
-    async def _generate_pdf_report(self, validated_data: MessageData, tutor_response: Dict[str, Any]) -> None:
+    async def _generate_pdf_report(
+        self, validated_data: MessageData, tutor_response: Dict[str, Any]
+    ) -> None:
         """Genera un PDF con la conversación completa."""
         # Lógica para generar el PDF con la conversación
-        pdf_content = f"Estudiante: {validated_data.student_name}\n" \
-                      f"Colegio: {validated_data.message_content}\n" \
-                      f"Tutor: {validated_data.tutor_name} ({validated_data.tutor_phone})\n" \
-                      f"Mensaje inicial: {validated_data.message_content}\n" \
-                      f"Respuesta del tutor: {tutor_response['message']}\n" \
-                      f"Timestamp: {tutor_response['timestamp']}"
-        await AttendanceManager.get_instance().save_pdf_report(validated_data.student_name, pdf_content)
+        pdf_content = (
+            f"Estudiante: {validated_data.student_name}\n"
+            f"Colegio: {validated_data.message_content}\n"
+            f"Tutor: {validated_data.tutor_name} ({validated_data.tutor_phone})\n"
+            f"Mensaje inicial: {validated_data.message_content}\n"
+            f"Respuesta del tutor: {tutor_response['message']}\n"
+            f"Timestamp: {tutor_response['timestamp']}"
+        )
+        await AttendanceManager.get_instance().save_pdf_report(
+            validated_data.student_name, pdf_content
+        )
 
     async def _send_report_to_college(self, college_phone: str) -> None:
         # Lógica para enviar el PDF al colegio
-        await WhatsAppService.get_instance().send_message(college_phone, "Adjunto encontrará el reporte de la conversación.")
+        await WhatsAppService.get_instance().send_message(
+            college_phone, "Adjunto encontrará el reporte de la conversación."
+        )
 
     async def broadcast_update(self, client_id: int, websocket: WebSocket):
         if not self.active_connections:
@@ -266,10 +287,7 @@ class AttendanceManager:
             return
 
         dashboard_data = await self.get_dashboard_data()
-        update_message = {
-            "type": "update",
-            "data": dashboard_data
-        }
+        update_message = {"type": "update", "data": dashboard_data}
 
         disconnected_clients = []
 
@@ -278,7 +296,9 @@ class AttendanceManager:
                 await connection.send_json(update_message)
                 logger.debug(f"Successfully sent update to client {client_id}")
             except Exception as e:
-                logger.error(f"Error broadcasting update to client {client_id}: {str(e)}")
+                logger.error(
+                    f"Error broadcasting update to client {client_id}: {str(e)}"
+                )
                 disconnected_clients.append(client_id)
 
         # Limpiar conexiones muertas

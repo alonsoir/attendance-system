@@ -13,10 +13,12 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+
 class MessageProvider(str, Enum):
     CALLMEBOT = "callmebot"
     META = "meta"
     MOCK = "mock"
+
 
 class WhatsAppService:
     _instance: Optional["WhatsAppService"] = None
@@ -45,7 +47,9 @@ class WhatsAppService:
         self.is_mock = provider == MessageProvider.MOCK
 
         if self.is_mock:
-            logger.warning("WhatsApp service running in MOCK mode - messages will be logged but not sent")
+            logger.warning(
+                "WhatsApp service running in MOCK mode - messages will be logged but not sent"
+            )
         logger.info(f"WhatsApp service initialized with provider: {self.provider}")
 
         self.__initialized = True
@@ -120,7 +124,9 @@ class WhatsAppService:
         if not PhoneNumberValidator.validate_phone(phone):
             raise ValueError(f"Invalid phone number: {phone}")
         if not self._http_client:
-            raise RuntimeError("WhatsAppService must be initialized with `init_service()` before usage.")
+            raise RuntimeError(
+                "WhatsAppService must be initialized with `init_service()` before usage."
+            )
 
         try:
             if self.is_mock:
@@ -166,7 +172,7 @@ class WhatsAppService:
                 "message": message,
                 "provider": "callmebot",
                 "response": await response.text(),
-                "timestamp": str(datetime.now())
+                "timestamp": str(datetime.now()),
             }
 
     async def _send_meta_message(self, phone: str, message: str) -> Dict[str, Any]:
@@ -175,9 +181,7 @@ class WhatsAppService:
         payload = {
             "messaging_product": "whatsapp",
             "to": phone_formatted,
-            "text": {
-                "body": message
-            }
+            "text": {"body": message},
         }
         logger.info(f"Sending message to {phone} via Meta WhatsApp API")
         async with self._http_client.post(url, json=payload) as response:
@@ -189,7 +193,7 @@ class WhatsAppService:
                 "message": message,
                 "provider": "meta",
                 "response": await response.json(),
-                "timestamp": str(datetime.now())
+                "timestamp": str(datetime.now()),
             }
 
     async def verify_callback(self, token: str) -> bool:

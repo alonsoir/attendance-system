@@ -39,4 +39,3 @@ async def test_message_formatter():
     )
     assert "John" in en_message
     assert "Test High School" in en_message
-

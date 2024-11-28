@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("faker.factory").setLevel(logging.WARNING)
 
+
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_error_handling():

@@ -2,13 +2,16 @@ from enum import Enum
 from typing import Dict
 import re
 
+
 class Language(str, Enum):
     EN_US = "en-US"
     ES_ES = "es-ES"
 
+
 class Region(str, Enum):
     US = "US"
     ES = "ES"
+
 
 # Phone Number Patterns by Region
 PHONE_PATTERNS = {
@@ -25,6 +28,7 @@ PHONE_PATTERNS = {
         "description": "Spanish phone number starting with +34 followed by 9 digits",
     },
 }
+
 
 class PhoneNumberValidator:
     @staticmethod
@@ -53,6 +57,7 @@ class PhoneNumberValidator:
     def get_example_number(region: Region = Region.ES) -> str:
         """Returns an example valid phone number for the region"""
         return PHONE_PATTERNS[region]["example"]
+
 
 class MessageFormatter:
     @staticmethod
