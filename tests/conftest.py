@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, Generator
@@ -10,8 +9,7 @@ from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
-from backend import get_settings
-from backend.core.config import Settings
+from backend.core.config import Settings, get_settings
 from backend.core.security import get_password_hash
 from backend.db.models import User, Interaction
 from backend.db.session import get_db, create_engine
@@ -19,9 +17,6 @@ from backend.main import app
 from backend.services import AttendanceManager
 from backend.services.whatsapp import WhatsAppService
 
-logging.getLogger("faker.factory").setLevel(logging.WARNING)
-# Ajustar el nivel de logging global
-logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 # Configuración y variables de entorno
 os.environ["APP_ENV"] = "development"
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -30,6 +25,15 @@ import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from backend.db.models import Base
 
+import logging
+# @pytest.fixture(scope="session")
+def pytest_configure():
+    logging.basicConfig(level=logging.ERROR)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
+    logging.getLogger("faker.factory").setLevel(logging.ERROR)
+    logging.getLogger("aiosqlite").setLevel(logging.ERROR)
+    # Si quieres silenciar completamente
+    logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.ERROR)
 
 @pytest.fixture(scope="session")
 async def async_engine():
@@ -78,7 +82,7 @@ async def whatsapp_service():
     # Instancia única de WhatsAppService (Singleton)
     service = WhatsAppService(
         provider=settings.WHATSAPP_PROVIDER,
-        meta_api_key=None,
+        meta_api_key=settings.WHATSAPP_META_API_KEY,
         callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
     await service.init_service()  # Inicializar el cliente HTTP
@@ -159,6 +163,7 @@ def test_settings():
     assert settings.REDIS_URL == "redis://localhost:6379"
     assert settings.SECRET_KEY != ""
     assert settings.ANTHROPIC_API_KEY != ""
+    assert settings.WHATSAPP_META_API_KEY != ""
     assert settings.WHATSAPP_CALLBACK_TOKEN == "9295095"
     assert settings.WHATSAPP_PROVIDER == "callmebot"
     assert settings.FRONTEND_PORT == 3000

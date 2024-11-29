@@ -4,7 +4,7 @@ from unittest.mock import patch, AsyncMock
 
 import pytest
 
-from backend import get_settings
+from backend.core import get_settings
 from backend.services.claude import ClaudeService
 from backend.services.whatsapp import WhatsAppService, MessageProvider
 
@@ -97,10 +97,9 @@ class AsyncContextManagerMock:
     async def __aexit__(self, exc_type, exc, tb):
         self.exit_called = True
 
-
 @pytest.mark.asyncio
 @pytest.mark.unittest
-async def test_interaction_sensitivity_calculation():
+async def test_interaction_sensitivity_calculation_generate_response_when_college():
     with patch("aiohttp.ClientSession") as mock_session_class:
         claude_service = ClaudeService.get_instance()
 
@@ -121,24 +120,12 @@ async def test_interaction_sensitivity_calculation():
             ]
         }
 
-        response = await claude_service.generate_response(
-            "Test Student", "El estudiante está enfermo"
-        )
+        response = await claude_service.generate_response_when_college("student_name", "El estudiante está enfermo")
         assert response["sensitivity"] == 7
-
-
-@pytest.fixture(autouse=True)
-async def cleanup_claude_service():
-    yield
-    service = ClaudeService.get_instance()
-    service._session = AsyncMock()
-    service._session.close = AsyncMock()
-    await service.close_session()
-
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
-async def test_interaction_sensitivity_error_handling():
+async def test_interaction_sensitivity_error_handling_generate_response_when_college():
     claude_service = ClaudeService.get_instance()
 
     mock_session = AsyncMock()
@@ -146,7 +133,7 @@ async def test_interaction_sensitivity_error_handling():
     mock_session.close = AsyncMock()
     claude_service._session = mock_session
 
-    response = await claude_service.generate_response("Test Student", "Test message")
+    response = await claude_service.generate_response_when_college("student_name","El estudiante está enfermo")
 
     assert response["sensitivity"] == 5
     assert "Error" in response["response"]
@@ -156,7 +143,7 @@ async def test_interaction_sensitivity_error_handling():
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
-async def test_interaction_sensitivity_invalid_json():
+async def test_interaction_sensitivity_invalid_json_generate_response_when_college():
     claude_service = ClaudeService.get_instance()
 
     mock_context = AsyncMock()
@@ -167,7 +154,81 @@ async def test_interaction_sensitivity_invalid_json():
     mock_session.close = AsyncMock()
     claude_service._session = mock_session
 
-    response = await claude_service.generate_response("Test Student", "Test message")
+    response = await claude_service.generate_response_when_college("student_name","El estudiante está enfermo")
 
     assert response["sensitivity"] == 5
     assert isinstance(response["response"], str)
+
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.unittest
+async def test_interaction_sensitivity_calculation_generate_response_when_tutor():
+    with patch("aiohttp.ClientSession") as mock_session_class:
+        claude_service = ClaudeService.get_instance()
+
+        mock_response = AsyncMock()
+        mock_session = mock_session_class.return_value
+        mock_session.post.return_value.__aenter__.return_value.json.return_value = {
+            "content": [
+                {
+                    "text": json.dumps(
+                        {
+                            "sensitivity": 7,
+                            "response": "Test response",
+                            "likely_to_be_on_leave_tomorrow": False,
+                            "reach_out_tomorrow": True,
+                        }
+                    )
+                }
+            ]
+        }
+
+        response = await claude_service.generate_response_when_tutor("El estudiante está enfermo")
+        assert response["sensitivity"] == 7
+
+@pytest.mark.asyncio
+@pytest.mark.unittest
+async def test_interaction_sensitivity_error_handling_generate_response_when_tutor():
+    claude_service = ClaudeService.get_instance()
+
+    mock_session = AsyncMock()
+    mock_session.post.side_effect = Exception("API Error")
+    mock_session.close = AsyncMock()
+    claude_service._session = mock_session
+
+    response = await claude_service.generate_response_when_tutor("El estudiante está enfermo")
+
+    assert response["sensitivity"] == 5
+    assert "Error" in response["response"]
+    assert not response["likely_to_be_on_leave_tomorrow"]
+    assert not response["reach_out_tomorrow"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.unittest
+async def test_interaction_sensitivity_invalid_json_generate_response_when_tutor():
+    claude_service = ClaudeService.get_instance()
+
+    mock_context = AsyncMock()
+    mock_context.json.return_value = {"content": [{"text": "Invalid JSON response"}]}
+
+    mock_session = AsyncMock()
+    mock_session.post.return_value = mock_context
+    mock_session.close = AsyncMock()
+    claude_service._session = mock_session
+
+    response = await claude_service.generate_response_when_tutor("El estudiante está enfermo")
+
+    assert response["sensitivity"] == 5
+    assert isinstance(response["response"], str)
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_claude_service():
+    yield
+    service = ClaudeService.get_instance()
+    service._session = AsyncMock()
+    service._session.close = AsyncMock()
+    await service.close_session()

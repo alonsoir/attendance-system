@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ANTHROPIC_API_KEY: str
     WHATSAPP_CALLBACK_TOKEN: str
+    WHATSAPP_META_API_KEY: str
     WHATSAPP_PROVIDER: str
     FRONTEND_PORT: int
     VITE_API_URL: str

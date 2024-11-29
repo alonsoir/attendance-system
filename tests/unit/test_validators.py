@@ -8,17 +8,17 @@ async def test_phone_number_validation():
     from backend.services import PhoneNumberValidator
 
     # Números españoles válidos
-    assert PhoneNumberValidator.validate_phone("+34666777888", "ES")
-    assert PhoneNumberValidator.validate_phone("+34911234567", "ES")
+    assert PhoneNumberValidator.validate_phone("+34666777888")
+    assert PhoneNumberValidator.validate_phone("+34911234567")
 
     # Números estadounidenses válidos
-    assert PhoneNumberValidator.validate_phone("+12125551234", "US")
-    assert PhoneNumberValidator.validate_phone("+19175551234", "US")
+    assert PhoneNumberValidator.validate_phone("+12125551234")
+    assert PhoneNumberValidator.validate_phone("+19175551234")
 
     # Números inválidos
-    assert not PhoneNumberValidator.validate_phone("+1212555", "US")
-    assert not PhoneNumberValidator.validate_phone("+3466677", "ES")
-    assert not PhoneNumberValidator.validate_phone("invalid", "ES")
+    assert not PhoneNumberValidator.validate_phone("+1212555")
+    assert not PhoneNumberValidator.validate_phone("+3466677")
+    assert not PhoneNumberValidator.validate_phone("invalid")
 
 
 @pytest.mark.asyncio

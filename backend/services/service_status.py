@@ -4,8 +4,14 @@ from sqlalchemy import select
 
 from backend.db.models import ServiceStatus
 from backend.db.session import get_db
+import asyncio
 
 
+async def is_service_available(service_name: str) -> bool:
+    """Checks if a service is available"""
+    """Checks if a service is available"""
+
+    return asyncio.run(check_service_status(service_name))
 # Modificar para utilizar las funciones asincrónicas
 async def check_service_status(service_name: str) -> bool:
     """Check if a service is available asynchronously."""

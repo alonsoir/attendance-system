@@ -3,7 +3,7 @@ from unittest.mock import patch, AsyncMock
 import pytest
 from aiohttp import ClientResponseError
 
-from backend import get_settings
+from backend.core import get_settings
 from backend.services.whatsapp import WhatsAppService, MessageProvider
 
 

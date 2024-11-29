@@ -2,6 +2,7 @@ import re
 from enum import Enum
 from typing import Dict
 
+
 from .attendance import AttendanceManager
 from .claude import generate_claude_response
 from .service_status import check_service_status
@@ -297,9 +298,4 @@ def is_valid_email(email: str) -> bool:
     return bool(re.match(VALIDATION_RULES["EMAIL_RULES"]["PATTERN"], email))
 
 
-def is_service_available(service_name: str) -> bool:
-    """Checks if a service is available"""
-    """Checks if a service is available"""
-    import asyncio
 
-    return asyncio.run(check_service_status(service_name))

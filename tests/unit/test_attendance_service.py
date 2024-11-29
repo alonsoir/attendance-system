@@ -10,12 +10,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.websockets import WebSocket
 
 from backend.services import AttendanceManager
-from backend.services.attendance import MessageData, IncomingMessage
+from backend.services.attendance import IncomingMessage
 
 logger = logging.getLogger(__name__)
 
-logging.basicConfig(level=logging.DEBUG)
-logging.getLogger("faker.factory").setLevel(logging.WARNING)
 
 import random
 
@@ -36,7 +34,7 @@ def generar_id_unico():
 def valid_incomming_message_data():
     """Fixture que proporciona datos válidos de mensaje."""
     return {
-        "sender_phone": "15551234567",
+        "sender_phone": "12025550179",
         "sender_name": "Test Sender",
         "message_content": "Mi hijo está enfermo",
         "timestamp": generate_whatsapp_timestamp()
@@ -79,60 +77,93 @@ def invalid_message_data():
         "tutor_name": "Test Parent",
     }
 
-
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_validate_phone_number(attendance_manager):
     """Prueba la validación de números de teléfono de España y Estados Unidos."""
     valid_phones = [
-        "+34666777888",  # España móvil
-        "+34916777888",  # España fijo
-        "+12025550179",  # USA
-        "+14155552671",  # USA
+        # Números de España
+        "34666777888",  # España móvil sin +, formato WhatsApp
+        "+34666777888",  # España móvil con +
+        "34916777888",  # España fijo sin +, formato WhatsApp
+        "+34916777888",  # España fijo con +
+        "34722777888",  # España móvil empezando con 7
+        "+34822777888",  # España móvil empezando con 8
+        "+34922777888",  # España fijo empezando con 9
+
+        # Números de Estados Unidos
+        "12025550179",  # USA DC sin +
+        "+12025550179",  # USA DC con +
+        "14155552671",  # USA CA sin +
+        "+14155552671",  # USA CA con +
     ]
+
     invalid_phones = [
+        # Casos vacíos o inválidos
         "",
         "abc123",
         "+",
         "12",
-        "+34ABC123456",
-        "666777888",  # Falta código país
-        "+441234567890",  # UK no soportado
+
+        # Números mal formados
+        "+34ABC123456",  # Caracteres inválidos
+        "666777888",  # España: falta código país
+        "5551234567",  # USA: falta código país
+
+        # Números de países no soportados
+        "+441234567890",  # UK
+        "+33123456789",  # Francia
+        "+491234567890",  # Alemania
+
+        # Números con formato incorrecto
         "+34555555555",  # España: no empieza por 6,7,8,9
-        "+1123",  # USA: menos de 10 dígitos
-        "+1123456789012",  # USA: más de 10 dígitos
+        "+1123",  # USA: muy corto
+        "+1123456789",  # USA: falta un dígito
+        "+11234567890123",  # USA: demasiado largo
+        "1234567890",  # USA: falta código país
+        "+1",  # USA: solo código país
+        "34",  # España: solo código país
     ]
 
+    # Prueba números válidos
     for phone in valid_phones:
-        assert attendance_manager._validate_phone_number(
-            phone
-        ), f"Should be valid: {phone}"
+        print(f"Testing valid phone: {phone}")
+        is_valid = attendance_manager._validate_phone_number(phone)
+        assert is_valid, f"Should be valid: {phone}"
 
+    # Prueba números inválidos
     for phone in invalid_phones:
-        assert not attendance_manager._validate_phone_number(
-            phone
-        ), f"Should be invalid: {phone}"
+        print(f"Testing invalid phone: {phone}")
+        is_valid = attendance_manager._validate_phone_number(phone)
+        assert not is_valid, f"Should be invalid: {phone}"
 
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_validate_message_data(attendance_manager, valid_incomming_message_data):
-    """Prueba la validación de datos del mensaje.
-        "sender_phone": "15551234567",
-        "sender_name": "Test Sender",
-        "message_content": "Mi hijo está enfermo",
-        "timestamp": generate_whatsapp_timestamp()
-    """
+    """Prueba la validación de datos del mensaje."""
     # Caso válido
     result = attendance_manager._validate_incoming_message_data(valid_incomming_message_data)
     assert result is True, "Should be valid"
-    # Caso inválido: teléfono con formato incorrecto
-    invalid_incomming_message_data = valid_incomming_message_data.copy()
-    invalid_incomming_message_data["sender_phone"] = "invalid sender_phone"
 
-    with pytest.raises(ValueError) as exc_info:
-        attendance_manager._validate_incoming_message_data(invalid_incomming_message_data)
-    assert "Invalid sender_phone number format" in str(exc_info.value)
+    # Casos inválidos
+    invalid_cases = [
+        # Teléfono inválido
+        ({**valid_incomming_message_data, "sender_phone": "invalid"}, "Invalid sender_phone number format"),
+        # Teléfono vacío
+        ({**valid_incomming_message_data, "sender_phone": ""}, "sender_phone is required"),
+        # Nombre vacío
+        ({**valid_incomming_message_data, "sender_name": ""}, "sender_name is required"),
+        # Mensaje vacío
+        ({**valid_incomming_message_data, "message_content": ""}, "message_content is required"),
+        # Timestamp inválido
+        ({**valid_incomming_message_data, "timestamp": -1}, "timestamp is invalid or required"),
+    ]
+
+    for invalid_data, expected_error in invalid_cases:
+        with pytest.raises(ValueError) as exc_info:
+            attendance_manager._validate_incoming_message_data(invalid_data)
+        assert expected_error in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -182,7 +213,6 @@ async def test_process_whatsapp_message_from_tutor_to_claude_validation_error(
         )
     assert "Validation failed" in str(exc_info.value)
 
-
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_concurrent_process_whatsapp_message_from_tutor_to_claude(
@@ -191,14 +221,13 @@ async def test_concurrent_process_whatsapp_message_from_tutor_to_claude(
     # Procesar múltiples mensajes concurrentemente
     tasks = [
         attendance_manager.process_whatsapp_message_from_tutor_to_claude(
-            valid_incomming_message_data.copy()
+            IncomingMessage(**valid_incomming_message_data.copy())
         )
         for _ in range(5)
     ]
     results = await asyncio.gather(*tasks)
 
     assert all(result["status"] == "success" for result in results)
-
 
 @pytest.mark.asyncio
 @pytest.mark.unittest

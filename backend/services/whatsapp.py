@@ -67,7 +67,7 @@ class WhatsAppService:
             cls._http_client = None
             logger.info("WhatsAppService HTTP client closed.")
 
-    async def get_message_from_tutor(webhook_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def get_message_from_tutor(self, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Processes an incoming WhatsApp message from the Meta API webhook.
 
@@ -77,8 +77,6 @@ class WhatsAppService:
         Returns:
             Dict[str, Any]: A response dictionary with the processed message details.
         """
-        settings = get_settings()
-
         try:
             # Extract the relevant information from the webhook data
             phone_number = webhook_data["messaging"][0]["from"]

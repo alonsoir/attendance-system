@@ -3,7 +3,7 @@ WhatsApp Webhook endpoint
 """
 from fastapi import APIRouter, Body
 
-from backend.services.attendance import AttendanceManager
+from backend.services.attendance import AttendanceManager, IncomingMessage
 
 attendance_manager = AttendanceManager()
 router = APIRouter()
@@ -46,7 +46,7 @@ async def receive_message_from_tutor_whatsapp_webhook(message_data: dict = Body(
             raise ValueError("Timestamp is missing")
 
         # Procesar datos
-        processed_data = {
+        processed_data : IncomingMessage= {
             "sender_phone": sender_phone,
             "sender_name": sender_name,
             "message_content": message_content,

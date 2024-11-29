@@ -14,7 +14,7 @@ async def test_send_message_to_callmebot_integration():
 
     service = WhatsAppService(
         provider=MessageProvider.CALLMEBOT,
-        meta_api_key=settings.WHATSAPP_CALLBACK_TOKEN,
+        meta_api_key=settings.WHATSAPP_META_API_KEY,
         callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
     await service.init_service()  # Inicializar el cliente HTTP
