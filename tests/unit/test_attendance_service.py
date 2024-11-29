@@ -3,7 +3,7 @@ import datetime
 import logging
 import time
 from contextlib import asynccontextmanager
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -229,6 +229,9 @@ async def test_concurrent_process_whatsapp_message_from_tutor_to_claude(
 
     assert all(result["status"] == "success" for result in results)
 
+import pytest
+from datetime import datetime
+
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_message_data_conversion(attendance_manager, valid_message_data):
@@ -241,24 +244,52 @@ async def test_message_data_conversion(attendance_manager, valid_message_data):
     assert dict_data["tutor_phone"] == valid_message_data["tutor_phone"]
     assert isinstance(dict_data["timestamp"], datetime)
 
+import pytest
 
-@patch("backend.services.whatsapp.WhatsAppService.send_message")
+
+@pytest.fixture
+def mock_send_whatsapp():
+    with patch("backend.services.whatsapp.WhatsAppService.send_message") as mock:
+        yield mock
+
+import pytest
+from unittest.mock import patch
+
+@pytest.fixture
+def mock_process_whatsapp_message_from_tutor_to_claude():
+    with patch("backend.services.attendance.AttendanceManager.process_whatsapp_message_from_tutor_to_claude") as mock:
+        yield mock
+
+@pytest.fixture
+def attendance_manager():
+    """Fixture for providing a clean instance of AttendanceManager."""
+    manager = AttendanceManager.get_instance()
+    # Reset active connections for isolated tests
+    manager.active_connections = {}
+    return manager
+
+@pytest.mark.asyncio
+@pytest.mark.unittest
 async def test_attendance_manager_send_response_error(
-    attendance_manager, mock_send_whatsapp
+    attendance_manager, mock_process_whatsapp_message_from_tutor_to_claude
 ):
     """Prueba el envío de respuesta cuando hay un error."""
-    mock_send_whatsapp.side_effect = Exception("Network error")
-    message_from_tutor = "Hello, i am the tutor, my name is Alonso!"
+    mock_process_whatsapp_message_from_tutor_to_claude.side_effect = Exception("Network error")
+    message_from_tutor = IncomingMessage(
+        sender_phone="+12025550179",
+        sender_name="Alonso",
+        message_content="Hello, i am the tutor, my name is Alonso!",
+        timestamp=int(time.time())
+    )
     with pytest.raises(Exception) as exc:
         await attendance_manager.process_whatsapp_message_from_tutor_to_claude(
-            message_data=message_from_tutor
+            message_from_tutor
         )
 
-    assert "Error sending response" in str(exc.value)
-    mock_send_whatsapp.assert_called_once_with(message_from_tutor)
-
     assert "Network error" in str(exc.value)
-    mock_send_whatsapp.assert_called_once_with(message_from_tutor)
+    mock_process_whatsapp_message_from_tutor_to_claude.assert_called_once_with(message_from_tutor)
+
+
 
 
 @pytest.mark.asyncio

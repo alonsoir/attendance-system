@@ -98,7 +98,7 @@ class WhatsAppService:
             # Return the processed message details
             return {
                 "status": "success",
-                "phone": phone_number,
+                "tutor_phone": phone_number,
                 "message": message,
                 "provider": "meta",
                 "timestamp": str(datetime.now()),
@@ -108,7 +108,10 @@ class WhatsAppService:
             logger.error(f"Error processing WhatsApp message: {str(e)}")
             return {
                 "status": "error",
+                "tutor_phone": "error_tutor_phone",
                 "message": "Error processing message",
+                "provider": "meta",
+                "timestamp": str(datetime.now())
             }
 
     async def save_message_to_database(phone: str, message: str):
