@@ -113,39 +113,13 @@ class AttendanceManager:
     ) -> Dict[str, Any]:
         try:
             # Validar y procesar el mensaje
-            validated_data:IncomingMessage = self._validate_incoming_message_data(message_data)
+            validated_data = self._validate_incoming_message_data(message_data)
             logger.info(
                 f"Processing message for student: {validated_data.sender_name}"
             )
             response: Dict[str, Any] = await self._receive_message_from_tutor(validated_data)
 
-            # Guardar la interacción en la base de datos
-            """
-            IncomingMessage
-            sender_phone: str
-            sender_name: str
-            message_content: str
-            timestamp: int
-            """
-            """
-            MessageData
-            id: Optional[int]
-            student_name: str
-            tutor_phone: str
-            college_phone: str
-            college_name: str
-            message_content: str = ""
-            tutor_name: str = ""
-            timestamp: datetime = datetime.now()
-            """
-            """
-            response
-            "status": "success",
-            "tutor_phone": phone_number,
-            "message": message,
-            "provider": "meta",
-            "timestamp": str(datetime.now()),
-            """
+            # Preparar datos para guardar en la base de datos
             data_from_tutor_to_be_saved: MessageData = MessageData(
                 id=None,
                 student_name=validated_data.sender_name,
@@ -154,53 +128,68 @@ class AttendanceManager:
                 college_name="College Name",  # Asumiendo un nombre de colegio genérico
                 message_content=response['message'],
                 tutor_name=validated_data.sender_name,
-                timestamp=response['timestamp'],
+                timestamp=response['timestamp']
             )
-            # Guardar la interacción en la base de datos
+
+            # Guardar la interacción en la base de datos, probablemente usando un ORM como SQLAlchemy
+            # necesitaré que el motor genere el id de la interacción y actualizar el objeto data_from_tutor_to_be_saved
+            # con el id generado. TODO implementar esta lógica. Necesitas que la conversacion esté alineada entre el
+            #  tutor el colegio con los mensajes de Claude en medio.
             await self._save_interaction_to_db(data_from_tutor_to_be_saved)
 
-            return {"status": "success", "response": "Message processed successfully"}
+            return {
+                "status": "success",
+                "response": "Message processed successfully",
+                "message_data": data_from_tutor_to_be_saved
+            }
 
         except ValueError as e:
             # Re-lanzar las excepciones de validación
             logger.error(f"Validation error: {str(e)}")
-            raise ValueError("Validation failed")
+            raise ValueError(f"Validation failed: {str(e)}")
         except Exception as e:
-            logger.error(f"Network error: {str(e)}", exc_info=True)
-            raise Exception("Network error")
+            logger.error(f"Network or processing error: {str(e)}", exc_info=True)
+            raise Exception(f"Processing error: {str(e)}")
 
     async def process_whatsapp_message_from_college_to_tutor(
-        self, message_data: OutgoingMessage
+            self, outgoingMessage: OutgoingMessage
     ) -> Dict[str, Any]:
         try:
             # Validar y procesar el mensaje
-            validated_data: OutgoingMessage = self._validate_outgoing_message_data(message_data)
+            validated_data: OutgoingMessage = self._validate_outgoing_message_data(outgoingMessage)
             logger.info(
                 f"Processing message for tutor: {validated_data.to} "
-                f"with content: {validated_data.message}"
+                f"with content: {validated_data.body}"
+            )
+
+            # Crear MessageData para el envío
+            message_data_to_send = MessageData(
+                id=None,
+                student_name="Estudiante",
+                tutor_phone=validated_data.to,
+                college_phone="college_phone",
+                college_name="College Name",
+                message_content=validated_data.body,
+                tutor_name="Tutor",
+                timestamp=datetime.now()
             )
 
             # Enviar mensaje al tutor
-            response: MessageData = await self._send_message_to_tutor(validated_data)
+            response = await self._send_message_to_tutor(message_data_to_send)
 
-            # Guardar la interacción en la base de datos. id lo genera la base de datos
+            # Guardar la interacción en la base de datos
             await self._save_interaction_to_db(response)
-
-            # Esperar respuesta del tutor
-            # tutor_response = await self._wait_for_tutor_response(validated_data)
-
-            # Generar PDF con la conversación completa
-            # await self._generate_pdf_report(validated_data, tutor_response)
-
-            # Enviar PDF al colegio
-            # await self._send_report_to_college(validated_data.college_phone)
 
             return {"status": "success", "response": "Message processed successfully"}
 
         except ValueError as e:
-            # Re-lanzar las excepciones de validación
+            # Manejar las excepciones de validación retornando un error en lugar de relanzarlas
             logger.error(f"Validation error: {str(e)}")
-            raise
+            return {
+                "status": "error",
+                "message": f"Processing failed: {str(e)}",
+                "error_type": "ValueError"
+            }
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}", exc_info=True)
             return {
@@ -258,6 +247,7 @@ class AttendanceManager:
             raise ValueError(f"Validation errors: {errors}")
 
         return incoming
+
     def _validate_outgoing_message_data(self, outgoing: OutgoingMessage) -> OutgoingMessage:
         """
         Valida y convierte los datos del mensaje.
@@ -277,8 +267,11 @@ class AttendanceManager:
         if not messaging_product:
             errors.append("messaging_product is required")
         to = outgoing.to
+        to_validated = PhoneNumberValidator.validate_phone(to)
         if not to:
             errors.append("to is required")
+        if not to_validated:
+            errors.append("to is invalid")
         type = outgoing.type
         if not type:
             errors.append("type is required")
@@ -289,59 +282,13 @@ class AttendanceManager:
             raise ValueError(f"Validation errors: {errors}")
         return outgoing
 
-    def _validate_message_data(self, message_data: MessageData) -> MessageData:
-        """Valida y convierte los datos del mensaje."""
-        errors = []
-        id = message_data.get("id", "")
-        if not id:
-            errors.append("id is required")
-        student_name = message_data.get("student_name", "").strip()
-        if not student_name:
-            errors.append("student_name is required")
-
-        tutor_phone = message_data.get("tutor_phone", "").strip()
-        if not tutor_phone:
-            errors.append("tutor_phone is required")
-        elif not self._validate_phone_number(tutor_phone):
-            errors.append("Invalid tutor phone number format")
-
-        college_phone = message_data.get("college_phone", "").strip()
-        if not college_phone:
-            errors.append("college_phone is required")
-        elif not self._validate_phone_number(college_phone):
-            errors.append("Invalid college phone number format")
-
-        college_name = message_data.get("college_name", "").strip()
-        if not college_name:
-            errors.append("college_name is required")
-        elif not self._validate_college_name(college_phone):
-            errors.append("Invalid college name number format")
-
-        message_content = message_data.get("message_content", "").strip()
-        if not message_content:
-            errors.append("message_content is required")
-
-        if errors:
-            raise ValueError(f"Message validation failed: {', '.join(errors)}")
-
-        return MessageData(
-            id=id,
-            student_name=student_name,
-            tutor_phone=tutor_phone,
-            college_phone=college_phone,
-            college_name=college_name,
-            message_content=message_content,
-            tutor_name=message_data.get("tutor_name", "").strip(),
-            timestamp=datetime.now(),
-        )
-
     async def _receive_message_from_tutor(self, validated_data: IncomingMessage) -> Dict[str, Any]:
         """
         Simula la recepción de un mensaje de un tutor.
         """
         logger.info(f"Received message from tutor: {validated_data}")
         settings = get_settings()
-        settings.print_settings()
+        #settings.print_settings()
         service = WhatsAppService(
             provider=settings.WHATSAPP_PROVIDER,
             meta_api_key=settings.WHATSAPP_META_API_KEY,

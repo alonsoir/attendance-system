@@ -1,7 +1,7 @@
 import pytest
 from aiohttp import ClientResponseError
 
-from backend import get_settings
+from backend.core import get_settings
 from backend.services.whatsapp import WhatsAppService, MessageProvider
 
 
@@ -14,7 +14,7 @@ async def test_send_message_to_callmebot_integration():
 
     service = WhatsAppService(
         provider=MessageProvider.CALLMEBOT,
-        meta_api_key=settings.WHATSAPP_META_API_KEY,
+        meta_api_key=settings.WHATSAPP_CALLBACK_TOKEN,
         callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
     await service.init_service()  # Inicializar el cliente HTTP

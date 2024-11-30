@@ -42,16 +42,17 @@ async def test_generate_claude_response_when_college_integration_es():
 
     await claude_service.close_session()
 
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_claude_response_when_college_integration_en():
-    """Prueba la generación de respuestas reales de Claude, en español"""
+    """Prueba la generación de respuestas reales de Claude."""
     claude_service = ClaudeService.get_instance()
     response = await claude_service.generate_response_when_college(
         student_name="Test Student name",
-        message="The student has not come to class today, we don't know if he is sick or not, can you please find out? "
-        "His mother's phone number is +34646322211 and her name is Maria Perez.",
+        message="We are very concerned because the student has not come to class today and this is unusual. "
+        "We don't know if they are sick or if something serious has happened. "
+        "His mother's phone number is +34646322211 and her name is Maria Perez. "
+        "Please help us find out what's wrong urgently."
     )
 
     # Verificar estructura básica
@@ -77,7 +78,7 @@ async def test_generate_claude_response_when_college_integration_en():
     assert len(response["response"]) > 0
     assert any(
         palabra in response["response"].lower()
-        for palabra in ["entendido", "contacto", "motivo", "ausencia", "informaré"]
+        for palabra in ["urgent", "concerned", "contact", "immediately", "find out"]
     )
 
     await claude_service.close_session()

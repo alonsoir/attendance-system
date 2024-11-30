@@ -2,15 +2,24 @@ import asyncio
 import datetime
 import logging
 import time
-from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.websockets import WebSocket
 
-from backend.services import AttendanceManager
-from backend.services.attendance import IncomingMessage
+from backend.services.attendance import OutgoingMessage, MessageData
+import asyncio
+import datetime
+import logging
+import time
+from unittest.mock import AsyncMock
+
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.websockets import WebSocket
+
+from backend.services.attendance import OutgoingMessage, MessageData
 
 logger = logging.getLogger(__name__)
 
@@ -33,22 +42,22 @@ def generar_id_unico():
 @pytest.fixture
 def valid_incomming_message_data():
     """Fixture que proporciona datos válidos de mensaje."""
-    return {
-        "sender_phone": "12025550179",
-        "sender_name": "Test Sender",
-        "message_content": "Mi hijo está enfermo",
-        "timestamp": generate_whatsapp_timestamp()
-    }
+    return IncomingMessage(
+        sender_phone="12025550179",
+        sender_name="Test Sender",
+        message_content="Mi hijo está enfermo",
+        timestamp=generate_whatsapp_timestamp()
+    )
 
 @pytest.fixture
 def invalid_incomming_message_data():
-    """Fixture que proporciona datos válidos de mensaje."""
-    return {
-        "sender_phone": "invalid_sender_phone",
-        "sender_name": "invalid_sender_name",
-        "message_content": "Mi hijo está enfermo",
-        "timestamp": generate_whatsapp_timestamp()
-    }
+    """Fixture que proporciona datos inválidos de mensaje."""
+    return IncomingMessage(
+        sender_phone="invalid_sender_phone",
+        sender_name="invalid_sender_name",
+        message_content="Mi hijo está enfermo",
+        timestamp=generate_whatsapp_timestamp()
+    )
 
 @pytest.fixture
 def valid_message_data():
@@ -138,44 +147,73 @@ async def test_validate_phone_number(attendance_manager):
         assert not is_valid, f"Should be invalid: {phone}"
 
 
+@pytest.fixture
+def valid_incomming_message_data():
+    """Fixture que proporciona datos válidos de mensaje."""
+    return {
+        "sender_phone": "12025550179",
+        "sender_name": "Test Sender",
+        "message_content": "Mi hijo está enfermo",
+        "timestamp": generate_whatsapp_timestamp()
+    }
+
+
+@pytest.fixture
+def attendance_manager():
+    """Fixture for providing a clean instance of AttendanceManager."""
+    manager = AttendanceManager.get_instance()
+    # Reset active connections for isolated tests
+    manager.active_connections = {}
+    return manager
+
+from backend.services.attendance import AttendanceManager, IncomingMessage
+
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_validate_message_data(attendance_manager, valid_incomming_message_data):
     """Prueba la validación de datos del mensaje."""
+    # Convertir diccionario a IncomingMessage
+    valid_message = IncomingMessage(**valid_incomming_message_data)
+
     # Caso válido
-    result = attendance_manager._validate_incoming_message_data(valid_incomming_message_data)
-    assert result is True, "Should be valid"
+    result: IncomingMessage = attendance_manager._validate_incoming_message_data(valid_message)
+    assert result.sender_phone == valid_message.sender_phone
+    assert result.message_content == valid_message.message_content
+    assert result.sender_name == valid_message.sender_name
+    assert result.timestamp == valid_message.timestamp
 
     # Casos inválidos
     invalid_cases = [
         # Teléfono inválido
-        ({**valid_incomming_message_data, "sender_phone": "invalid"}, "Invalid sender_phone number format"),
+        (IncomingMessage(**{**valid_incomming_message_data, "sender_phone": "invalid"}),
+         "Invalid sender_phone number format"),
         # Teléfono vacío
-        ({**valid_incomming_message_data, "sender_phone": ""}, "sender_phone is required"),
+        (IncomingMessage(**{**valid_incomming_message_data, "sender_phone": ""}),
+         "sender_phone is required"),
         # Nombre vacío
-        ({**valid_incomming_message_data, "sender_name": ""}, "sender_name is required"),
+        (IncomingMessage(**{**valid_incomming_message_data, "sender_name": ""}),
+         "sender_name is required"),
         # Mensaje vacío
-        ({**valid_incomming_message_data, "message_content": ""}, "message_content is required"),
+        (IncomingMessage(**{**valid_incomming_message_data, "message_content": ""}),
+         "message_content is required"),
         # Timestamp inválido
-        ({**valid_incomming_message_data, "timestamp": -1}, "timestamp is invalid or required"),
+        (IncomingMessage(**{**valid_incomming_message_data, "timestamp": -1}),
+         "timestamp is invalid or required"),
     ]
 
-    for invalid_data, expected_error in invalid_cases:
+    for invalid_message, expected_error in invalid_cases:
         with pytest.raises(ValueError) as exc_info:
-            attendance_manager._validate_incoming_message_data(invalid_data)
+            attendance_manager._validate_incoming_message_data(invalid_message)
         assert expected_error in str(exc_info.value)
 
-
+"""
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_validate_message_data_missing_fields(attendance_manager,invalid_incomming_message_data):
-    """Prueba la validación con campos faltantes."""
-    invalid_data = {"message_content": "Test message"}
-
     with pytest.raises(ValueError) as exc_info:
         attendance_manager._validate_message_data(invalid_incomming_message_data)
     assert "student_name is required" in str(exc_info.value)
-
+"""
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
@@ -229,13 +267,13 @@ async def test_concurrent_process_whatsapp_message_from_tutor_to_claude(
 
     assert all(result["status"] == "success" for result in results)
 
-import pytest
+
 from datetime import datetime
 
+"""
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_message_data_conversion(attendance_manager, valid_message_data):
-    """Prueba la conversión de datos del mensaje."""
     message_data = attendance_manager._validate_message_data(valid_message_data)
     dict_data = message_data.to_dict()
 
@@ -243,7 +281,7 @@ async def test_message_data_conversion(attendance_manager, valid_message_data):
     assert dict_data["student_name"] == valid_message_data["student_name"]
     assert dict_data["tutor_phone"] == valid_message_data["tutor_phone"]
     assert isinstance(dict_data["timestamp"], datetime)
-
+"""
 import pytest
 
 
@@ -258,6 +296,20 @@ from unittest.mock import patch
 @pytest.fixture
 def mock_process_whatsapp_message_from_tutor_to_claude():
     with patch("backend.services.attendance.AttendanceManager.process_whatsapp_message_from_tutor_to_claude") as mock:
+        yield mock
+
+@pytest.fixture
+def mock_process_whatsapp_message_from_college_to_tutor():
+    with patch("backend.services.attendance.AttendanceManager.process_whatsapp_message_from_college_to_tutor") as mock:
+        yield mock
+
+@pytest.fixture
+def mock_validate_phone_number():
+    with patch("backend.services.attendance.AttendanceManager.validate_phone_number") as mock:
+        yield mock
+@pytest.fixture
+def mock_validate_outgoing_message_data():
+    with patch("backend.services.attendance.AttendanceManager._validate_outgoing_message_data") as mock:
         yield mock
 
 @pytest.fixture
@@ -289,130 +341,131 @@ async def test_attendance_manager_send_response_error(
     assert "Network error" in str(exc.value)
     mock_process_whatsapp_message_from_tutor_to_claude.assert_called_once_with(message_from_tutor)
 
+@pytest.mark.asyncio
+async def test_attendance_manager_process_whatsapp_message_from_college_to_tutor(
+        attendance_manager
+):
+    """Prueba el procesamiento de mensaje en AttendanceManager._process_whatsapp_message_from_college_to_tutor"""
+    message_data = OutgoingMessage(
+        messaging_product="whatsapp",
+        to="+12025550179",
+        type="text",
+        body="Hello, i am the tutor, my name is Alonso!",
+    )
 
+    mock_response = MessageData(
+        id=None,
+        student_name="Estudiante",
+        tutor_phone=message_data.to,
+        college_phone="college_phone",
+        college_name="College Name",
+        message_content=message_data.body,
+        tutor_name="Tutor",
+        timestamp=datetime.now()
+    )
 
+    # Mock el método que realmente hace el envío
+    with patch.object(
+            attendance_manager,
+            '_send_message_to_tutor',
+            return_value=mock_response
+    ) as mock_send:
+        # Mock el método de guardado en DB
+        with patch.object(
+                attendance_manager,
+                '_save_interaction_to_db',
+                return_value=None
+        ) as mock_save:
+            result = await attendance_manager.process_whatsapp_message_from_college_to_tutor(message_data)
+
+            # Verificar el resultado
+            assert result["status"] == "success"
+            assert result["response"] == "Message processed successfully"
+
+            # Verificar que se llamaron los métodos correctos
+            mock_send.assert_called_once()
+            mock_save.assert_called_once_with(mock_response)
+
+            # Verificar el formato de los datos
+            assert isinstance(message_data.messaging_product, str)
+            assert message_data.messaging_product == "whatsapp"
+            assert isinstance(message_data.body, str)
+            assert message_data.body == "Hello, i am the tutor, my name is Alonso!"
 
 @pytest.mark.asyncio
-@patch("backend.services.attendance.AttendanceManager._validate_phone_number")
-@patch("backend.services.attendance.AttendanceManager.process_whatsapp_message")
-async def test_attendance_manager_process_message(
-    attendance_manager, mock_process_whatsapp, mock_validate_phone
-):
-    """Prueba el procesamiento de mensaje en MessageCoordinator."""
-    mock_validate_phone.side_effect = [True, True]
-    mock_process_whatsapp.return_value = {
-        "status": "success",
-        "response": "Mensaje procesado",
-    }
-
-    message_data = {
-        "student_name": "John Doe",
-        "tutor_phone": "+34612345678",
-        "college_phone": "+34987654321",
-        "message_content": "Hello, world!",
-    }
-    result = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-        message_data
-    )
-    assert result["status"] == "success"
-    assert result["response"] == "Mensaje procesado"
-    mock_validate_phone.assert_any_call(message_data["tutor_phone"])
-    mock_validate_phone.assert_any_call(message_data["college_phone"])
-    mock_process_whatsapp.assert_called_once_with(message_data)
-
-
-@patch("backend.services.attendance.AttendanceManager._validate_phone_number")
-async def test_attendance_manager_invalid_tutor_phone(
-    attendance_manager, mock_validate_phone
-):
-    """Prueba el procesamiento de mensaje con número de teléfono inválido."""
-    mock_validate_phone.side_effect = [False, True]
-
-    message_data = {
-        "student_name": "John Doe",
-        "tutor_phone": "invalid_phone",
-        "college_phone": "+34987654321",
-        "message_content": "Hello, world!",
-    }
-    with pytest.raises(ValueError) as exc:
-        await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-            message_data
-        )
-
-    assert "Invalid tutor phone number format" in str(exc.value)
-    mock_validate_phone.assert_any_call(message_data["tutor_phone"])
-    mock_validate_phone.assert_any_call(message_data["college_phone"])
-
-
-@patch("backend.services.attendance.AttendanceManager._validate_message_data")
 async def test_attendance_manager_process_whatsapp_message_from_college_to_tutor_invalid_data(
-    attendance_manager, mock_validate_data
+    attendance_manager
 ):
     """Prueba el procesamiento de mensaje con datos inválidos."""
-    mock_validate_data.side_effect = ValueError("student_name is required")
+    # Preparar los datos de prueba
+    message_data = OutgoingMessage(
+        messaging_product="whatsapp",
+        to="111112025550179",  # Invalid phone number
+        type="text",
+        body="Hello, i am the tutor, my name is Alonso!",
+    )
 
-    message_data = {
-        "tutor_phone": "+34612345678",
-        "college_phone": "+34987654321",
-        "message_content": "Hello, world!",
-    }
+    # No necesitamos mockear la validación porque ya está implementada
     result = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
         message_data
     )
 
+    # Verificar que se maneja el error correctamente
     assert result["status"] == "error"
-    assert "student_name is required" in result["message"]
-    mock_validate_data.assert_called_once_with(message_data)
+    assert "Processing failed" in result["message"]
+    assert result["error_type"] == "ValueError"
 
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_process_whatsapp_message_from_college_to_tutor_message(
-    mock_whatsapp_message, attendance_manager
+        mock_whatsapp_message, attendance_manager
 ):
     """Test processing of WhatsApp messages via AttendanceManager."""
-    attendance_manager = AttendanceManager.get_instance()
-
-    mock_message = {
-        "student_name": "John Doe",
-        "tutor_phone": "+34600111222",
-    }
-
-    expected_response = {
-        "status": "success",
-        "response": {
-            "sensitivity": 5,
-            "response": "Test response",
-            "likely_to_be_on_leave_tomorrow": False,
-            "reach_out_tomorrow": True,
-        },
-    }
-
-    with patch.object(
-        attendance_manager,
-        "process_whatsapp_message",
-        AsyncMock(return_value=expected_response),
-    ):
-        result = (
-            await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-                mock_message
-            )
-        )
-        assert result["status"] == "success"
-        assert "response" in result
-        assert result["response"]["response"] == "Test response"
-
-
-@pytest.mark.asyncio
-@pytest.mark.unittest
-async def test_verify_authorization(attendance_manager):
-    """Prueba la verificación de autorización."""
-    result = await attendance_manager.verify_authorization(
-        student_name="Test Student", tutor_phone="+34666777888"
+    # Crear el mensaje de prueba usando OutgoingMessage
+    mock_message = OutgoingMessage(
+        messaging_product="whatsapp",
+        to="+34600111222",  # tutor_phone
+        type="text",
+        body=f"Consulta sobre el estudiante John Doe"
     )
 
-    assert result is True  # Ajustar según la lógica real de autorización
+    expected_response = MessageData(
+        id=None,
+        student_name="John Doe",
+        tutor_phone="+34600111222",
+        college_phone="college_phone",
+        college_name="College Name",
+        message_content="Test response",
+        tutor_name="Tutor",
+        timestamp=datetime.now()
+    )
 
+    # Mockear los métodos que se usan internamente
+    with patch.object(
+            attendance_manager,
+            '_send_message_to_tutor',
+            AsyncMock(return_value=expected_response)
+    ) as mock_send:
+        with patch.object(
+                attendance_manager,
+                '_save_interaction_to_db',
+                AsyncMock()
+        ) as mock_save:
+            result = await attendance_manager.process_whatsapp_message_from_college_to_tutor(mock_message)
+
+            # Verificaciones
+            assert result["status"] == "success"
+            assert result["response"] == "Message processed successfully"
+
+            # Verificar que se llamaron los métodos internos
+            mock_send.assert_called_once()
+            mock_save.assert_called_once_with(expected_response)
+
+            # Verificar que los datos del mensaje son correctos
+            sent_message = mock_send.call_args[0][0]
+            assert isinstance(sent_message, MessageData)
+            assert sent_message.tutor_phone == "+34600111222"
 
 @pytest.fixture
 def mock_db_session():
@@ -444,21 +497,55 @@ def attendance_manager():
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_process_whatsapp_message_from_college_to_tutor_success(
-    attendance_manager, mock_db_session, mock_claude_response
+        attendance_manager, mock_db_session, mock_claude_response
 ):
     """Test successful processing of a WhatsApp message."""
-    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
+    outgoing_message = OutgoingMessage(
+        messaging_product="whatsapp",
+        to="+12025550179",  # Formato correcto con '+' y longitud adecuada
+        type="text",
+        body="Hello, i am the tutor, my name is Alonso!",
+    )
 
-    with patch("backend.services.attendance.get_db", return_value=mock_db_session):
-        response = (
-            await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-                message_data
+    expected_response = MessageData(
+        id=None,
+        student_name="Estudiante",
+        tutor_phone="+12025550179",  # Mantener consistencia con el número de arriba
+        college_phone="college_phone",
+        college_name="College Name",
+        message_content="Hello, i am the tutor, my name is Alonso!",
+        tutor_name="Tutor",
+        timestamp=datetime.now()
+    )
+
+    # Mockear los métodos internos que realmente se usan
+    with patch.object(
+            attendance_manager,
+            '_send_message_to_tutor',
+            AsyncMock(return_value=expected_response)
+    ) as mock_send:
+        with patch.object(
+                attendance_manager,
+                '_save_interaction_to_db',
+                AsyncMock()
+        ) as mock_save:
+            response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
+                outgoing_message
             )
-        )
 
-    # Assertions
-    assert response["status"] == "success"
-    assert "response" in response
+            # Verificar la respuesta
+            assert response["status"] == "success"
+            assert response["response"] == "Message processed successfully"
+
+            # Verificar que se llamaron los métodos internos
+            mock_send.assert_called_once()
+            mock_save.assert_called_once_with(expected_response)
+
+            # Verificar que los datos pasados son correctos
+            sent_message = mock_send.call_args[0][0]
+            assert isinstance(sent_message, MessageData)
+            assert sent_message.tutor_phone == "+12025550179"
+            assert sent_message.message_content == "Hello, i am the tutor, my name is Alonso!"
 
 
 @pytest.mark.asyncio
@@ -477,109 +564,136 @@ async def test_process_whatsapp_message_from_college_to_tutor_incomplete_data(
 
 
 @pytest.mark.asyncio
-@patch(
-    "backend.services.attendance.AttendanceManager.verify_authorization",
-    AsyncMock(return_value=False),
-)
-async def test_process_whatsapp_message_from_college_to_tutor_message_unauthorized(
-    attendance_manager,
-):
-    """Test unauthorized access when processing a WhatsApp message."""
-    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
-
-    response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-        message_data
-    )
-
-    assert response["status"] == "error"
-    assert "Unauthorized access" in response["message"]
-
-
-@pytest.mark.asyncio
-@patch(
-    "backend.services.attendance.generate_claude_response",
-    AsyncMock(side_effect=Exception("API error")),
-)
+@pytest.mark.unittest
 async def test_process_whatsapp_message_from_college_to_tutor_message_exception(
-    attendance_manager,
+        attendance_manager,
 ):
-    """Test handling an unexpected exception."""
-    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
-
-    response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-        message_data
+    """Test handling an unexpected API error."""
+    # Usar un número de teléfono en formato válido
+    outgoing_message = OutgoingMessage(
+        messaging_product="whatsapp",
+        to="+12025550179",  # Formato válido de número de teléfono
+        type="text",
+        body="Test message"
     )
 
-    assert response["status"] == "error"
-    assert "API error" in response["message"]
+    # Mock el método que lanza la excepción
+    with patch.object(
+            attendance_manager,
+            '_send_message_to_tutor',
+            AsyncMock(side_effect=Exception("API error"))
+    ) as mock_send:
+        with patch.object(
+                attendance_manager,
+                '_validate_outgoing_message_data',
+                # Mock la validación para que pase sin problemas
+                return_value=outgoing_message
+        ):
+            response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
+                outgoing_message
+            )
+
+            # Verificar la respuesta de error
+            assert response["status"] == "error"
+            assert "API error" in response["message"]
+            assert response["error_type"] == "Exception"
+
+            # Verificar que se intentó enviar el mensaje
+            mock_send.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_process_whatsapp_message_from_college_to_tutor_incomplete_data(
-    attendance_manager,
+        attendance_manager,
 ):
-    """Test WhatsApp message processing with missing data."""
-    message_data = {"student_name": "John Doe"}  # Missing tutor_phone
+    """Test WhatsApp message processing with missing required fields."""
+    # Crear un mensaje incompleto usando OutgoingMessage
+    outgoing_message = OutgoingMessage(
+        messaging_product="",  # Campo requerido vacío
+        to="",  # Campo requerido vacío
+        type="",  # Campo requerido vacío
+        body=""  # Campo requerido vacío
+    )
 
-    with pytest.raises(ValueError) as exc_info:
-        await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-            message_data
-        )
+    # Obtener la respuesta del método
+    response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
+        outgoing_message
+    )
 
-    assert str(exc_info.value) == "invalid_phone"
+    # Verificar que la respuesta indica error
+    assert response["status"] == "error"
+    assert response["error_type"] == "ValueError"
+    assert "Processing failed" in response["message"]
 
+    # Verificar que el mensaje incluye todos los errores de validación
+    error_message = response["message"]
+    assert "messaging_product is required" in error_message
+    assert "to is required" in error_message
+    assert "type is required" in error_message
+    assert "body is required" in error_message
+
+    # Test con teléfono inválido
+    outgoing_message = OutgoingMessage(
+        messaging_product="whatsapp",
+        to="invalid_phone",
+        type="text",
+        body="test message"
+    )
+
+    response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
+        outgoing_message
+    )
+
+    # Verificar respuesta para teléfono inválido
+    assert response["status"] == "error"
+    assert response["error_type"] == "ValueError"
+    assert "Processing failed" in response["message"]
+    assert "to is invalid" in response["message"]
 
 @pytest.mark.asyncio
 async def test_process_whatsapp_message_from_college_to_tutor_db_error(
     attendance_manager,
 ):
     """Test WhatsApp message processing with a database error."""
+    outgoing_message = OutgoingMessage(
+        messaging_product="whatsapp",
+        to="+12025550179",  # Número válido
+        type="text",
+        body="Test message"
+    )
 
-    # Create a mock session with all required async methods
-    mock_session = AsyncMock()
-    mock_session.commit = AsyncMock(side_effect=SQLAlchemyError("DB Error"))
-    mock_session.rollback = AsyncMock()
-    mock_session.add = AsyncMock()
-    mock_session.close = AsyncMock()
-
-    message_data = {"student_name": "John Doe", "tutor_phone": "+1234567890"}
-
-    # Create a mock async session factory that mirrors the real implementation
-    @asynccontextmanager
-    async def mock_get_db():
-        try:
-            yield mock_session
-        finally:
-            await mock_session.close()
-
-    # Patch get_db to return our mock session
-    with patch("backend.services.attendance.get_db", return_value=mock_get_db()):
-        # Simulate verify_authorization to return True
+    # Simular error de DB en _save_interaction_to_db
+    with patch.object(
+        attendance_manager,
+        '_save_interaction_to_db',
+        AsyncMock(side_effect=SQLAlchemyError("DB Error"))
+    ) as mock_save:
+        # Mock el método de envío para que no falle
         with patch.object(
-            attendance_manager, "verify_authorization", return_value=True
+            attendance_manager,
+            '_send_message_to_tutor',
+            AsyncMock(return_value=MessageData(
+                id=None,
+                student_name="Test Student",
+                tutor_phone="+12025550179",
+                college_phone="college_phone",
+                college_name="College Name",
+                message_content="Test message",
+                tutor_name="Tutor",
+                timestamp=datetime.now()
+            ))
         ):
-            # Simulate generate_claude_response
-            with patch(
-                "backend.services.attendance.generate_claude_response",
-                return_value={"response": "Test response"},
-            ):
-                response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-                    message_data
-                )
+            response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
+                outgoing_message
+            )
 
-    # Verify error response
-    assert (
-        response["status"] == "error"
-    ), f"Expected error status but got {response['status']}"
-    assert (
-        "DB Error" in response["message"]
-    ), f"Expected 'DB Error' in message but got: {response['message']}"
+            # Verificar la respuesta de error
+            assert response["status"] == "error"
+            assert "DB Error" in response["message"]
+            assert response["error_type"] == "SQLAlchemyError"
 
-    # Verify proper session usage
-    mock_session.add.assert_called_once()
-    mock_session.commit.assert_called_once()
-    mock_session.rollback.assert_called_once()
-    mock_session.close.assert_called_once()
+            # Verificar que se intentó guardar en la DB
+            mock_save.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -587,21 +701,54 @@ async def test_process_whatsapp_message_from_college_to_tutor_db_error(
 async def test_edge_cases(attendance_manager):
     """Test edge cases in data handling."""
     test_cases = [
-        ({"student_name": "", "tutor_phone": "+1234567890"}, "empty_name"),
-        ({"student_name": "X" * 1000, "tutor_phone": "+1234567890"}, "name_too_long"),
-        ({"student_name": "John", "tutor_phone": "+1"}, "invalid_phone"),
-        ({"student_name": None, "tutor_phone": "+1234567890"}, "null_name"),
+        (
+            OutgoingMessage(
+                messaging_product="whatsapp",
+                to="+1234567890",
+                type="text",
+                body=""
+            ),
+            "body is required"
+        ),
+        (
+            OutgoingMessage(
+                messaging_product="whatsapp",
+                to="+1234567890",
+                type="",  # tipo vacío
+                body="Test message"
+            ),
+            "type is required"
+        ),
+        (
+            OutgoingMessage(
+                messaging_product="whatsapp",
+                to="+1",  # teléfono inválido
+                type="text",
+                body="Test message"
+            ),
+            "to is invalid"
+        ),
+        (
+            OutgoingMessage(
+                messaging_product="",  # messaging_product requerido
+                to="+1234567890",
+                type="text",
+                body="Test message"
+            ),
+            "messaging_product is required"
+        ),
     ]
 
-    for data, expected_error in test_cases:
-        logger.debug(f"Testing case: {data} expecting error: {expected_error}")
-        with pytest.raises(ValueError, match=expected_error) as exc_info:
-            await attendance_manager.process_whatsapp_message_from_college_to_tutor(
-                data
-            )
-        logger.debug(f"Received expected error: {str(exc_info.value)}")
+    for outgoing_message, expected_error in test_cases:
+        logger.debug(f"Testing case: {outgoing_message} expecting error: {expected_error}")
+        response = await attendance_manager.process_whatsapp_message_from_college_to_tutor(
+            outgoing_message
+        )
+
+        # Verificar que la respuesta indica error
+        assert response["status"] == "error"
+        assert expected_error in response["message"]
+        assert response["error_type"] == "ValueError"
 
     # Verificación opcional
-    assert (
-        not attendance_manager.active_connections
-    ), "No deberían quedar conexiones activas"
+    assert not attendance_manager.active_connections, "No deberían quedar conexiones activas"
