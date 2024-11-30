@@ -1,37 +1,24 @@
-from fastapi import FastAPI, Body
-from pydantic import BaseModel
-import requests
 import json
 import logging
-from datetime import datetime
-
-
-import json
-import logging.config
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from gunicorn.config import LogConfig
 
+from backend.core.app import app, settings
 from backend.api.endpoints import websocket_router, whatsapp_router
-from backend.core.config import get_settings
 from backend.db.session import check_database_connection, init_db
 from backend.services import AttendanceManager
 
 # Configurar logging
 logger = logging.getLogger("backend")
 
-settings = get_settings()
-
-
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app):
     """
     Contexto de vida de la aplicación.
     Se ejecuta al inicio y cierre del servidor.
@@ -59,26 +46,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Cerrando sistema de gestión de asistencia...")
 
-
-app = FastAPI(
-    title=settings.PROJECT_NAME,
-    description=settings.PROJECT_DESCRIPTION,
-    version=settings.VERSION,
-    docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    lifespan=lifespan,
-)
-
-# Middleware de CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# Asignar el lifespan a la app
+app.router.lifespan_context = lifespan
 
 # Middleware para logging de requests
 @app.middleware("http")
@@ -95,7 +64,6 @@ async def log_requests(request: Request, call_next):
 
     return response
 
-
 # Manejador de errores global
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -105,16 +73,13 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error"},
     )
 
-
 # Montar rutas
 app.include_router(websocket_router, prefix=settings.API_V1_STR, tags=["websocket"])
-
 app.include_router(whatsapp_router, prefix=settings.API_V1_STR, tags=["whatsapp"])
 
 # Montar archivos estáticos
 static_path = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
-
 
 # Endpoints de estado y monitoreo
 @app.get("/health")
@@ -135,7 +100,6 @@ async def health_check():
         },
     }
 
-
 @app.get("/metrics")
 async def get_metrics():
     """Obtener métricas del sistema"""
@@ -145,12 +109,10 @@ async def get_metrics():
     # Implementar recolección de métricas aquí
     return {"message": "Metrics endpoint"}
 
-
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_config=LogConfig().dict(),
     )

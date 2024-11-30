@@ -16,14 +16,15 @@ from backend.db.session import get_db, create_engine
 from backend.main import app
 from backend.services import AttendanceManager
 from backend.services.whatsapp import WhatsAppService
+import pytest
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from backend.db.models import Base
 
 # Configuración y variables de entorno
 os.environ["APP_ENV"] = "development"
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-import pytest
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from backend.db.models import Base
+
 
 import logging
 # @pytest.fixture(scope="session")

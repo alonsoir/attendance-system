@@ -1,16 +1,16 @@
-"""
-WhatsApp Webhook endpoint
-"""
 import json
 
 from fastapi import APIRouter, Body, HTTPException, requests
 from pydantic import BaseModel
 
-from backend.main import app, settings
+from backend.core.app import app
+from backend.core.config import get_settings
 from backend.services.attendance import AttendanceManager, IncomingMessage, OutgoingMessage
 
-attendance_manager = AttendanceManager.get_instance()
+settings = get_settings()
 router = APIRouter()
+attendanceManager = AttendanceManager.get_instance()
+
 
 
 @router.post("/webhook/whatsapp")
@@ -57,7 +57,7 @@ async def receive_message_from_tutor_whatsapp_webhook(message_data: dict = Body(
             "timestamp": timestamp,
         }
 
-        return await attendance_manager.process_whatsapp_message_from_tutor_to_claude(processed_data)
+        return await attendanceManager.process_whatsapp_message_from_tutor_to_claude(processed_data)
 
     except Exception as e:
         # Manejar errores y enviar una respuesta informativa
@@ -116,4 +116,4 @@ async def send_message_to_whatsapp_webhook_from_college_to_tutor(
         }
     }
     """
-    return await attendance_manager.process_whatsapp_message_from_college_to_tutor(message_data)
+    return await attendanceManager.process_whatsapp_message_from_college_to_tutor(message_data)

@@ -1,5 +1,5 @@
 """
-This module contains the FastAPI app instance.
+This module contains the FastAPI router instances.
 """
 from .websocket import router as websocket_router
 from .whatsapp import router as whatsapp_router
