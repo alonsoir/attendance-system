@@ -1,4 +1,5 @@
 import pytest
+
 from backend.services.claude import ClaudeService
 
 
@@ -42,6 +43,7 @@ async def test_generate_claude_response_when_college_integration_es():
 
     await claude_service.close_session()
 
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_claude_response_when_college_integration_en():
@@ -52,7 +54,7 @@ async def test_generate_claude_response_when_college_integration_en():
         message="We are very concerned because the student has not come to class today and this is unusual. "
         "We don't know if they are sick or if something serious has happened. "
         "His mother's phone number is +34646322211 and her name is Maria Perez. "
-        "Please help us find out what's wrong urgently."
+        "Please help us find out what's wrong urgently.",
     )
 
     # Verificar estructura básica

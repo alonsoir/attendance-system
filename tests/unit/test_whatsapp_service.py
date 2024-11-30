@@ -1,10 +1,10 @@
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from aiohttp import ClientResponseError
 
 from backend.core import get_settings
-from backend.services.whatsapp import WhatsAppService, MessageProvider
+from backend.services.whatsapp import MessageProvider, WhatsAppService
 
 
 @pytest.mark.asyncio

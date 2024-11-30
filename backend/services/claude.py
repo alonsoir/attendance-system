@@ -1,8 +1,10 @@
-import logging
-import json
 import asyncio
+import json
+import logging
+
 import aiohttp
-from aiohttp import ServerTimeoutError, ClientConnectionError
+from aiohttp import ClientConnectionError, ServerTimeoutError
+
 from backend.core.config import get_settings
 
 logger = logging.getLogger(__name__)

@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 import aiohttp
 
 from backend.core.config import get_settings
-from backend.services.utils import PhoneNumberValidator, MessageFormatter
+from backend.services.utils import MessageFormatter, PhoneNumberValidator
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,9 @@ class WhatsAppService:
             cls._http_client = None
             logger.info("WhatsAppService HTTP client closed.")
 
-    async def get_message_from_tutor(self, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def get_message_from_tutor(
+        self, webhook_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Processes an incoming WhatsApp message from the Meta API webhook.
 
@@ -111,7 +113,7 @@ class WhatsAppService:
                 "tutor_phone": "error_tutor_phone",
                 "message": "Error processing message",
                 "provider": "meta",
-                "timestamp": str(datetime.now())
+                "timestamp": str(datetime.now()),
             }
 
     async def save_message_to_database(phone: str, message: str):

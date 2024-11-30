@@ -5,17 +5,18 @@ from datetime import datetime
 from pathlib import Path
 
 import uvicorn
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.core.app import app, settings
 from backend.api.endpoints import websocket_router, whatsapp_router
+from backend.core.app import app, settings
 from backend.db.session import check_database_connection, init_db
 from backend.services import AttendanceManager
 
 # Configurar logging
 logger = logging.getLogger("backend")
+
 
 @asynccontextmanager
 async def lifespan(app):
@@ -46,8 +47,10 @@ async def lifespan(app):
     # Shutdown
     logger.info("Cerrando sistema de gestión de asistencia...")
 
+
 # Asignar el lifespan a la app
 app.router.lifespan_context = lifespan
+
 
 # Middleware para logging de requests
 @app.middleware("http")
@@ -64,6 +67,7 @@ async def log_requests(request: Request, call_next):
 
     return response
 
+
 # Manejador de errores global
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -73,6 +77,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error"},
     )
 
+
 # Montar rutas
 app.include_router(websocket_router, prefix=settings.API_V1_STR, tags=["websocket"])
 app.include_router(whatsapp_router, prefix=settings.API_V1_STR, tags=["whatsapp"])
@@ -80,6 +85,7 @@ app.include_router(whatsapp_router, prefix=settings.API_V1_STR, tags=["whatsapp"
 # Montar archivos estáticos
 static_path = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
 
 # Endpoints de estado y monitoreo
 @app.get("/health")
@@ -100,6 +106,7 @@ async def health_check():
         },
     }
 
+
 @app.get("/metrics")
 async def get_metrics():
     """Obtener métricas del sistema"""
@@ -108,6 +115,7 @@ async def get_metrics():
 
     # Implementar recolección de métricas aquí
     return {"message": "Metrics endpoint"}
+
 
 if __name__ == "__main__":
     uvicorn.run(

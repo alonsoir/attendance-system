@@ -5,28 +5,28 @@ from typing import Any, Dict, Generator
 from unittest.mock import AsyncMock
 
 import httpx
+import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.core.config import Settings, get_settings
 from backend.core.security import get_password_hash
-from backend.db.models import User, Interaction
-from backend.db.session import get_db, create_engine
+from backend.db.models import Base, Interaction, User
+from backend.db.session import create_engine, get_db
 from backend.main import app
 from backend.services import AttendanceManager
 from backend.services.whatsapp import WhatsAppService
-import pytest
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from backend.db.models import Base
 
 # Configuración y variables de entorno
 os.environ["APP_ENV"] = "development"
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-
 import logging
+
+
 # @pytest.fixture(scope="session")
 def pytest_configure():
     logging.basicConfig(level=logging.ERROR)
@@ -35,6 +35,7 @@ def pytest_configure():
     logging.getLogger("aiosqlite").setLevel(logging.ERROR)
     # Si quieres silenciar completamente
     logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.ERROR)
+
 
 @pytest.fixture(scope="session")
 async def async_engine():

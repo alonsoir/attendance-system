@@ -1,11 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
+
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
-from backend.core.config import get_settings
 
-from sqlalchemy import text
+from backend.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

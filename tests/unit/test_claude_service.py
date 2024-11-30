@@ -1,12 +1,12 @@
 import json
 import logging
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from backend.core import get_settings
 from backend.services.claude import ClaudeService
-from backend.services.whatsapp import WhatsAppService, MessageProvider
+from backend.services.whatsapp import MessageProvider, WhatsAppService
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +97,7 @@ class AsyncContextManagerMock:
     async def __aexit__(self, exc_type, exc, tb):
         self.exit_called = True
 
+
 @pytest.mark.asyncio
 @pytest.mark.unittest
 async def test_interaction_sensitivity_calculation_generate_response_when_college():
@@ -120,8 +121,11 @@ async def test_interaction_sensitivity_calculation_generate_response_when_colleg
             ]
         }
 
-        response = await claude_service.generate_response_when_college("student_name", "El estudiante está enfermo")
+        response = await claude_service.generate_response_when_college(
+            "student_name", "El estudiante está enfermo"
+        )
         assert response["sensitivity"] == 7
+
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
@@ -133,7 +137,9 @@ async def test_interaction_sensitivity_error_handling_generate_response_when_col
     mock_session.close = AsyncMock()
     claude_service._session = mock_session
 
-    response = await claude_service.generate_response_when_college("student_name","El estudiante está enfermo")
+    response = await claude_service.generate_response_when_college(
+        "student_name", "El estudiante está enfermo"
+    )
 
     assert response["sensitivity"] == 5
     assert "Error" in response["response"]
@@ -154,12 +160,12 @@ async def test_interaction_sensitivity_invalid_json_generate_response_when_colle
     mock_session.close = AsyncMock()
     claude_service._session = mock_session
 
-    response = await claude_service.generate_response_when_college("student_name","El estudiante está enfermo")
+    response = await claude_service.generate_response_when_college(
+        "student_name", "El estudiante está enfermo"
+    )
 
     assert response["sensitivity"] == 5
     assert isinstance(response["response"], str)
-
-
 
 
 @pytest.mark.asyncio
@@ -185,8 +191,11 @@ async def test_interaction_sensitivity_calculation_generate_response_when_tutor(
             ]
         }
 
-        response = await claude_service.generate_response_when_tutor("El estudiante está enfermo")
+        response = await claude_service.generate_response_when_tutor(
+            "El estudiante está enfermo"
+        )
         assert response["sensitivity"] == 7
+
 
 @pytest.mark.asyncio
 @pytest.mark.unittest
@@ -198,7 +207,9 @@ async def test_interaction_sensitivity_error_handling_generate_response_when_tut
     mock_session.close = AsyncMock()
     claude_service._session = mock_session
 
-    response = await claude_service.generate_response_when_tutor("El estudiante está enfermo")
+    response = await claude_service.generate_response_when_tutor(
+        "El estudiante está enfermo"
+    )
 
     assert response["sensitivity"] == 5
     assert "Error" in response["response"]
@@ -219,7 +230,9 @@ async def test_interaction_sensitivity_invalid_json_generate_response_when_tutor
     mock_session.close = AsyncMock()
     claude_service._session = mock_session
 
-    response = await claude_service.generate_response_when_tutor("El estudiante está enfermo")
+    response = await claude_service.generate_response_when_tutor(
+        "El estudiante está enfermo"
+    )
 
     assert response["sensitivity"] == 5
     assert isinstance(response["response"], str)

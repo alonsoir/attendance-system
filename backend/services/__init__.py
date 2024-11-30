@@ -2,7 +2,6 @@ import re
 from enum import Enum
 from typing import Dict
 
-
 from .attendance import AttendanceManager
 from .claude import generate_claude_response
 from .service_status import check_service_status
@@ -233,7 +232,9 @@ class PhoneNumberValidator:
         try:
             parsed = phonenumbers.parse(phone, None)
             if phonenumbers.is_valid_number(parsed):
-                return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+                return phonenumbers.format_number(
+                    parsed, phonenumbers.PhoneNumberFormat.E164
+                )
             else:
                 raise ValueError("Número de teléfono inválido")
         except NumberParseException as e:
@@ -277,7 +278,9 @@ class PhoneNumberValidator:
             str: Número de teléfono de ejemplo en formato E.164.
         """
         example_number = phonenumbers.example_number(region)
-        return phonenumbers.format_number(example_number, phonenumbers.PhoneNumberFormat.E164)
+        return phonenumbers.format_number(
+            example_number, phonenumbers.PhoneNumberFormat.E164
+        )
 
 
 class MessageFormatter:
@@ -296,6 +299,3 @@ class MessageFormatter:
 def is_valid_email(email: str) -> bool:
     """Validates email format"""
     return bool(re.match(VALIDATION_RULES["EMAIL_RULES"]["PATTERN"], email))
-
-
-

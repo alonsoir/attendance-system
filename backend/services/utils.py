@@ -184,12 +184,13 @@ VALIDATION_RULES = {
 import phonenumbers
 from phonenumbers import NumberParseException
 
+
 class PhoneNumberValidator:
     # Lista de países permitidos
-    ALLOWED_REGIONS = {'ES', 'US'}
+    ALLOWED_REGIONS = {"ES", "US"}
 
     # Prefijos válidos para números españoles
-    VALID_ES_PREFIXES = {'6', '7', '8', '9'}
+    VALID_ES_PREFIXES = {"6", "7", "8", "9"}
 
     @staticmethod
     def validate_phone(phone: str) -> bool:
@@ -209,8 +210,10 @@ class PhoneNumberValidator:
         formatted_phone = phone
 
         # Formato WhatsApp: números que empiezan con el código de país sin +
-        if not phone.startswith('+'):
-            if (phone.startswith('1') and len(phone) == 11) or (phone.startswith('34') and len(phone) == 11):
+        if not phone.startswith("+"):
+            if (phone.startswith("1") and len(phone) == 11) or (
+                phone.startswith("34") and len(phone) == 11
+            ):
                 formatted_phone = f"+{phone}"
             else:
                 return False  # Número sin + que no cumple con el formato esperado
@@ -233,14 +236,14 @@ class PhoneNumberValidator:
             national_number = str(parsed.national_number)
 
             # Reglas específicas para España
-            if region == 'ES':
+            if region == "ES":
                 if not national_number[0] in PhoneNumberValidator.VALID_ES_PREFIXES:
                     return False
                 if len(national_number) != 9:  # Los números españoles tienen 9 dígitos
                     return False
 
             # Reglas específicas para Estados Unidos
-            elif region == 'US':
+            elif region == "US":
                 if len(national_number) != 10:  # Los números de USA tienen 10 dígitos
                     return False
 
@@ -248,7 +251,6 @@ class PhoneNumberValidator:
 
         except NumberParseException:
             return False
-
 
     @staticmethod
     def format_phone(phone: str) -> str:
@@ -270,7 +272,9 @@ class PhoneNumberValidator:
         try:
             parsed = phonenumbers.parse(phone, None)
             if phonenumbers.is_valid_number(parsed):
-                return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+                return phonenumbers.format_number(
+                    parsed, phonenumbers.PhoneNumberFormat.E164
+                )
             else:
                 raise ValueError("Número de teléfono inválido")
         except NumberParseException as e:
@@ -314,7 +318,9 @@ class PhoneNumberValidator:
             str: Número de teléfono de ejemplo en formato E.164.
         """
         example_number = phonenumbers.example_number(region)
-        return phonenumbers.format_number(example_number, phonenumbers.PhoneNumberFormat.E164)
+        return phonenumbers.format_number(
+            example_number, phonenumbers.PhoneNumberFormat.E164
+        )
 
 
 class MessageFormatter:
@@ -341,6 +347,7 @@ def is_service_available(service_name: str) -> bool:
     import asyncio
 
     return asyncio.run(check_service_status(service_name))
+
 
 class MessageFormatter:
     @staticmethod

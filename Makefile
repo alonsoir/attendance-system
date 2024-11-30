@@ -167,10 +167,12 @@ test:
 
 # Ejecuta solo los tests unitarios
 tests-unit:
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando las pruebas unitarias del backend...$(NC)"
 	@poetry run pytest tests/unit/ > $(LOG_DIR)/backend-unit-test.log; tail -n 10 $(LOG_DIR)/backend-unit-test.log
 
 # Ejecuta solo los tests de integración
 tests-integration:
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando las pruebas de integración del backend...$(NC)"
 	@poetry run pytest tests/integration/ > $(LOG_DIR)/backend-integration-test.log; tail -n 10 $(LOG_DIR)/backend-integration-test.log
 # =============================================================================
 # DOCKER
@@ -200,12 +202,27 @@ docker-stop:
 
 help:
 	@echo "Comandos disponibles:"
-	@echo "  make install            - Instalar dependencias y construir proyecto"
-	@echo "  make validate-versions  - Validar versiones de herramientas"
-	@echo "  make docker-build       - Construir contenedores Docker"
-	@echo "  make docker-run         - Iniciar contenedores Docker"
-	@echo "  make docker-stop        - Detener contenedores Docker"
-	@echo "  make format             - Formatear código"
-	@echo "  make lint               - Ejecutar linters"
+	@echo "  make check-docker           - Verificar si Docker está corriendo"
+	@echo "  make check-enviroment       - Verificar y activar el entorno virtual"
+	@echo "  make dev                    - Levantar la aplicación en modo desarrollo"
+	@echo "  make prod                   - Levantar la aplicación en modo producción"
+	@echo "  make check-deps             - Verificar dependencias del sistema"
+	@echo "  make validate-versions      - Validar versiones de herramientas"
+	@echo "  make check-env              - Verificar archivo de entorno"
+	@echo "  make generate-secret        - Generar y agregar una nueva SECRET_KEY"
+	@echo "  make install                - Instalar dependencias y construir proyecto"
+	@echo "  make backend-build          - Construir el backend"
+	@echo "  make frontend-install       - Instalar dependencias del frontend"
+	@echo "  make frontend-build         - Construir el frontend"
+	@echo "  make run                    - Ejecutar la aplicación"
+	@echo "  make format                 - Formatear código"
+	@echo "  make lint                   - Ejecutar linters"
+	@echo "  make test                   - Ejecutar todas las pruebas del backend"
+	@echo "  make tests-unit             - Ejecutar solo pruebas unitarias del backend"
+	@echo "  make tests-integration      - Ejecutar solo pruebas de integración del backend"
+	@echo "  make test-in-docker         - Ejecutar pruebas del backend dentro de Docker"
+	@echo "  make docker-build           - Construir contenedores Docker"
+	@echo "  make docker-run             - Iniciar contenedores Docker"
+	@echo "  make docker-stop            - Detener contenedores Docker"
 
 .DEFAULT_GOAL := help

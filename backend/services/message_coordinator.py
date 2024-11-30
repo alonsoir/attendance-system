@@ -1,13 +1,13 @@
-import logging
 import asyncio
+import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
-from dataclasses import dataclass
 
-from .whatsapp_manager import WhatsappManager
 from .attendance_manager import AttendanceManager
 from .claude_manager import ClaudeManager
 from .database_manager import DatabaseManager
+from .whatsapp_manager import WhatsappManager
 
 logger = logging.getLogger(__name__)
 
