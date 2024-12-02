@@ -3,6 +3,12 @@ import pytest
 from backend.services.claude import ClaudeService
 
 
+@pytest.fixture(autouse=True)
+def reset_whatsapp_service():
+    """Reset the WhatsAppService singleton instance before each test."""
+    ClaudeService._instance = None
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_claude_response_when_college_integration_es():

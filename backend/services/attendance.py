@@ -307,7 +307,7 @@ class AttendanceManager:
             meta_api_key=settings.WHATSAPP_META_API_KEY,
             callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
         )
-        await service.init_service()
+        await service.initialize()
 
         response: Dict[str, Any] = await service.get_message_from_tutor(
             validated_data.to_dict()
@@ -342,7 +342,7 @@ class AttendanceManager:
             meta_api_key=settings.WHATSAPP_META_API_KEY,
             callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
         )
-        service.init_service()  # Inicializar el cliente HTTP
+        service.initialize()  # Inicializar el cliente HTTP
 
         logger.info(f"Sending message to tutor: {validated_data.tutor_phone}")
         response: Dict[str, Any] = await service.send_message(

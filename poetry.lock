@@ -139,6 +139,21 @@ typing-extensions = "*"
 hiredis = ["hiredis (>=1.0)"]
 
 [[package]]
+name = "aioresponses"
+version = "0.7.7"
+description = "Mock out requests made by ClientSession from aiohttp package"
+optional = false
+python-versions = "*"
+files = [
+    {file = "aioresponses-0.7.7-py2.py3-none-any.whl", hash = "sha256:6975f31fe5e7f2113a41bd387221f31854f285ecbc05527272cd8ba4c50764a3"},
+    {file = "aioresponses-0.7.7.tar.gz", hash = "sha256:66292f1d5c94a3cb984f3336d806446042adb17347d3089f2d3962dd6e5ba55a"},
+]
+
+[package.dependencies]
+aiohttp = ">=3.3.0,<4.0.0"
+packaging = ">=22.0"
+
+[[package]]
 name = "aiosignal"
 version = "1.3.1"
 description = "aiosignal: a list of registered asynchronous callbacks"
@@ -4489,4 +4504,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10.15"
-content-hash = "9b0f3c4688a98c7e3f7f9789b1339ce185938c4667622761fbc0dd10ef907729"
+content-hash = "a018be198292ba58d14dfc4e947ee6bdcedf450fa39cb243d737b2d528078c84"

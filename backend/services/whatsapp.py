@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 import aiohttp
+from aiohttp import ClientResponseError, ClientSession
 
 from backend.core.config import get_settings
 from backend.services.utils import MessageFormatter, PhoneNumberValidator
@@ -22,12 +23,10 @@ class MessageProvider(str, Enum):
 
 class WhatsAppService:
     _instance: Optional["WhatsAppService"] = None
-    _http_client: Optional[aiohttp.ClientSession] = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(WhatsAppService, cls).__new__(cls)
-            cls._instance.__initialized = False
         return cls._instance
 
     def __init__(
@@ -36,7 +35,7 @@ class WhatsAppService:
         callback_token: Optional[str] = None,
         provider: MessageProvider = MessageProvider.MOCK,
     ):
-        if hasattr(self, "__initialized"):
+        if hasattr(self, "_initialized") and self._initialized:
             return
 
         self.meta_api_key = meta_api_key or getattr(settings, "META_API_KEY", "")
@@ -44,7 +43,9 @@ class WhatsAppService:
             settings, "WHATSAPP_CALLBACK_TOKEN", "test_token"
         )
         self.provider = provider
+        # self.is_mock = provider == MessageProvider.MOCK and self.meta_api_key is None and self.callback_token is not None
         self.is_mock = provider == MessageProvider.MOCK
+        self._http_client: Optional[ClientSession] = None
 
         if self.is_mock:
             logger.warning(
@@ -52,19 +53,18 @@ class WhatsAppService:
             )
         logger.info(f"WhatsApp service initialized with provider: {self.provider}")
 
-        self.__initialized = True
+        self._initialized = True
 
-    @classmethod
-    async def init_service(cls):
-        if cls._http_client is None or cls._http_client.closed:
-            cls._http_client = aiohttp.ClientSession()
+    async def initialize(self):
+        """Initializes the HTTP client."""
+        if not self._http_client or self._http_client.closed:
+            self._http_client = ClientSession()
             logger.info("WhatsAppService HTTP client initialized.")
 
-    @classmethod
-    async def close_service(cls):
-        if cls._http_client and not cls._http_client.closed:
-            await cls._http_client.close()
-            cls._http_client = None
+    async def close(self):
+        """Closes the HTTP client."""
+        if self._http_client and not self._http_client.closed:
+            await self._http_client.close()
             logger.info("WhatsAppService HTTP client closed.")
 
     async def get_message_from_tutor(
@@ -124,12 +124,11 @@ class WhatsAppService:
         pass
 
     async def send_message(self, phone: str, message: str) -> Dict[str, Any]:
+        """Sends a message to the specified phone number."""
         if not PhoneNumberValidator.validate_phone(phone):
             raise ValueError(f"Invalid phone number: {phone}")
         if not self._http_client:
-            raise RuntimeError(
-                "WhatsAppService must be initialized with `init_service()` before usage."
-            )
+            raise RuntimeError("Service not initialized. Call `initialize()` first.")
 
         try:
             if self.is_mock:
@@ -143,12 +142,9 @@ class WhatsAppService:
         except aiohttp.ClientError as e:
             logger.error(f"HTTP error while sending message: {e}")
             raise
-        except NotImplementedError as e:
-            logger.error(f"NotImplementedError. Error while sending message: {e}")
-            raise Exception("Network Error")
         except Exception as e:
             logger.exception(f"Unexpected error while sending message: {e}")
-            raise Exception("Network Error")
+            raise RuntimeError("An unexpected error occurred.")
 
     async def _send_mock_message(self, phone: str, message: str) -> Dict[str, Any]:
         logger.info(f"MOCK message to {phone}: {message}")
@@ -159,24 +155,34 @@ class WhatsAppService:
             "phone": phone,
             "message": message,
             "provider": "mock",
-            "response": message,
             "timestamp": str(datetime.now()),
         }
 
     async def _send_callmebot_message(self, phone: str, message: str) -> Dict[str, Any]:
-        url = f"https://api.callmebot.com/whatsapp.php?phone={phone}&text={message}&apikey={self.meta_api_key}"
-        logger.info(f"Sending message to {phone} via CallMeBot")
+        phone_formatted = PhoneNumberValidator.format_phone(phone)
+        url = f"https://api.callmebot.com/whatsapp.php?phone={phone_formatted}&text={message}&apikey={self.meta_api_key}"
+        logger.info(f"Sending message to {phone_formatted} via Meta WhatsApp API")
+        logger.debug(f"URL: {url}")
         async with self._http_client.get(url) as response:
-            response.raise_for_status()
-            return {
-                "status": "success",
-                "mock": False,
-                "phone": phone,
-                "message": message,
-                "provider": "callmebot",
-                "response": await response.text(),
-                "timestamp": str(datetime.now()),
-            }
+            try:
+                response.raise_for_status()
+                response_text = await response.text()
+                return {
+                    "status": "success",
+                    "phone": phone_formatted,
+                    "message": message,
+                    "provider": "callmebot",
+                    "response": response_text,
+                    "timestamp": str(datetime.now()),
+                }
+            except ClientResponseError as e:
+                logger.error(f"CallMeBot API response: {await response.text()}")
+                logger.debug(f"Response: {response}")
+                logger.debug(f"Response headers: {response.headers}")
+                logger.debug(f"Response status: {response.status}")
+                logger.debug(f"Exception text: {e.message}")
+                raise
+                raise
 
     async def _send_meta_message(self, phone: str, message: str) -> Dict[str, Any]:
         phone_formatted = PhoneNumberValidator.format_phone(phone)
@@ -186,23 +192,32 @@ class WhatsAppService:
             "to": phone_formatted,
             "text": {"body": message},
         }
-        logger.info(f"Sending message to {phone} via Meta WhatsApp API")
-        async with self._http_client.post(url, json=payload) as response:
-            response.raise_for_status()
-            return {
-                "status": "success",
-                "mock": False,
-                "phone": phone,
-                "message": message,
-                "provider": "meta",
-                "response": await response.json(),
-                "timestamp": str(datetime.now()),
-            }
 
-    async def verify_callback(self, token: str) -> bool:
-        return token == self.callback_token if not self.is_mock else True
+        logger.info(f"Sending message to {phone_formatted} via Meta WhatsApp API")
+        logger.debug(f"Payload: {payload}")
+        logger.debug(f"URL: {url}")
+        async with self._http_client.post(url, json=payload) as response:
+            try:
+                response.raise_for_status()
+                response_json = await response.json()
+
+                return {
+                    "status": "success",
+                    "phone": phone_formatted,
+                    "message": message,
+                    "provider": "meta",
+                    "response": response_json,
+                    "timestamp": str(datetime.now()),
+                }
+            except ClientResponseError as e:
+                logger.error(f"Meta API response: {await response.text()}")
+                logger.debug(f"Response headers: {response.headers}")
+                logger.debug(f"Response status: {response.status}")
+                logger.debug(f"Exception text: {e.message}")
+                raise
 
     def get_status(self) -> Dict[str, Any]:
+        """Returns the service status."""
         return {
             "mode": "mock" if self.is_mock else "live",
             "provider": self.provider,
@@ -211,3 +226,7 @@ class WhatsAppService:
                 "callbacks": bool(self.callback_token),
             },
         }
+
+    async def verify_callback(self, token: str) -> bool:
+        """Verifies a callback token."""
+        return token == self.callback_token if not self.is_mock else True

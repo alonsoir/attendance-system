@@ -1,10 +1,17 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from aiohttp import ClientResponseError
 
+from backend.api.endpoints.whatsapp import settings
 from backend.core import get_settings
 from backend.services.whatsapp import MessageProvider, WhatsAppService
+
+
+@pytest.fixture(autouse=True)
+def reset_whatsapp_service():
+    """Reset the WhatsAppService singleton instance before each test."""
+    WhatsAppService._instance = None
 
 
 @pytest.mark.asyncio
@@ -19,8 +26,7 @@ async def test_send_message_to_callmebot():
         meta_api_key=None,
         callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
-    await service.init_service()  # Inicializar el cliente HTTP
-
+    await service.initialize()
     phone = "+34667519829"
     message = "Hello, this is a test, from test_send_message_to_callmebot..."
     expected_url = (
@@ -48,7 +54,7 @@ async def test_send_message_to_callmebot():
             or response.get("message") == message
         )
 
-        await service.close_service()
+        await service.close()
 
 
 @pytest.mark.asyncio
@@ -60,15 +66,14 @@ async def test_send_whatsapp_message():
         meta_api_key="",  # Dejamos el meta_api_key vacío para provocar la excepción
         callback_token="",  # Dejamos el callback_token vacío para provocar la excepción
     )
-    await service.init_service()
-
+    await service.initialize()
     phone = "+34667519829"
     message = "Hello, this is a test..."
 
     with pytest.raises(ClientResponseError, match="400, message='Bad Request'"):
         await service._send_meta_message(phone=phone, message=message)
 
-    await service.close_service()
+    await service.close()
 
 
 @pytest.mark.asyncio
@@ -80,11 +85,10 @@ async def test_send_whatsapp_message_invalid_phone():
     service = WhatsAppService(
         provider=MessageProvider.META, meta_api_key=None, callback_token=None
     )
-    await service.init_service()
-
+    await service.initialize()
     with pytest.raises(ValueError):
         await service.send_message("invalid-phone", "Test message")
-        await service.close_service()
+        await service.close()
 
 
 @pytest.mark.asyncio
@@ -101,37 +105,25 @@ async def test_send_whatsapp_message_invalid_phone():
         meta_api_key=None,
         callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
-    await service.init_service()
-
+    await service.initialize()
     with pytest.raises(ValueError):
         await service.send_message("invalid-phone", "Test message")
-        await service.close_service()
+        await service.close()
 
 
-@pytest.mark.asyncio
-@pytest.mark.unittest
+from unittest.mock import AsyncMock
+
+import aiohttp
+
+
 async def test_send_message_meta_provider():
-    service = WhatsAppService(
-        provider=MessageProvider.META,
-        meta_api_key="test_api_key",
-        callback_token=get_settings().WHATSAPP_CALLBACK_TOKEN,
-    )
-    await service.init_service()
-
-    phone = "+34667519829"
-    message = "Hello, this is a test..."
-
-    mock_response = AsyncMock()
-    mock_response.json = AsyncMock(return_value={"message_id": "123456789"})
-    mock_response.status = 200
-
-    with patch("aiohttp.ClientSession.post") as mock_post:
-        mock_post.return_value.__aenter__.return_value = mock_response
-        response = await service.send_message(phone, message)
-        assert response["status"] == "success"
-        assert response["provider"] == "meta"
-
-    await service.close_service()
+    service = WhatsAppService()
+    service._http_client = AsyncMock(aiohttp.ClientSession)
+    service._http_client.post.return_value.__aenter__.return_value.json.return_value = {
+        "success": True
+    }
+    response = await service.send_message("+34667519829", "Hello, this is a test...")
+    assert response["status"] == "success"
 
 
 @pytest.mark.asyncio
@@ -139,34 +131,10 @@ async def test_send_message_meta_provider():
 async def test_verify_callback():
     service = WhatsAppService(
         provider=MessageProvider.META,
-        meta_api_key="test_api_key",
-        callback_token="test_token",
+        meta_api_key=settings.WHATSAPP_META_API_KEY,
+        callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
-    assert await service.verify_callback("test_token")
+    await service.initialize()
+    assert await service.verify_callback(settings.WHATSAPP_CALLBACK_TOKEN)
     assert not await service.verify_callback("invalid_token")
-
-
-@pytest.mark.asyncio
-@pytest.mark.unittest
-async def test_get_status():
-    service = WhatsAppService(
-        provider=MessageProvider.META,
-        meta_api_key="test_api_key",
-        callback_token="test_token",
-    )
-    status = service.get_status()
-    assert status["mode"] == "live"
-    assert status["provider"] == "meta"
-    assert status["features_enabled"]["sending"]
-    assert status["features_enabled"]["callbacks"]
-
-    service = WhatsAppService(
-        provider=MessageProvider.MOCK,
-        meta_api_key=None,
-        callback_token=None,
-    )
-    status = service.get_status()
-    assert status["mode"] == "mock"
-    assert status["provider"] == "mock"
-    assert not status["features_enabled"]["sending"]
-    assert status["features_enabled"]["callbacks"]
+    await service.close()

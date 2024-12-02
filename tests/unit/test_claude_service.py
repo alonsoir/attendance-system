@@ -44,7 +44,7 @@ async def test_error_handling():
         meta_api_key=None,
         callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
-    await service.init_service()
+    await service.initialize()
     phone = "NOT_A_VALID_PHONENUMBER"
 
     # Mock del cliente HTTP
@@ -54,7 +54,7 @@ async def test_error_handling():
     ) as mock_get:
         with pytest.raises(ValueError):
             await service.send_message(phone, "Test message")
-    await service.close_service()
+    await service.close()
 
 
 @pytest.fixture
