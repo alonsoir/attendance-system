@@ -174,7 +174,7 @@ def test_settings():
 
 @pytest.fixture(scope="session", autouse=True)
 def event_loop():
-    """Crea un loop de eventos para pytest-asyncio."""
+    
     loop = asyncio.get_event_loop()
     yield loop
     loop.close()

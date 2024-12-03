@@ -229,18 +229,21 @@ Sensitivity levels:
 4-6: Moderate concerns (doctor appointments, planned absences)
 7-8: Significant issues (illness, family matters)
 9-10: Critical situations (emergencies, serious health issues)
+
 likely_to_be_on_leave_tomorrow is the probability that the student will be absent tomorrow, True or False
 likely_to_be_on_leave_tomorrow, means if you estimate that the student will still be on leave tomorrow, that is, 
 if you think the student is sick because the tutor has told you that he needs or is receiving medical treatment 
 at home or in the hospital, or missing because his tutor does not know where he is. 
-In these cases this field will be True.
+In these cases this field likely_to_be_on_leave_tomorrow will be True.
 If the tutor tells you the days of treatment, you will calculate the date on which you have to send 
 the reminder message again, asking about the student's health. 
 If he does not tell you the number of days of treatment, you will send the tutor a reminder message 
 reminding him that his tutee is sick, so you will be tremendously empathetic offering your help.
 If the tutor does not know where he is, that is, missing, in reason you have to clearly indicate 
 this reason but the case cannot be closed.
-You can only set this field to false when the tutor tells you that the tutee is going to return to school tomorrow.
+You can only set this field likely_to_be_on_leave_tomorrow to false when the tutor tells you that the tutee is 
+going to return to school tomorrow.
+
 reach_out_tomorrow is the probability that the student will arrive tomorrow at college, True or False
 If there is no reason to close the case, reason will have the default value, "in progress"
 DO NOT include any text before or after the JSON object.""",

@@ -163,8 +163,9 @@ class WhatsAppService:
         url = f"https://api.callmebot.com/whatsapp.php?phone={phone_formatted}&text={message}&apikey={self.meta_api_key}"
         logger.info(f"Sending message to {phone_formatted} via Meta WhatsApp API")
         logger.debug(f"URL: {url}")
-        async with self._http_client.get(url) as response:
-            try:
+
+        try:
+            async with self._http_client.get(url) as response:
                 response.raise_for_status()
                 response_text = await response.text()
                 return {
@@ -175,14 +176,12 @@ class WhatsAppService:
                     "response": response_text,
                     "timestamp": str(datetime.now()),
                 }
-            except ClientResponseError as e:
-                logger.error(f"CallMeBot API response: {await response.text()}")
-                logger.debug(f"Response: {response}")
-                logger.debug(f"Response headers: {response.headers}")
-                logger.debug(f"Response status: {response.status}")
-                logger.debug(f"Exception text: {e.message}")
-                raise
-                raise
+        except ClientResponseError as e:
+            logger.error(f"CallMeBot API response: {await response.text()}")
+            logger.debug(f"Response headers: {response.headers}")
+            logger.debug(f"Response status: {response.status}")
+            logger.debug(f"Exception text: {e.message}")
+            raise
 
     async def _send_meta_message(self, phone: str, message: str) -> Dict[str, Any]:
         phone_formatted = PhoneNumberValidator.format_phone(phone)

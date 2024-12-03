@@ -19,41 +19,32 @@ def reset_whatsapp_service():
 async def test_send_message_to_callmebot():
     """Prueba el envío de mensajes de WhatsApp en modo mock con provider CallMeBot."""
     settings = get_settings()
-    # Configuración del servicio
-
     service = WhatsAppService(
         provider=MessageProvider.CALLMEBOT,
         meta_api_key=None,
         callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
     )
-    await service.initialize()
-    phone = "+34667519829"
-    message = "Hello, this is a test, from test_send_message_to_callmebot..."
-    expected_url = (
-        f"https://api.callmebot.com/whatsapp.php?"
-        f"phone={phone}&text={message}&apikey=9295095"
-    )
 
-    mock_response_text = "Hello, this is a test, from test_send_message_to_callmebot..."
+    try:
+        await service.initialize()
+        phone = "+34667519829"
+        message = "Hello, this is a test, from test_send_message_to_callmebot..."
 
-    # Mock de `aiohttp.ClientSession.get`
-    with patch("aiohttp.ClientSession.get") as mock_get:
-        # Configuración del mock para simular una respuesta exitosa
         mock_response = AsyncMock()
-        mock_response.text = AsyncMock(return_value=mock_response_text)
+        mock_response.text = AsyncMock(return_value=message)
         mock_response.status = 200
+        mock_response.raise_for_status = AsyncMock()
 
-        mock_get.return_value.__aenter__.return_value = mock_response
+        with patch("aiohttp.ClientSession.get") as mock_get:
+            mock_get.return_value.__aenter__.return_value = mock_response
+            response = await service.send_message(phone=phone, message=message)
 
-        # Llamada a la función
-        response = await service.send_message(phone=phone, message=message)
+            assert response.get("status") == "success"
+            assert response.get("phone") == phone
+            assert response.get("message") == message
+            mock_response.raise_for_status.assert_called_once()
 
-        assert (
-            response.get("status") == "success"
-            or response.get("phone") == phone
-            or response.get("message") == message
-        )
-
+    finally:
         await service.close()
 
 
