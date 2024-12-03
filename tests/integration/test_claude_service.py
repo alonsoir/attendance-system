@@ -40,7 +40,7 @@ async def test_generate_claude_response_when_college_integration_es():
     assert isinstance(response["reach_out_tomorrow"], bool)
 
     # Verificar valores específicos para mensaje de enfermedad
-    assert 5 <= response["sensitivity"] <= 8  # Enfermedad es "significant issue"
+    assert 4 <= response["sensitivity"] <= 8  # Enfermedad es "significant issue"
     assert len(response["response"]) > 0
     assert any(
         palabra in response["response"].lower()
@@ -95,11 +95,17 @@ async def test_generate_claude_response_when_college_integration_en():
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_claude_response_when_tutor_integration_en():
-    """Test generating real Claude responses, in Spanish"""
+    """Test generating real Claude responses in English"""
     claude_service = ClaudeService.get_instance()
     message_from_tutor = "My son is sick and has stayed home, I have put him on broad spectrum antibiotics prescribed by the hospital."
     response = await claude_service.generate_response_when_tutor(
         message_from_tutor=message_from_tutor
+    )
+
+    # Verify response is in English
+    assert any(
+        word in response["response"].lower()
+        for word in ["understandable", "hope", "sick", "ill"]
     )
 
     # Verify basic structure

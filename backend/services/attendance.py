@@ -71,8 +71,11 @@ class MessageData:
     tutor_phone: str
     college_phone: str
     college_name: str
-    message_content: str = ""
-    tutor_name: str = ""
+    message_content: str
+    tutor_name: str
+    sensitivity: int
+    likely_to_be_on_leave_tomorrow: bool
+    reach_out_tomorrow: bool
     timestamp: datetime = datetime.now()
 
     def to_dict(self) -> Dict[str, Any]:
@@ -84,6 +87,9 @@ class MessageData:
             "college_name": self.college_name,
             "message_content": self.message_content,
             "tutor_name": self.tutor_name,
+            "sensitivity": self.sensitivity,
+            "likely_to_be_on_leave_tomorrow": self.likely_to_be_on_leave_tomorrow,
+            "reach_out_tomorrow": self.reach_out_tomorrow,
             "timestamp": self.timestamp,
         }
 
@@ -115,26 +121,31 @@ class AttendanceManager:
         return AttendanceManager._instance
 
     async def process_whatsapp_message_from_tutor_to_claude(
-        self, message_data: IncomingMessage
+        self, incomingMessage: IncomingMessage
     ) -> Dict[str, Any]:
+        """
+        Queremos enviar la respuesta del tutor a Claude para que genere una respuesta.
+        """
         try:
             # Validar y procesar el mensaje
-            validated_data = self._validate_incoming_message_data(message_data)
+            validated_data = self._validate_incoming_message_data(incomingMessage)
             logger.info(f"Processing message for student: {validated_data.sender_name}")
-            response: Dict[str, Any] = await self._receive_message_from_tutor(
-                validated_data
-            )
 
+            response: dict = self._send_message_to_claude_from_tutor(validated_data)
+            print(response)
             # Preparar datos para guardar en la base de datos
             data_from_tutor_to_be_saved: MessageData = MessageData(
                 id=None,
                 student_name=validated_data.sender_name,
-                tutor_phone=response["tutor_phone"],
+                tutor_phone=validated_data.sender_phone,
                 college_phone=validated_data.sender_phone,  # Asumiendo que el tutor y el colegio tienen el mismo número
                 college_name="College Name",  # Asumiendo un nombre de colegio genérico
-                message_content=response["message"],
+                message_content=validated_data.message_content,
                 tutor_name=validated_data.sender_name,
-                timestamp=response["timestamp"],
+                sensitivity=None,  # lo recojo de Claude, en el response anterior.
+                likely_to_be_on_leave_tomorrow=None,  # lo recojo de Claude, en el response anterior.
+                reach_out_tomorrow=None,  # lo recojo de Claude, en el response anterior.
+                timestamp=validated_data.timestamp,
             )
 
             # Guardar la interacción en la base de datos, probablemente usando un ORM como SQLAlchemy
@@ -179,11 +190,16 @@ class AttendanceManager:
                 college_name="College Name",
                 message_content=validated_data.body,
                 tutor_name="Tutor",
+                sensitivity=5,  # valor por defecto
+                likely_to_be_on_leave_tomorrow=False,  # valor por defecto
+                reach_out_tomorrow=False,  # valor por defecto
                 timestamp=datetime.now(),
             )
 
             # Enviar mensaje al tutor
-            response = await self._send_message_to_tutor(message_data_to_send)
+            response = await self._send_message_to_tutor_From_Claude(
+                message_data_to_send
+            )
 
             # Guardar la interacción en la base de datos
             await self._save_interaction_to_db(response)
@@ -315,25 +331,86 @@ class AttendanceManager:
         logger.info(response)
         return response
 
-    async def _send_message_to_tutor(self, validated_data: MessageData) -> MessageData:
+    def _build_message(self, validated_data: MessageData) -> str:
+        is_final_message = (
+            validated_data.likely_to_be_on_leave_tomorrow
+            and validated_data.reach_out_tomorrow
+        )
+
+        base_message = (
+            f"Hola, {validated_data.college_name}. Soy Attendance Manager, nos ha contactado el tutor "
+            f"{validated_data.tutor_name} sobre el estudiante {validated_data.student_name}. "
+            f"El tutor nos ha proporcionado los siguientes datos: {validated_data.message_content}"
+        )
+
+        if is_final_message:
+            return (
+                f"{base_message}\n\n"
+                f"Según la información proporcionada, el estudiante se reincorporará a las clases mañana. "
+                f"Este será el último mensaje de seguimiento para este caso. Si necesitan información adicional, "
+                f"por favor, inicien una nueva consulta."
+            )
+
+        return base_message
+
+    async def _send_message_to_college_from_Claude(
+        self, validated_data: MessageData
+    ) -> MessageData:
+        """
+             El envío de un mensaje whatsapp a un colegio. Tengo que ser capaz de saber si es el mensaje final o no.
+             En la respuesta recibo siempre esta estructura:
+             {
+        "sensitivity": <integer between 1-10>,
+        "response": <your empathetic response>,
+        "likely_to_be_on_leave_tomorrow": <boolean>,
+        "reach_out_tomorrow": <boolean>,
+        "conversation_id": <string> # ID único para la conversación
+             }
+             Si likely_to_be_on_leave_tomorrow y reach_out_tomorrow son True, entonces el mensaje desde Claude es el último.
+        """
+        message = self._build_message(validated_data)
+        logger.info(f"Sending message to college: {message}")
+        settings = get_settings()
+        # settings.print_settings()
+        service = WhatsAppService(
+            provider=settings.WHATSAPP_PROVIDER,
+            meta_api_key=settings.WHATSAPP_META_API_KEY,
+            callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
+        )
+        await service.initialize()
+        response: Dict[str, Any] = await service.send_message(
+            validated_data.tutor_phone, message
+        )
+        print(response)
+        return response
+
+    async def _send_message_to_claude_from_tutor(self, validated_data: IncomingMessage):
+        """
+        El envío de un mensaje a Claude. Tengo que ser capaz de saber si es el mensaje final o no.
+        :param validated_data:
+        :return:
+        """
+        message = (
+            f"Hi Claude, el tutor {validated_data.sender_name} has sent the following message: "
+            f"{validated_data.message_content}. Please provide a response to this message."
+        )
+
+        # Tengo que enviar un mensaje a Claude de parte del tutor!!!!
+        service = ClaudeService.get_instance()
+        service.initialize()
+        response: Dict[str, Any] = await service.generate_response_when_tutor(message)
+        return response
+
+    async def _send_message_to_tutor_From_Claude(
+        self, validated_data: MessageData
+    ) -> MessageData:
         message = (
             f"Hola, {validated_data.tutor_name}. Soy Attendance Manager, nos ha contactado el colegio "
             f"{validated_data.college_name} solicitando información sobre el estudiante "
             f"{validated_data.student_name}. ¿Puedes proporcionarnos el estado actual de "
             f"{validated_data.student_name}?"
         )
-        """
-        response is a dictionary with the following keys:
-        {
-            "status": "success",
-            "mock": True,
-            "phone": phone,
-            "message": message,
-            "provider": "mock",
-            "response": message,
-            "timestamp": str(datetime.now()),
-        }
-        """
+
         settings = get_settings()
         # Configuración del servicio
 
