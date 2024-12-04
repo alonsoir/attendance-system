@@ -1,68 +1,119 @@
 from datetime import datetime
+from typing import List, Optional
+from uuid import UUID
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from .base import Base
 
 
-class User(Base):
-    __tablename__ = "users"
+class School(Base):
+    __tablename__ = "schools"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    address: Mapped[str] = mapped_column(String(255), nullable=False)
+    country: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    interactions = relationship("Interaction", back_populates="created_by")
-
-
-class Interaction(Base):
-    __tablename__ = "interactions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    student_name = Column(String, index=True)
-    tutor_phone = Column(String)
-    tutor_name = Column(String, nullable=True)
-    status = Column(String)  # active, resolved, closed
-    claude_response = Column(JSON)
-    sensitivity_score = Column(Integer)
-    follow_up_required = Column(Boolean, default=False)
-    follow_up_date = Column(DateTime, nullable=True)
-
-    # Relaciones
-    created_by_id = Column(Integer, ForeignKey("users.id"))
-    created_by = relationship("User", back_populates="interactions")
-
-    # Historial de mensajes
-    messages = relationship("InteractionMessage", back_populates="interaction")
+    students: Mapped[List["Student"]] = relationship(back_populates="school")
+    conversations: Mapped[List["Conversation"]] = relationship(back_populates="school")
 
 
-class InteractionMessage(Base):
-    __tablename__ = "interaction_messages"
+class Tutor(Base):
+    __tablename__ = "tutors"
 
-    id = Column(Integer, primary_key=True, index=True)
-    interaction_id = Column(Integer, ForeignKey("interactions.id"))
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    sender_type = Column(String)  # system, tutor, claude
-    content = Column(String)
-    message_metadata = Column(
-        JSON, nullable=True
-    )  # Cambiado de metadata a message_metadata
+    id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    interaction = relationship("Interaction", back_populates="messages")
+    students: Mapped[List["Student"]] = relationship("Student", secondary="tutor_student", back_populates="tutors")
 
 
-class ServiceStatus(Base):
-    __tablename__ = "service_status"
+class Student(Base):
+    __tablename__ = "students"
 
-    id = Column(Integer, primary_key=True, index=True)
-    service_name = Column(String, unique=True)
-    status = Column(Boolean)
-    last_check = Column(DateTime, default=datetime.utcnow)
-    error_message = Column(String, nullable=True)
+    id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    date_of_birth: Mapped[datetime] = mapped_column(Date, nullable=False)
+    school_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("schools.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    school: Mapped["School"] = relationship(back_populates="students")
+    tutors: Mapped[List["Tutor"]] = relationship("Tutor", secondary="tutor_student", back_populates="students")
+    conversations: Mapped[List["Conversation"]] = relationship(back_populates="student")
+
+
+class TutorStudent(Base):
+    __tablename__ = "tutor_student"
+
+    tutor_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("tutors.id"), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("students.id"), primary_key=True)
+    relationship_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
+    student_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("students.id"), nullable=False)
+    school_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("schools.id"), nullable=False)
+    claude_conversation_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="INITIATED")
+    reason: Mapped[Optional[str]] = mapped_column(Text)
+    last_interaction_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    __table_args__ = (
+        CheckConstraint(
+            status.in_([
+                'INITIATED',
+                'PENDING_TUTOR',
+                'ACTIVE_TUTOR_DIALOG',
+                'PENDING_SCHOOL_CONFIRMATION',
+                'SCHOOL_CONFIRMED',
+                'CLOSED',
+                'CANCELLED'
+            ]),
+            name='valid_status'
+        ),
+    )
+
+    student: Mapped["Student"] = relationship(back_populates="conversations")
+    school: Mapped["School"] = relationship(back_populates="conversations")
+    messages: Mapped[List["Message"]] = relationship(back_populates="conversation")
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
+    conversation_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("conversations.id"), nullable=False)
+    sender_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    sender_id: Mapped[UUID] = mapped_column(PgUUID, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    claude_response_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            sender_type.in_(['SCHOOL', 'TUTOR', 'CLAUDE']),
+            name='valid_sender_type'
+        ),
+    )
+
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")

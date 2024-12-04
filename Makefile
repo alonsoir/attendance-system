@@ -1,4 +1,13 @@
 # =============================================================================
+# DECLARACIÓN DE PHONY TARGETS
+# =============================================================================
+.PHONY: help check-docker check-environment check-deps validate-versions check-env \
+        generate-secret install backend-build frontend-install frontend-build \
+        dev prod run format lint test tests-unit tests-integration \
+        test-with-containers test-in-docker docker-build docker-run docker-stop \
+        db-init db-reset db-seed db-setup
+
+# =============================================================================
 # VARIABLES Y CONFIGURACIÓN
 # =============================================================================
 SHELL := /bin/bash
@@ -9,220 +18,143 @@ NODE_VERSION = 22.9.0
 DOCKER_VERSION = 27.3.1
 NPM_VERSION = 10.8.3
 APP_NAME = attendance-system
-HEROKU_APP_NAME = your-heroku-app-name
 ENV = development
 ENV_FILE = .env-$(ENV)
 LOG_FILE = make.log
 LOG_DIR = logs
-TIMESTAMP = $(shell date '+%Y-%m-%d %H:%M:%S')
 FRONTEND_PATH = frontend
 BACKEND_PATH = backend
 DOCKER_COMPOSE_FILE = docker-compose.yml
 
-# Emojis y colores (corrección de caracteres de escape para colores)
-RED = \033[0;31m
-GREEN = \033[0;32m
-YELLOW = \033[0;33m
-BLUE = \033[0;34m
-NC = \033[0m
-EMOJI_INFO = ℹ️
-EMOJI_CHECK = ✅
-EMOJI_ERROR = ❌
-EMOJI_WARN = ⚠️
+# Colores y emojis
+include mk/colors.mk
 
 # =============================================================================
-# VERIFICACIONES Y DEPENDENCIAS
+# VERIFICACIONES BÁSICAS
 # =============================================================================
-
 check-docker:
-	@echo "$(BLUE)$(EMOJI_INFO) Verificando que Docker esté corriendo...$(NC)"
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando Docker...$(NC)"
 	@docker info > /dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) Docker no está corriendo!$(NC)" && exit 1)
 	@echo "$(GREEN)$(EMOJI_CHECK) Docker está corriendo.$(NC)"
 
-check-enviroment:
-	@echo "$(BLUE)$(EMOJI_INFO) Verificando el entorno...$(NC)"
+check-environment:
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando entorno virtual...$(NC)"
 	@if [ -z "$(VIRTUAL_ENV)" ]; then \
-		echo "$(RED)$(EMOJI_ERROR) El entorno virtual no está activado!$(NC)"; \
-		echo "$(BLUE)$(EMOJI_INFO) Activando el entorno virtual...$(NC)"; \
-		poetry shell || source /path/to/your/virtualenv/bin/activate; \
-		if [ -z "$(VIRTUAL_ENV)" ]; then \
-			echo "$(RED)$(EMOJI_ERROR) No se pudo activar el entorno virtual!$(NC)"; \
-			exit 1; \
-		else \
-			echo "$(GREEN)$(EMOJI_CHECK) El entorno virtual está activado.$(NC)"; \
-		fi \
-	else \
-		echo "$(GREEN)$(EMOJI_CHECK) El entorno virtual está activado.$(NC)"; \
+		poetry shell || (echo "$(RED)$(EMOJI_ERROR) No se pudo activar el entorno virtual!$(NC)" && exit 1); \
 	fi
+	@echo "$(GREEN)$(EMOJI_CHECK) Entorno virtual activo.$(NC)"
 
 # =============================================================================
-# MODO DESARROLLO
+# VERIFICACIONES DE SISTEMA
 # =============================================================================
-dev: check-enviroment check-docker
-	@echo "$(BLUE)$(EMOJI_INFO) Levantando la aplicación en modo desarrollo...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up --build $(APP_NAME)-backend $(APP_NAME)-frontend
+check-deps: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando dependencias...$(NC)"
+	@command -v docker >/dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) Docker no encontrado$(NC)" && exit 1)
+	@command -v npm >/dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) npm no encontrado$(NC)" && exit 1)
+	@command -v poetry >/dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) Poetry no encontrado$(NC)" && exit 1)
+	@echo "$(GREEN)$(EMOJI_CHECK) Todas las dependencias instaladas.$(NC)"
 
-# =============================================================================
-# MODO PRODUCCIÓN
-# =============================================================================
-prod: check-docker
-	@echo "$(BLUE)$(EMOJI_INFO) Levantando la aplicación en modo producción...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up $(APP_NAME)-backend $(APP_NAME)-frontend
-
-check-deps:
-	$(call log_info, "Verificando dependencias del sistema")
-	@command -v docker >/dev/null 2>&1 || $(call log_error, "Docker no encontrado")
-	@command -v npm >/dev/null 2>&1 || $(call log_error, "npm no encontrado")
-	@command -v poetry >/dev/null 2>&1 || $(call log_error, "Poetry no encontrado")
-	$(call log_success, "Todas las dependencias están instaladas")
-
-validate-versions:
-	$(call log_info, "Validando versiones del sistema")
+validate-versions: check-deps
+	@echo "$(BLUE)$(EMOJI_INFO) Validando versiones...$(NC)"
 	@python3 -c 'import sys; assert sys.version.startswith("$(PYTHON_VERSION)")' || \
-	$(call log_error, "Python $(PYTHON_VERSION) requerido")
-	@node -v | grep -q "v$(NODE_VERSION)" || \
-	$(call log_error, "Node.js $(NODE_VERSION) requerido")
-	@poetry --version | grep -q "$(POETRY_VERSION)" || \
-	$(call log_error, "Poetry $(POETRY_VERSION) requerido")
-	@docker --version | grep -q "$(DOCKER_VERSION)" || \
-	$(call log_error, "Docker $(DOCKER_VERSION) requerido")
-	@npm --version | grep -q "$(NPM_VERSION)" || \
-	$(call log_error, "npm $(NPM_VERSION) requerido")
-	$(call log_success, "Todas las versiones son correctas")
-
-check-env:
-	$(call log_info, "Verificando archivo de entorno $(ENV_FILE)")
-	@if [[ ! -f $(ENV_FILE) ]]; then \
-		$(call log_error, "Archivo $(ENV_FILE) no encontrado"); \
-		exit 1; \
-	fi
-	$(call log_success, "Archivo $(ENV_FILE) verificado correctamente")
-
-generate-secret: $(LOG_DIR)
-	$(call log_info, "Generando nueva SECRET_KEY en $(ENV_FILE)")
-	@if [[ -f $(ENV_FILE) ]]; then \
-		cp $(ENV_FILE) $(ENV_FILE).backup-$(shell date +%Y%m%d%H%M%S); \
-	fi
-	@SECRET_KEY=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))") && \
-	echo "SECRET_KEY=$$SECRET_KEY" >> $(ENV_FILE) && \
-	$(call log_success, "SECRET_KEY generada y añadida en $(ENV_FILE)")
+		(echo "$(RED)$(EMOJI_ERROR) Python $(PYTHON_VERSION) requerido$(NC)" && exit 1)
+	@echo "$(GREEN)$(EMOJI_CHECK) Versiones correctas.$(NC)"
 
 # =============================================================================
 # INSTALACIÓN Y CONSTRUCCIÓN
 # =============================================================================
+install: check-deps backend-build frontend-install frontend-build
+	@echo "$(GREEN)$(EMOJI_CHECK) Instalación completada.$(NC)"
 
-install: check-enviroment $(LOG_DIR) check-deps backend-build frontend-install frontend-build
-	$(call log_success, "Instalación completada")
-
-backend-build:
-	$(call log_info, "Construyendo backend")
+backend-build: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo backend...$(NC)"
 	@cd $(BACKEND_PATH) && poetry install
-	$(call log_success, "Backend construido")
+	@echo "$(GREEN)$(EMOJI_CHECK) Backend construido.$(NC)"
 
 frontend-install:
-	$(call log_info, "Instalando dependencias del frontend")
+	@echo "$(BLUE)$(EMOJI_INFO) Instalando dependencias frontend...$(NC)"
 	@cd $(FRONTEND_PATH) && npm ci
-	$(call log_success, "Dependencias frontend instaladas")
-
-frontend-build:
-	$(call log_info, "Construyendo frontend")
-	@cd $(FRONTEND_PATH) && npm run build
-	$(call log_success, "Frontend construido")
+	@echo "$(GREEN)$(EMOJI_CHECK) Frontend instalado.$(NC)"
 
 # =============================================================================
-# OTRAS REGLAS
+# BASE DE DATOS
 # =============================================================================
-run: check-enviroment check-docker
-	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando la aplicación...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up $(APP_NAME)-backend $(APP_NAME)-frontend
+db-setup: db-reset db-init db-seed
+	@echo "$(GREEN)$(EMOJI_CHECK) Base de datos configurada.$(NC)"
+
+db-init: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Inicializando base de datos...$(NC)"
+	@python -m backend.db.init_db
+	@echo "$(GREEN)$(EMOJI_CHECK) Base de datos inicializada.$(NC)"
+
+db-reset: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Reseteando base de datos...$(NC)"
+	@python -m backend.db.reset_db
+	@echo "$(GREEN)$(EMOJI_CHECK) Base de datos reseteada.$(NC)"
 
 # =============================================================================
-# FORMATO Y LINTERS
+# TESTS
 # =============================================================================
-# =============================================================================
-# FASE DE PRUEBAS
-# =============================================================================
+test: check-environment tests-unit tests-integration
+	@echo "$(GREEN)$(EMOJI_CHECK) Tests completados.$(NC)"
 
+tests-unit: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests unitarios...$(NC)"
+	@poetry run pytest tests/unit/ --junitxml=$(LOG_DIR)/unit-tests.xml
 
+tests-integration: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests de integración...$(NC)"
+	@poetry run pytest tests/integration/ --junitxml=$(LOG_DIR)/integration-tests.xml
 
+test-with-containers: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
+	@poetry run pytest -v backend/tests/test_db.py
 
-format:
-	$(call log_info, "Formateando código")
-	@poetry run black $(BACKEND_PATH) tests
-	@poetry run isort $(BACKEND_PATH) tests
-	@cd $(FRONTEND_PATH) && npm run format
-	$(call log_success, "Código formateado")
-
-lint:
-	$(call log_info, "Ejecutando linters")
-	@poetry run flake8 $(BACKEND_PATH) tests
-	@poetry run pylint $(BACKEND_PATH) tests
-	@cd $(FRONTEND_PATH) && npm run lint
-	$(call log_success, "Lint completado")
-
-test:
-	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando las pruebas del backend...$(NC)"
-	@poetry run pytest tests > $(LOG_DIR)/backend-test.log; tail -n 10 $(LOG_DIR)/backend-test.log
-
-
-# Ejecuta solo los tests unitarios
-tests-unit:
-	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando las pruebas unitarias del backend...$(NC)"
-	@poetry run pytest tests/unit/ > $(LOG_DIR)/backend-unit-test.log; tail -n 10 $(LOG_DIR)/backend-unit-test.log
-
-# Ejecuta solo los tests de integración
-tests-integration:
-	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando las pruebas de integración del backend...$(NC)"
-	@poetry run pytest tests/integration/ > $(LOG_DIR)/backend-integration-test.log; tail -n 10 $(LOG_DIR)/backend-integration-test.log
 # =============================================================================
 # DOCKER
 # =============================================================================
-test-in-docker: check-docker
-	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando las pruebas del backend...$(NC)"
-	@docker-compose exec $(APP_NAME)-backend pytest /app/tests > $(LOG_DIR)/backend-test.log; tail -n 10 $(LOG_DIR)/backend-test.log
+docker-all: docker-build docker-run
 
-docker-build: check-env
-	$(call log_info, "Construyendo contenedores")
+docker-build: check-docker check-env
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo contenedores...$(NC)"
 	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) build
-	$(call log_success, "Contenedores construidos")
-
-docker-run: check-env
-	$(call log_info, "Iniciando contenedores")
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up -d
-	$(call log_success, "Contenedores iniciados")
-
-docker-stop:
-	$(call log_info, "Deteniendo contenedores")
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) down -v
-	$(call log_success, "Contenedores detenidos")
+	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores construidos.$(NC)"
 
 # =============================================================================
-# OTROS
+# DESARROLLO Y PRODUCCIÓN
 # =============================================================================
+dev: check-environment check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Iniciando modo desarrollo...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up --build $(APP_NAME)-backend $(APP_NAME)-frontend
 
+prod: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Iniciando modo producción...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up $(APP_NAME)-backend $(APP_NAME)-frontend
+
+# =============================================================================
+# AYUDA
+# =============================================================================
 help:
 	@echo "Comandos disponibles:"
-	@echo "  make check-docker           - Verificar si Docker está corriendo"
-	@echo "  make check-enviroment       - Verificar y activar el entorno virtual"
-	@echo "  make dev                    - Levantar la aplicación en modo desarrollo"
-	@echo "  make prod                   - Levantar la aplicación en modo producción"
-	@echo "  make check-deps             - Verificar dependencias del sistema"
-	@echo "  make validate-versions      - Validar versiones de herramientas"
-	@echo "  make check-env              - Verificar archivo de entorno"
-	@echo "  make generate-secret        - Generar y agregar una nueva SECRET_KEY"
-	@echo "  make install                - Instalar dependencias y construir proyecto"
-	@echo "  make backend-build          - Construir el backend"
-	@echo "  make frontend-install       - Instalar dependencias del frontend"
-	@echo "  make frontend-build         - Construir el frontend"
-	@echo "  make run                    - Ejecutar la aplicación"
-	@echo "  make format                 - Formatear código"
-	@echo "  make lint                   - Ejecutar linters"
-	@echo "  make test                   - Ejecutar todas las pruebas del backend"
-	@echo "  make tests-unit             - Ejecutar solo pruebas unitarias del backend"
-	@echo "  make tests-integration      - Ejecutar solo pruebas de integración del backend"
-	@echo "  make test-in-docker         - Ejecutar pruebas del backend dentro de Docker"
-	@echo "  make docker-build           - Construir contenedores Docker"
-	@echo "  make docker-run             - Iniciar contenedores Docker"
-	@echo "  make docker-stop            - Detener contenedores Docker"
+	@echo "  Desarrollo:"
+	@echo "    make dev                  - Iniciar en modo desarrollo"
+	@echo "    make prod                 - Iniciar en modo producción"
+	@echo "    make install              - Instalar todas las dependencias"
+	@echo ""
+	@echo "  Base de datos:"
+	@echo "    make db-setup             - Configurar base de datos completa"
+	@echo "    make db-init              - Inicializar base de datos"
+	@echo "    make db-reset             - Resetear base de datos"
+	@echo ""
+	@echo "  Tests:"
+	@echo "    make test                 - Ejecutar todos los tests"
+	@echo "    make tests-unit           - Ejecutar tests unitarios"
+	@echo "    make tests-integration    - Ejecutar tests de integración"
+	@echo "    make test-with-containers - Ejecutar tests con contenedores"
+	@echo ""
+	@echo "  Docker:"
+	@echo "    make docker-build         - Construir contenedores"
+	@echo "    make docker-run           - Iniciar contenedores"
+	@echo "    make docker-stop          - Detener contenedores"
 
 .DEFAULT_GOAL := help
