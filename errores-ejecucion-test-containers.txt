@@ -1,0 +1,73 @@
+(attendance-system-py3.10) ┌<▸> ~/g/attendance_system 
+└➤ make test-with-containers
+\033[0;34mℹ️ Verificando Docker...\033[0m  
+\033[0;32m✅ Docker está corriendo.\033[0m  
+\033[0;34mℹ️ Ejecutando tests con contenedores...\033[0m  
+Test session starts (platform: darwin, Python 3.10.15, pytest 8.3.3, pytest-sugar 0.9.7)
+cachedir: .pytest_cache
+rootdir: /Users/aironman/git/attendance_system
+configfile: pytest.ini
+plugins: asyncio-0.24.0, env-1.1.3, Faker-20.1.0, cov-4.1.0, anyio-3.7.1, dotenv-0.5.2, timeout-2.3.1, sugar-0.9.7, mock-3.14.0, xdist-3.6.1
+asyncio: mode=auto, default_loop_scope=function
+collecting ... 
+----------------------------------------------------------------------------------- live log collection -----------------------------------------------------------------------------------
+INFO     backend.db.session:session.py:29 Database engine initialized successfully.
+collected 3 items                                                                                                                                                                         
+
+
+――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― TestDatabaseOperations.test_connection_details ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+
+postgres_container = <test_db.TestDatabaseOperations object at 0x110519d20>
+
+    @pytest.mark.asyncio
+    async def test_connection_details(postgres_container):
+>       url = postgres_container.get_connection_url()
+E       AttributeError: 'TestDatabaseOperations' object has no attribute 'get_connection_url'
+
+backend/tests/test_db.py:13: AttributeError
+
+ backend/tests/test_db.py::TestDatabaseOperations.test_connection_details ⨯                                                                                                  33% ███▍      
+
+――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― TestDatabaseOperations.test_school_creation ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+
+db_session = <test_db.TestDatabaseOperations object at 0x110519f30>
+
+    @pytest.mark.asyncio
+    async def test_school_creation(db_session):
+        """Test de creación de escuela"""
+        # El schema ya está creado y hay datos de prueba disponibles
+>       result = await db_session.execute(select(School))
+E       AttributeError: 'TestDatabaseOperations' object has no attribute 'execute'
+
+backend/tests/test_db.py:21: AttributeError
+
+ backend/tests/test_db.py::TestDatabaseOperations.test_school_creation ⨯                                                                                                     67% ██████▋   
+
+――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― TestDatabaseOperations.test_database_connection ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+
+db_session = <test_db.TestDatabaseOperations object at 0x11051b9a0>
+
+    @pytest.mark.asyncio
+    async def test_database_connection(db_session):
+        """Verifica que podemos conectar y consultar la base de datos"""
+        # Consultar las escuelas insertadas en los datos iniciales
+>       result = await db_session.execute(select(School))
+E       AttributeError: 'TestDatabaseOperations' object has no attribute 'execute'
+
+backend/tests/test_db.py:29: AttributeError
+
+ backend/tests/test_db.py::TestDatabaseOperations.test_database_connection ⨯                                                                                                100% ██████████
+================================================================================= short test summary info =================================================================================
+FAILED backend/tests/test_db.py::TestDatabaseOperations::test_connection_details - AttributeError: 'TestDatabaseOperations' object has no attribute 'get_connection_url'
+FAILED backend/tests/test_db.py::TestDatabaseOperations::test_school_creation - AttributeError: 'TestDatabaseOperations' object has no attribute 'execute'
+FAILED backend/tests/test_db.py::TestDatabaseOperations::test_database_connection - AttributeError: 'TestDatabaseOperations' object has no attribute 'execute'
+
+Results (0.98s):
+       3 failed
+         - backend/tests/test_db.py:11 TestDatabaseOperations.test_connection_details
+         - backend/tests/test_db.py:17 TestDatabaseOperations.test_school_creation
+         - backend/tests/test_db.py:25 TestDatabaseOperations.test_database_connection
+make: *** [test-with-containers] Error 1
+(attendance-system-py3.10) ┌<▪> ~/g/attendance_system 
+└➤ 
+
