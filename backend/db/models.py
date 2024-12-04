@@ -6,7 +6,8 @@ from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Str
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
+from sqlalchemy import Index
+from sqlalchemy.schema import Table
 from .base import Base
 
 
@@ -15,7 +16,7 @@ class School(Base):
 
     id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    phone: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    phone: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)  # Índice en teléfono
     address: Mapped[str] = mapped_column(String(255), nullable=False)
     country: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -30,8 +31,8 @@ class Tutor(Base):
 
     id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    phone: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
-    email: Mapped[Optional[str]] = mapped_column(String(255))
+    phone: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)  # Índice en teléfono
+    email: Mapped[Optional[str]] = mapped_column(String(255),index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -63,6 +64,10 @@ class TutorStudent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    __table_args__ = (
+        Index('idx_tutor_student_compound', 'tutor_id', 'student_id'),
+        Index('idx_tutor_student_active', 'is_active')  # Útil para filtrar tutores activos
+    )
 
 class Conversation(Base):
     __tablename__ = "conversations"
@@ -91,6 +96,8 @@ class Conversation(Base):
             ]),
             name='valid_status'
         ),
+        # Añadimos el índice
+        Index('idx_conversations_claude_id', 'claude_conversation_id'),
     )
 
     student: Mapped["Student"] = relationship(back_populates="conversations")
@@ -101,8 +108,9 @@ class Conversation(Base):
 class Message(Base):
     __tablename__ = "messages"
 
+
     id: Mapped[UUID] = mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
-    conversation_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("conversations.id"), nullable=False)
+    conversation_id: Mapped[UUID] = mapped_column(PgUUID, ForeignKey("conversations.id"), nullable=False, index=True)  # Índice usando mapped_column
     sender_type: Mapped[str] = mapped_column(String(50), nullable=False)
     sender_id: Mapped[UUID] = mapped_column(PgUUID, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -114,6 +122,7 @@ class Message(Base):
             sender_type.in_(['SCHOOL', 'TUTOR', 'CLAUDE']),
             name='valid_sender_type'
         ),
+        Index('idx_messages_created_at', 'created_at'),
     )
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")

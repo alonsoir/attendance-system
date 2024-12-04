@@ -108,7 +108,7 @@ tests-integration: check-environment
 
 test-with-containers: check-docker
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
-	@poetry run pytest -v backend/tests/test_db.py
+	@poetry run pytest -v backend/tests/test_db.py -s --log-cli-level=INFO
 
 # =============================================================================
 # DOCKER
