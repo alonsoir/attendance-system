@@ -106,9 +106,9 @@ tests-integration: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests de integración...$(NC)"
 	@poetry run pytest tests/integration/ --junitxml=$(LOG_DIR)/integration-tests.xml
 
-test-with-containers: check-docker
+test-with-containers:
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
-	@poetry run pytest -v backend/tests/test_db.py -s --log-cli-level=INFO
+	PYTHONPATH=. pytest -v backend/tests/test_db.py -s --log-cli-level=INFO
 
 # =============================================================================
 # DOCKER

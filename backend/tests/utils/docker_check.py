@@ -1,33 +1,42 @@
-import subprocess
 import logging
+import subprocess
 from typing import Optional
+
+from docker.errors import DockerException
 
 logger = logging.getLogger(__name__)
 
+import docker
+
 
 def check_docker() -> bool:
-    """
-    Verifica si Docker está disponible y corriendo.
-
-    Returns:
-        bool: True si Docker está disponible y corriendo, False en caso contrario
-    """
+    """Verifica que Docker está disponible y corriendo."""
     try:
-        # Intenta ejecutar 'docker info'
-        result = subprocess.run(
-            ["docker", "info"],
-            capture_output=True,
-            check=True,
-            text=True
-        )
-        logger.debug("Docker está corriendo correctamente")
+        client=docker.from_env()
+        print("---> imprimiendo docker info")
+        print(client.info())
+        client.ping()  # Esto lanzará una excepción si no puede conectar
+        version = client.version()
+        logger.info(f"Docker conectado correctamente. Versión: {version.get('Version', 'unknown')}")
+        for container in client.containers.list():
+            logger.info(f"Contenedor en ejecución: {container.name} - {container.status}")
         return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error al ejecutar Docker: {e.stderr}")
+    except docker.errors.APIError as e:
+        logger.error(f"Error conectando con Docker: {str(e)}")
         return False
-    except FileNotFoundError:
-        logger.error("Docker no está instalado o no está en el PATH")
+    except Exception as e:
+        logger.error(f"Error inesperado al verificar Docker: {str(e)}")
         return False
+
+def check_containers(client):
+    """Verifica que los contenedores esperados están en ejecución."""
+    try:
+        for container in client.containers.list():
+            logger.info(f"Contenedor en ejecución: {container.name} - {container.status}")
+    except docker.errors.APIError as e:
+        logger.error(f"Error al listar contenedores: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error inesperado al verificar contenedores: {str(e)}")
 
 
 def get_docker_version() -> Optional[str]:

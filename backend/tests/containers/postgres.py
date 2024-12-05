@@ -1,23 +1,22 @@
 import logging
 import time
 from pathlib import Path
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from testcontainers.postgres import PostgresContainer
-from ..utils.docker_check import check_docker, get_docker_version
-from ...core import get_settings
+
+from ..utils.docker_check import check_docker
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 class PostgresTestContainer:
-    POSTGRES_USER = settings.POSTGRES_USER
-    POSTGRES_PASSWORD = settings.POSTGRES_PASSWORD
-    POSTGRES_DB = settings.POSTGRES_DB
-    POSTGRES_PORT = settings.POSTGRES_PORT
+    POSTGRES_USERNAME = "test"
+    POSTGRES_PASSWORD = "test"
+    POSTGRES_DB = "test"
+    POSTGRES_PORT = 5432
 
     def __init__(self):
         logger.info("Inicializando PostgresTestContainer")
@@ -25,19 +24,10 @@ class PostgresTestContainer:
             logger.error("Docker no está disponible o no está corriendo")
             raise RuntimeError("Docker no está disponible o no está corriendo")
 
-        docker_version = get_docker_version()
-        logger.info(f"Versión de Docker detectada: {docker_version}")
-
-        logger.info(
-            f"Configurando contenedor PostgreSQL con:\n"
-            f"- Usuario: {self.POSTGRES_USER}\n"
-            f"- Base de datos: {self.POSTGRES_DB}\n"
-            f"- Puerto interno: {self.POSTGRES_PORT}"
-        )
 
         self.container = PostgresContainer(
             image="postgres:15",
-            user=self.POSTGRES_USER,
+            username=self.POSTGRES_USERNAME,
             password=self.POSTGRES_PASSWORD,
             dbname=self.POSTGRES_DB,
             port=self.POSTGRES_PORT,
@@ -55,9 +45,9 @@ class PostgresTestContainer:
             self.container.start()
             logger.info(
                 f"Contenedor iniciado:\n"
-                f"- ID: {self.container.get_container_id()}\n"
                 f"- Host: {self.container.get_container_host_ip()}\n"
-                f"- Puerto mapeado: {self.container.get_exposed_port(self.POSTGRES_PORT)}"
+                f"- Puerto: {self.container.get_exposed_port(self.POSTGRES_PORT)}\n"
+                f"- URL conexión: {self.container.get_connection_url()}"
             )
         except Exception as e:
             logger.error(f"Error al iniciar el contenedor: {str(e)}")

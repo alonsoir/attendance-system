@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 from backend.core.config import Settings, get_settings
 from backend.core.security import get_password_hash
-from backend.db.models import Base, Interaction, User
+from backend.db.models import Base
 from backend.db.session import create_engine, get_db
 from backend.main import app
 from backend.services import AttendanceManager
@@ -268,9 +268,9 @@ def client(db_session) -> Generator:
 
 
 # ---- Fixtures de datos de prueba ----
+"""
 @pytest.fixture
 async def test_user(db_session: AsyncSession) -> Dict[str, Any]:
-    """Fixture que crea un usuario de prueba de forma asíncrona."""
     user = User(
         username="testuser",
         email="test@example.com",
@@ -287,7 +287,6 @@ async def test_user(db_session: AsyncSession) -> Dict[str, Any]:
 async def test_interaction(
     db_session: AsyncSession, test_user: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Fixture que crea una interacción de prueba de forma asíncrona."""
     interaction = Interaction(
         student_name="Test Student",
         tutor_phone="+34666777888",
@@ -310,7 +309,7 @@ async def test_interaction(
         "tutor_phone": interaction.tutor_phone,
         "status": interaction.status,
     }
-
+"""
 
 @pytest.fixture
 def mock_claude_response() -> Dict[str, Any]:

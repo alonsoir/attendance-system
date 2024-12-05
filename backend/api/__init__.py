@@ -4,7 +4,7 @@ This package manages API-related operations.
 from fastapi import FastAPI
 
 from backend.core.config import get_settings
-from backend.db.base import initialize_db
+from backend.db.base import db
 
 from .endpoints import websocket_router, whatsapp_router
 
@@ -19,7 +19,7 @@ def create_app():
         docs_url=f"{settings.API_V1_STR}/docs",
     )
 
-    initialize_db()
+    db.initialize_db()
 
     app.include_router(
         websocket_router,

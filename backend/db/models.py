@@ -126,3 +126,12 @@ class Message(Base):
     )
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+
+class ServiceStatus(Base):
+    __tablename__ = "service_status"
+
+    id : Mapped[UUID]= mapped_column(PgUUID, primary_key=True, server_default=func.uuid_generate_v4())
+    service_name : Mapped[str] = mapped_column(String(50), nullable=False)
+    status : Mapped[bool] = mapped_column(Boolean, default=False)
+    last_check : Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    error_message : Mapped[str] = mapped_column(String(50), nullable=False)
