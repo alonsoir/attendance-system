@@ -22,5 +22,9 @@ lsof -i :5432
 # Verificar los logs
 docker logs test-postgres
 
-# Intentar conectarse con psql
-psql -h localhost -p 5432 -U test_user -d test_db
+# Esperar a que PostgreSQL esté listo
+echo "Esperando 5 segundos a que PostgreSQL esté completamente iniciado..."
+sleep 5
+
+# Intentar conectarse con psql usando la variable de entorno PGPASSWORD
+PGPASSWORD=test_password psql -h localhost -p 5432 -U test_user -d test_db

@@ -1,0 +1,20 @@
+docker logs <container_id>
+
+# password: test_password
+psql -h localhost -U test_user -d test_db
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+\c test_db
+
+\du test_user
+
+\du test_user, ALTER USER test_user WITH SUPERUSER;
+
+SELECT * FROM schools;
+
+SELECT * FROM tutors;
+
+SELECT * FROM students;
+
+# \dt

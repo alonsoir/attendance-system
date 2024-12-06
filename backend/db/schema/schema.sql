@@ -1,7 +1,6 @@
-```sql
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Tabla de Colegios
+
 CREATE TABLE schools (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
@@ -12,7 +11,7 @@ CREATE TABLE schools (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla de Tutores
+
 CREATE TABLE tutors (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
@@ -22,7 +21,6 @@ CREATE TABLE tutors (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla de Estudiantes
 CREATE TABLE students (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
@@ -32,7 +30,6 @@ CREATE TABLE students (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla de relación Tutor-Estudiante
 CREATE TABLE tutor_student (
     tutor_id UUID REFERENCES tutors(id),
     student_id UUID REFERENCES students(id),
@@ -43,7 +40,6 @@ CREATE TABLE tutor_student (
     PRIMARY KEY (tutor_id, student_id)
 );
 
--- Tabla de Conversaciones
 CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES students(id) NOT NULL,
@@ -66,7 +62,6 @@ CREATE TABLE conversations (
     ))
 );
 
--- Tabla de Mensajes
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID REFERENCES conversations(id) NOT NULL,
@@ -78,14 +73,20 @@ CREATE TABLE messages (
     CONSTRAINT valid_sender_type CHECK (sender_type IN ('SCHOOL', 'TUTOR', 'CLAUDE'))
 );
 
--- Índices
+CREATE TABLE service_status (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    service_name VARCHAR(50) NOT NULL,
+    status BOOLEAN DEFAULT false,
+    last_check TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    error_message VARCHAR(50) NOT NULL
+);
+
 CREATE INDEX idx_conversations_claude_id ON conversations(claude_conversation_id);
 CREATE INDEX idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX idx_messages_created_at ON messages(created_at);
 CREATE INDEX idx_tutor_student_student ON tutor_student(student_id);
 CREATE INDEX idx_tutor_student_tutor ON tutor_student(tutor_id);
 
--- Datos iniciales
 INSERT INTO schools (id, name, phone, address, country) VALUES
     (uuid_generate_v4(), 'IES San Isidro', '+34916421394', 'Calle Toledo, 39, 28005 Madrid', 'Spain'),
     (uuid_generate_v4(), 'Lincoln High School', '+12125556789', '1234 Broadway Ave, New York, NY 10019', 'USA');
@@ -103,4 +104,8 @@ FROM schools WHERE name = 'IES San Isidro';
 INSERT INTO students (id, name, date_of_birth, school_id)
 SELECT uuid_generate_v4(), 'Emma Smith', '2009-08-22', id
 FROM schools WHERE name = 'Lincoln High School';
-```
+
+INSERT INTO service_status (id, service_name, status, error_message) VALUES
+    (uuid_generate_v4(), 'Claude', false, 'No errors'),
+    (uuid_generate_v4(), 'Whatsapp', false, 'No errors'),
+    (uuid_generate_v4(), 'Backend', false, 'No errors');
