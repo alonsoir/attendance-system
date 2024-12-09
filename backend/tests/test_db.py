@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 import pytest
 from sqlalchemy import select
@@ -16,9 +17,11 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.asyncio
 async def test_connection_details(postgres_container):
     logger.info("Probando detalles de conexión")
-    url = postgres_container.client.api.base_url
-    logger.info(f"URL de conexión: {url}")
+    container, port = postgres_container  # Desempaquetar la tupla
+    url = container.client.api.base_url
+    logger.info(f"URL de conexión: {url} port: {port}")
     assert url is not None
+    assert port is not None
 
 
 import pytest
@@ -110,7 +113,7 @@ async def test_school_crud_operations(db_session):
     )
     count = result.scalar()
     assert count == 0
-
+    logger.info("Prueba de operaciones CRUD en schools completada")
 
 @pytest.mark.asyncio
 async def test_relationships(db_session):
@@ -143,7 +146,7 @@ async def test_relationships(db_session):
         {
             'id': student_id,
             'name': 'Test Student',
-            'dob': '2010-01-01',
+            'dob': date(2010, 1, 1),
             'school_id': school_id
         }
     )
@@ -159,7 +162,7 @@ async def test_relationships(db_session):
         """),
         {'student_id': student_id}
     )
-    row = await result.fetchone()
+    row = result.fetchone()
     assert row.student_name == 'Test Student'
     assert row.school_name == 'Test School'
 
@@ -225,5 +228,5 @@ async def test_database_connection(db_session):
 
     logger.info(f"Verificando {len(schools)} escuelas encontradas")
     assert len(schools) == 2
-    assert any(school.name == "IES San Isidro" for school in schools)
-    assert any(school.name == "Lincoln High School" for school in schools)
+    assert any(school.name == "IES Test Madrid" for school in schools)
+    assert any(school.name == "Test High School" for school in schools)
