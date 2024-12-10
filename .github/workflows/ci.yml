@@ -50,13 +50,13 @@ jobs:
 
       - name: Create .env file for testing
         run: |
-          cp .env-dev.example .env-dev
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env-dev
-          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env-dev
-          echo "META_API_KEY=${{ secrets.META_API_KEY }}" >> .env-dev
+          cp .env-development.example .env-development
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env-development
+          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env-development
+          echo "META_API_KEY=${{ secrets.META_API_KEY }}" >> .env-development
 
       - name: Install dependencies
-        run: make install ENV=dev
+        run: make install ENV=development
 
       - name: Run linting
         run: |
