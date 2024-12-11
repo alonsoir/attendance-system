@@ -2,18 +2,34 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Esta función auxiliar obtiene la clave de encriptación
+-- Crear una tabla para almacenar la clave de encriptación
+CREATE TABLE IF NOT EXISTS encryption_config (
+    key_name TEXT PRIMARY KEY,
+    key_value TEXT NOT NULL
+);
+
+-- Función para configurar la clave de encriptación
+CREATE OR REPLACE FUNCTION set_encryption_key(p_key TEXT)
+RETURNS void AS $$
+BEGIN
+    -- Eliminar clave anterior si existe
+    DELETE FROM encryption_config WHERE key_name = 'main_key';
+    -- Insertar nueva clave
+    INSERT INTO encryption_config (key_name, key_value) VALUES ('main_key', p_key);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Función para obtener la clave de encriptación
 CREATE OR REPLACE FUNCTION get_encryption_key()
 RETURNS text AS $$
 DECLARE
     v_key text;
 BEGIN
-    BEGIN
-        v_key := current_setting('POSTGRES_ENCRYPT_KEY');
-        RETURN v_key;
-    EXCEPTION WHEN OTHERS THEN
-        RAISE EXCEPTION 'Encryption key not found. Make sure POSTGRES_ENCRYPT_KEY is set.';
-    END;
+    SELECT key_value INTO v_key FROM encryption_config WHERE key_name = 'main_key';
+    IF v_key IS NULL THEN
+        RAISE EXCEPTION 'Encryption key not found. Make sure it has been set properly.';
+    END IF;
+    RETURN v_key;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
