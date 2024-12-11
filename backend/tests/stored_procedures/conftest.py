@@ -248,7 +248,7 @@ async def _wait_for_postgres(container, port):
 async def _load_schema(container: docker.models.containers.Container, port: int) -> None:
     """Carga el esquema de la base de datos"""
     logger.info("Cargando esquema de la base de datos...")
-    schema_path = Path(__file__).resolve().parent.parent / "db" / "schema" / "init_database.sql"
+    schema_path = Path(__file__).resolve().parent.parent / "db" / "schema" / "init_database.sh"
 
     if not schema_path.exists():
         logger.error(f"Archivo de esquema no encontrado en {schema_path}")

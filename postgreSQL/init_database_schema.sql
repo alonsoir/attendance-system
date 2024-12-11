@@ -121,22 +121,6 @@ CREATE INDEX idx_messages_created_at ON messages(created_at);
 CREATE INDEX idx_tutor_student_student ON tutor_student(student_id);
 CREATE INDEX idx_tutor_student_tutor ON tutor_student(tutor_id);
 
--- Función auxiliar para encriptar
-CREATE OR REPLACE FUNCTION encrypt_value(p_value TEXT)
-RETURNS TEXT AS $$
-BEGIN
-    RETURN encode(encrypt(CAST(p_value AS bytea), current_setting('ENCRYPT_KEY'), 'aes-256-cbc'), 'base64');
-END;
-$$ LANGUAGE plpgsql;
-
--- Función auxiliar para desencriptar
-CREATE OR REPLACE FUNCTION decrypt_value(p_value TEXT)
-RETURNS TEXT AS $$
-BEGIN
-    RETURN CONVERT_FROM(decrypt(decode(p_value, 'base64'), current_setting('ENCRYPT_KEY'), 'aes-256-cbc'), 'UTF8');
-END;
-$$ LANGUAGE plpgsql;
-
 -- Procedimientos para ACL
 CREATE OR REPLACE PROCEDURE create_role(
     p_name VARCHAR(255),

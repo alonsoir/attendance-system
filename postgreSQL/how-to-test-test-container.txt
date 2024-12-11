@@ -1,3 +1,11 @@
+docker service ls
+
+docker service logs <container_id>
+
+docker service rmi <container_id>
+
+docker service rm <container_id>
+
 docker logs <container_id>
 
 # password: test_password

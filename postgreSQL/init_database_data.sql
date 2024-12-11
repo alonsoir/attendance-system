@@ -99,7 +99,7 @@ BEGIN
     -- Crear tutores iniciales
     CALL create_tutor(
         'María García',
-        '+34666555444',
+        '+3466655444',
         'maria.garcia@email.com',
         v_tutor_id1
     );
