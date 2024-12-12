@@ -6,21 +6,16 @@ RUN apt-get update && apt-get install -y postgresql-contrib
 # Copiar configuraciones
 COPY pg_hba.conf /etc/postgresql/pg_hba.conf
 COPY postgresql.conf /etc/postgresql/postgresql.conf
-COPY entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# Copiar scripts en orden específico
 COPY init-db.sql /docker-entrypoint-initdb.d/01-init-db.sql
 COPY init_database_schema.sql /docker-entrypoint-initdb.d/02-schema.sql
 COPY init_database_data.sql /docker-entrypoint-initdb.d/03-data.sql
 
-# Variables de entorno necesarias
 ENV POSTGRES_USER=test_user
 ENV POSTGRES_PASSWORD=test_password
 ENV POSTGRES_DB=test_db
 
-# Exponer el puerto de PostgreSQL
 EXPOSE 5432
 
-# Usar nuestro entrypoint personalizado
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]

@@ -1,130 +1,89 @@
--- Crear extensiones necesarias
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Crear tablas para control de acceso y auditoría
+-- Añadir al inicio de 02-schema.sql
 CREATE TABLE roles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    role_id UUID NOT NULL REFERENCES roles(id)
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL
 );
 
 CREATE TABLE permissions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL UNIQUE
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL
 );
 
-CREATE TABLE role_permissions (
-    role_id UUID NOT NULL REFERENCES roles(id),
-    permission_id UUID NOT NULL REFERENCES permissions(id),
-    PRIMARY KEY (role_id, permission_id)
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    username TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role_id UUID REFERENCES roles(id)
 );
 
-CREATE TABLE audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    action TEXT NOT NULL,
-    resource TEXT NOT NULL,
-    timestamp TIMESTAMP NOT NULL
-);
-
--- Crear tablas para la aplicación
 CREATE TABLE schools (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY,
     name TEXT NOT NULL,
-    phone TEXT NOT NULL UNIQUE,
-    address TEXT NOT NULL,
-    country TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    phone TEXT,
+    address TEXT,
+    country TEXT
 );
 
 CREATE TABLE tutors (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY,
     name TEXT NOT NULL,
-    phone TEXT NOT NULL UNIQUE,
-    email TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    phone TEXT,
+    email TEXT
 );
 
 CREATE TABLE students (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY,
     name TEXT NOT NULL,
-    date_of_birth DATE NOT NULL,
-    school_id UUID REFERENCES schools(id) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    date_of_birth DATE,
+    school_id UUID REFERENCES schools(id)
+);
+
+CREATE TABLE conversations (
+    id UUID PRIMARY KEY,
+    student_id UUID REFERENCES students(id),
+    school_id UUID REFERENCES schools(id),
+    claude_conversation_id TEXT,
+    status TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE messages (
+    id UUID PRIMARY KEY,
+    conversation_id UUID REFERENCES conversations(id),
+    sender_type TEXT,
+    sender_id UUID,
+    content TEXT,
+    claude_response_metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE service_status (
+    id UUID PRIMARY KEY,
+    service_name TEXT NOT NULL,
+    status BOOLEAN NOT NULL,
+    error_message TEXT,
+    last_check TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE role_permissions (
+    role_id UUID REFERENCES roles(id),
+    permission_id UUID REFERENCES permissions(id),
+    PRIMARY KEY (role_id, permission_id)
 );
 
 CREATE TABLE tutor_student (
     tutor_id UUID REFERENCES tutors(id),
     student_id UUID REFERENCES students(id),
-    relationship_type VARCHAR(50) NOT NULL,
+    relationship_type TEXT NOT NULL,
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (tutor_id, student_id)
 );
-
-CREATE TABLE conversations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id UUID REFERENCES students(id) NOT NULL,
-    school_id UUID REFERENCES schools(id) NOT NULL,
-    claude_conversation_id VARCHAR(255) UNIQUE NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'INITIATED',
-    reason TEXT,
-    last_interaction_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    closed_at TIMESTAMP,
-    CONSTRAINT valid_status CHECK (status IN (
-        'INITIATED',
-        'PENDING_TUTOR',
-        'ACTIVE_TUTOR_DIALOG',
-        'PENDING_SCHOOL_CONFIRMATION',
-        'SCHOOL_CONFIRMED',
-        'CLOSED',
-        'CANCELLED'
-    ))
-);
-
-CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id UUID REFERENCES conversations(id) NOT NULL,
-    sender_type VARCHAR(50) NOT NULL,
-    sender_id UUID NOT NULL,
-    content TEXT NOT NULL,
-    claude_response_metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT valid_sender_type CHECK (sender_type IN ('SCHOOL', 'TUTOR', 'CLAUDE'))
-);
-
-CREATE TABLE service_status (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    service_name VARCHAR(50) NOT NULL,
-    status BOOLEAN DEFAULT false,
-    last_check TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    error_message VARCHAR(50) NOT NULL
-);
-
--- Crear índices
-CREATE INDEX idx_conversations_claude_id ON conversations(claude_conversation_id);
-CREATE INDEX idx_messages_conversation ON messages(conversation_id);
-CREATE INDEX idx_messages_created_at ON messages(created_at);
-CREATE INDEX idx_tutor_student_student ON tutor_student(student_id);
-CREATE INDEX idx_tutor_student_tutor ON tutor_student(tutor_id);
 
 -- Procedimientos para ACL
 CREATE OR REPLACE PROCEDURE create_role(
     p_name VARCHAR(255),
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -137,7 +96,7 @@ $$;
 
 CREATE OR REPLACE PROCEDURE create_permission(
     p_name VARCHAR(255),
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -152,7 +111,7 @@ CREATE OR REPLACE PROCEDURE create_user(
     p_username VARCHAR(255),
     p_password VARCHAR(255),
     p_role_id UUID,
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -168,38 +127,12 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE create_role_permission(
-    p_role_id UUID,
-    p_permission_id UUID
-)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    INSERT INTO role_permissions (role_id, permission_id)
-    VALUES (p_role_id, p_permission_id);
-END;
-$$;
-
-CREATE OR REPLACE PROCEDURE create_audit_log(
-    p_user_id UUID,
-    p_action VARCHAR(255),
-    p_resource VARCHAR(255)
-)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    INSERT INTO audit_logs (user_id, action, resource, timestamp)
-    VALUES (p_user_id, encrypt_value(p_action), encrypt_value(p_resource), CURRENT_TIMESTAMP);
-END;
-$$;
-
--- Procedimientos para la aplicación
 CREATE OR REPLACE PROCEDURE create_school(
     p_name VARCHAR(255),
     p_phone VARCHAR(50),
     p_address VARCHAR(255),
     p_country VARCHAR(100),
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -220,7 +153,7 @@ CREATE OR REPLACE PROCEDURE create_tutor(
     p_name VARCHAR(255),
     p_phone VARCHAR(50),
     p_email VARCHAR(255),
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -240,7 +173,7 @@ CREATE OR REPLACE PROCEDURE create_student(
     p_name VARCHAR(255),
     p_date_of_birth DATE,
     p_school_id UUID,
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -256,24 +189,11 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE create_tutor_student_relationship(
-    p_tutor_id UUID,
-    p_student_id UUID,
-    p_relationship_type VARCHAR(50)
-)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    INSERT INTO tutor_student (tutor_id, student_id, relationship_type, is_active)
-    VALUES (p_tutor_id, p_student_id, p_relationship_type, true);
-END;
-$$;
-
 CREATE OR REPLACE PROCEDURE create_conversation(
     p_student_id UUID,
     p_school_id UUID,
     p_claude_conversation_id VARCHAR(255),
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -302,7 +222,7 @@ CREATE OR REPLACE PROCEDURE create_message(
     p_sender_id UUID,
     p_content TEXT,
     p_claude_response_metadata JSONB,
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -331,7 +251,7 @@ CREATE OR REPLACE PROCEDURE create_service_status(
     p_service_name VARCHAR(50),
     p_status BOOLEAN,
     p_error_message VARCHAR(50),
-    OUT p_id UUID
+    INOUT p_id UUID
 )
 LANGUAGE plpgsql
 AS $$
@@ -349,5 +269,35 @@ BEGIN
         p_error_message
     )
     RETURNING id INTO p_id;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE create_role_permission(
+    p_role_id UUID,
+    p_permission_id UUID
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO role_permissions (role_id, permission_id)
+    VALUES (p_role_id, p_permission_id)
+    ON CONFLICT (role_id, permission_id) DO NOTHING;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE create_tutor_student_relationship(
+    p_tutor_id UUID,
+    p_student_id UUID,
+    p_relationship_type VARCHAR(50)
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO tutor_student (tutor_id, student_id, relationship_type)
+    VALUES (p_tutor_id, p_student_id, p_relationship_type)
+    ON CONFLICT (tutor_id, student_id)
+    DO UPDATE SET
+        relationship_type = p_relationship_type,
+        updated_at = CURRENT_TIMESTAMP;
 END;
 $$;

@@ -28,24 +28,53 @@ DECLARE
     v_conversation_id2 UUID;
     v_message_id1 UUID;
     v_message_id2 UUID;
+    v_temp_id UUID;
 BEGIN
     -- Crear roles
+    v_admin_role_id := NULL;
     CALL create_role('ADMIN', v_admin_role_id);
+
+    v_school_role_id := NULL;
     CALL create_role('SCHOOL', v_school_role_id);
+
+    v_tutor_role_id := NULL;
     CALL create_role('TUTOR', v_tutor_role_id);
 
     -- Crear permisos
+    v_create_school_permission_id := NULL;
     CALL create_permission('CREATE_SCHOOL', v_create_school_permission_id);
+
+    v_update_school_permission_id := NULL;
     CALL create_permission('UPDATE_SCHOOL', v_update_school_permission_id);
+
+    v_delete_school_permission_id := NULL;
     CALL create_permission('DELETE_SCHOOL', v_delete_school_permission_id);
+
+    v_create_student_permission_id := NULL;
     CALL create_permission('CREATE_STUDENT', v_create_student_permission_id);
+
+    v_update_student_permission_id := NULL;
     CALL create_permission('UPDATE_STUDENT', v_update_student_permission_id);
+
+    v_delete_student_permission_id := NULL;
     CALL create_permission('DELETE_STUDENT', v_delete_student_permission_id);
+
+    v_create_tutor_permission_id := NULL;
     CALL create_permission('CREATE_TUTOR', v_create_tutor_permission_id);
+
+    v_update_tutor_permission_id := NULL;
     CALL create_permission('UPDATE_TUTOR', v_update_tutor_permission_id);
+
+    v_delete_tutor_permission_id := NULL;
     CALL create_permission('DELETE_TUTOR', v_delete_tutor_permission_id);
+
+    v_view_records_permission_id := NULL;
     CALL create_permission('VIEW_STUDENT_RECORDS', v_view_records_permission_id);
+
+    v_send_messages_permission_id := NULL;
     CALL create_permission('SEND_MESSAGES', v_send_messages_permission_id);
+
+    v_close_conversations_permission_id := NULL;
     CALL create_permission('CLOSE_CONVERSATIONS', v_close_conversations_permission_id);
 
     -- Asignar permisos a roles
@@ -75,11 +104,17 @@ BEGIN
     CALL create_role_permission(v_tutor_role_id, v_send_messages_permission_id);
 
     -- Crear usuarios iniciales
+    v_admin_user_id := NULL;
     CALL create_user('admin', 'admin_password', v_admin_role_id, v_admin_user_id);
+
+    v_school_user_id := NULL;
     CALL create_user('school_user', 'school_password', v_school_role_id, v_school_user_id);
+
+    v_tutor_user_id := NULL;
     CALL create_user('tutor_user', 'tutor_password', v_tutor_role_id, v_tutor_user_id);
 
     -- Crear escuelas iniciales
+    v_school_id1 := NULL;
     CALL create_school(
         'IES San Isidro',
         '+34916421394',
@@ -88,6 +123,7 @@ BEGIN
         v_school_id1
     );
 
+    v_school_id2 := NULL;
     CALL create_school(
         'Lincoln High School',
         '+12125556789',
@@ -97,6 +133,7 @@ BEGIN
     );
 
     -- Crear tutores iniciales
+    v_tutor_id1 := NULL;
     CALL create_tutor(
         'María García',
         '+3466655444',
@@ -104,6 +141,7 @@ BEGIN
         v_tutor_id1
     );
 
+    v_tutor_id2 := NULL;
     CALL create_tutor(
         'John Smith',
         '+12125557890',
@@ -112,34 +150,28 @@ BEGIN
     );
 
     -- Crear estudiantes iniciales
+    v_student_id1 := NULL;
     CALL create_student(
         'Carlos García',
-        '2010-05-15',
+        '2010-05-15'::DATE,
         v_school_id1,
         v_student_id1
     );
 
+    v_student_id2 := NULL;
     CALL create_student(
         'Emma Smith',
-        '2009-08-22',
+        '2009-08-22'::DATE,
         v_school_id2,
         v_student_id2
     );
 
     -- Crear relaciones tutor-estudiante
-    CALL create_tutor_student_relationship(
-        v_tutor_id1,
-        v_student_id1,
-        'PARENT'
-    );
-
-    CALL create_tutor_student_relationship(
-        v_tutor_id2,
-        v_student_id2,
-        'PARENT'
-    );
+    CALL create_tutor_student_relationship(v_tutor_id1, v_student_id1, 'PARENT');
+    CALL create_tutor_student_relationship(v_tutor_id2, v_student_id2, 'PARENT');
 
     -- Crear conversaciones iniciales
+    v_conversation_id1 := NULL;
     CALL create_conversation(
         v_student_id1,
         v_school_id1,
@@ -147,6 +179,7 @@ BEGIN
         v_conversation_id1
     );
 
+    v_conversation_id2 := NULL;
     CALL create_conversation(
         v_student_id2,
         v_school_id2,
@@ -155,6 +188,7 @@ BEGIN
     );
 
     -- Crear mensajes iniciales
+    v_message_id1 := NULL;
     CALL create_message(
         v_conversation_id1,
         'SCHOOL',
@@ -164,6 +198,7 @@ BEGIN
         v_message_id1
     );
 
+    v_message_id2 := NULL;
     CALL create_message(
         v_conversation_id2,
         'TUTOR',
@@ -174,8 +209,14 @@ BEGIN
     );
 
     -- Crear estados de servicio iniciales
-    CALL create_service_status('Claude', false, 'No errors', NULL);
-    CALL create_service_status('Whatsapp', false, 'No errors', NULL);
-    CALL create_service_status('Backend', false, 'No errors', NULL);
+    v_temp_id := NULL;
+    CALL create_service_status('Claude', false, 'No errors', v_temp_id);
+
+    v_temp_id := NULL;
+    CALL create_service_status('Whatsapp', false, 'No errors', v_temp_id);
+
+    v_temp_id := NULL;
+    CALL create_service_status('Backend', false, 'No errors', v_temp_id);
+
 END;
 $$;
