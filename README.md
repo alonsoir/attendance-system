@@ -35,8 +35,8 @@ Un sistema de gestión de asistencia escolar moderno que utiliza IA (Claude) y W
 - Vite
 
 ### Infraestructura
-- Docker 24.x y Docker Compose v2
-- PostgreSQL 14
+- Docker 24.x, Docker Compose v2, Docker Swarm
+- PostgreSQL 15
 - Redis 7
 - Nginx
 - Prometheus
@@ -47,7 +47,7 @@ Un sistema de gestión de asistencia escolar moderno que utiliza IA (Claude) y W
 - Python 3.10.x
 - Poetry 1.8.4
 - Node.js 20.x
-- Docker 24.x y Docker Compose v2
+- Docker 24.x, Docker Compose v2, Docker Swarm
 - Make
 - Git
 
@@ -446,7 +446,7 @@ make list-deployments
 
 ## 🆘 Soporte
 
-- 📧 Email: your.email@example.com
+- 📧 Email: alonsoir@gmail.com
 - 💬 Discord: [Invitación al servidor](https://discord.gg/your-server)
 - 🐛 Issues: [GitHub Issues](https://github.com/yourusername/attendance-system/issues)
 - 📝 Wiki: [GitHub Wiki](https://github.com/yourusername/attendance-system/wiki)
@@ -599,22 +599,30 @@ make docker-build ENV=dev
 ## Verificación de Funcionalidades
 
 1. **Sistema Base**
-   - [ ] Servidor backend responde
+   - [X] Servidor backend responde
    - [ ] Frontend carga correctamente
-   - [ ] Base de datos conectada
+   - [X] Base de datos conectada
    - [ ] Redis funcionando
 
 2. **Integraciones**
-   - [ ] Conexión con Claude API
+   - [X] Conexión con Claude API
    - [ ] WebSockets funcionando
-   - [ ] Sistema de logs activo
-
+   - [X] Sistema de logs activo
+   - [ ] Integración con WhatsApp
+   - [X] Integración con API de CallmeBot
+   - [ ] Integración con docker swarm de todos los servicios backend. In progress.
+   
 3. **Características**
    - [ ] Autenticación funciona
-   - [ ] CRUD de ausencias
+   - [X] CRUD de ausencias
    - [ ] Notificaciones funcionan
    - [ ] Métricas disponibles
-
+   - [ ] Sistema de reportes
+   - [ ] Análisis de datos
+   - [ ] Sistema de alertas
+   - [ ] Comprobación de todo lo propuesto en el README.md
+   - [ ] Creación del video demostración
+   
 ## Notas Importantes
 
 1. **Desarrollo Local**
@@ -633,6 +641,7 @@ make docker-build ENV=dev
    - Usar profiling en desarrollo: `make profile ENV=dev`
 
 4. **Testing**
+   - Ejecutar todos los tests en local: `make test`
    - Ejecutar tests unitarios: `make test-unit`
    - Ejecutar tests de integración: `make test-integration`
    - Verificar cobertura: `make test-coverage`
