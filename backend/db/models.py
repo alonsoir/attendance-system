@@ -4,11 +4,14 @@ from uuid import UUID
 
 from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PgUUID
+from sqlalchemy.types import JSON
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy import Index
 from sqlalchemy.schema import Table
 from .base import Base
+from .types import JSONField
 
 
 class School(Base):
@@ -114,7 +117,9 @@ class Message(Base):
     sender_type: Mapped[str] = mapped_column(String(50), nullable=False)
     sender_id: Mapped[UUID] = mapped_column(PgUUID, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    claude_response_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
+    JSONField
+    claude_response_metadata: Mapped[Optional[dict]] = mapped_column(JSONField)
+    #claude_response_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (

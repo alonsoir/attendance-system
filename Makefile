@@ -4,7 +4,7 @@
 .PHONY: help check-docker check-environment check-deps validate-versions check-env \
         generate-secret install backend-build frontend-install frontend-build \
         dev prod run format lint test tests-unit tests-integration \
-        test-with-containers test-in-docker docker-build docker-run docker-stop \
+        test-with-containers-without-stored-procedures-acl-encryption test-in-docker docker-build docker-run docker-stop \
         db-init db-reset db-seed db-setup
 
 # =============================================================================
@@ -95,7 +95,7 @@ db-reset: check-environment
 # =============================================================================
 # TESTS
 # =============================================================================
-test: check-environment tests-unit tests-integration
+test: check-environment tests-unit tests-integration test-with-containers-without-stored-procedures-acl-encryption
 	@echo "$(GREEN)$(EMOJI_CHECK) Tests completados.$(NC)"
 
 tests-unit: check-environment
@@ -106,10 +106,13 @@ tests-integration: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests de integración...$(NC)"
 	@poetry run pytest tests/integration/ --junitxml=$(LOG_DIR)/integration-tests.xml
 
-test-with-containers:
+test-with-containers-without-stored-procedures-acl-encryption:
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
 	PYTHONPATH=. pytest -v backend/tests/test_db.py -s --log-cli-level=INFO
 
+test-with-containers-with-stored-procedures-acl-encryption:
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
+	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
 # =============================================================================
 # DOCKER
 # =============================================================================
@@ -150,7 +153,7 @@ help:
 	@echo "    make test                 - Ejecutar todos los tests"
 	@echo "    make tests-unit           - Ejecutar tests unitarios"
 	@echo "    make tests-integration    - Ejecutar tests de integración"
-	@echo "    make test-with-containers - Ejecutar tests con contenedores"
+	@echo "    make test-with-containers-without-stored-procedures-acl-encryption - Ejecutar tests con contenedores"
 	@echo ""
 	@echo "  Docker:"
 	@echo "    make docker-build         - Construir contenedores"

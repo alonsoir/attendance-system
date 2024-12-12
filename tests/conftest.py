@@ -156,9 +156,9 @@ def test_settings():
     assert settings.ENABLE_WHATSAPP_CALLBACK == True
     assert settings.MOCK_EXTERNAL_SERVICES == True
     assert settings.POSTGRES_SERVER == "localhost"
-    assert settings.POSTGRES_USER == "user"
-    assert settings.POSTGRES_PASSWORD == "password"
-    assert settings.POSTGRES_DB == "database"
+    assert settings.POSTGRES_USER == "test_user"
+    assert settings.POSTGRES_PASSWORD == "test_password"
+    assert settings.POSTGRES_DB == "test_db"
     assert settings.POSTGRES_PORT == 5432
     assert settings.REDIS_HOST == "localhost"
     assert settings.REDIS_PORT == 6379
@@ -193,19 +193,27 @@ def settings_prod():
     return Settings(APP_ENV="prod")
 
 
-# ---- Fixtures de base de datos ----
 @pytest.fixture(scope="session", autouse=True)
 async def setup_database(async_engine):
-    """Inicializa y limpia las tablas de la base de datos para cada sesión de pruebas."""
+    """
+    Inicializa y limpia las tablas de la base de datos para cada sesión de pruebas.
 
+    Este fixture crea todas las tablas definidas en los modelos de SQLAlchemy antes
+    de ejecutar las pruebas, y las elimina al final de la sesión para mantener un
+    entorno limpio.
+    """
     async with async_engine.begin() as conn:
-        # Opcional: Realiza operaciones como eliminar tablas antiguas
+        # Crear todas las tablas antes de ejecutar las pruebas
         await conn.run_sync(Base.metadata.create_all)
+        print("Tablas creadas exitosamente para la sesión de pruebas.")
 
-    yield  # Aquí se ejecutan las pruebas
+    yield  # Aquí se ejecutan las pruebas que dependen de la base de datos
 
     async with async_engine.begin() as conn:
+        # Eliminar todas las tablas después de ejecutar las pruebas
         await conn.run_sync(Base.metadata.drop_all)
+        print("Tablas eliminadas exitosamente después de la sesión de pruebas.")
+
 
 
 @pytest.fixture(scope="session")

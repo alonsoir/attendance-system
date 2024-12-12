@@ -31,6 +31,26 @@ USERNAME = "test_user"
 PASSWORD = "test_password"
 DBNAME = "test_db"
 
+def get_container_by_partial_name(client, partial_name: str):
+    """
+    Busca un contenedor cuyo nombre contenga un prefijo específico.
+    Args:
+        client: Cliente de Docker.
+        partial_name: Subcadena esperada en el nombre del contenedor.
+    Returns:
+        docker.models.containers.Container: Contenedor encontrado.
+    Raises:
+        docker.errors.NotFound: Si no se encuentra un contenedor.
+    """
+    logger.info(f"Buscando contenedor con nombre parcial: '{partial_name}'")
+    containers = client.containers.list(all=True)
+    for container in containers:
+        if partial_name in container.name:
+            logger.info(f"Contenedor encontrado: {container.name}")
+            return container
+    raise docker.errors.NotFound(f"No se encontró contenedor con nombre parcial '{partial_name}'")
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session"""
@@ -118,12 +138,12 @@ async def postgres_container(event_loop):
     try:
         # Limpieza de contenedor existente
         try:
-            existing = client.containers.get(CONTAINER_NAME)
-            logger.info(f"Encontrado contenedor existente {CONTAINER_NAME}. Eliminándolo...")
+            existing = get_container_by_partial_name(client, CONTAINER_NAME)
+            logger.info(f"Encontrado contenedor existente {existing.name}. Eliminándolo...")
             await _remove_container(existing)
             logger.info(f"Contenedor existente {CONTAINER_NAME} eliminado")
         except docker.errors.NotFound:
-            logger.info(f"No se encontró contenedor existente {CONTAINER_NAME}")
+            logger.info(f"No se encontró contenedor existente con nombre parcial {CONTAINER_NAME}")
 
         # Crear nuevo contenedor
         encrypt_key = _generate_encrypt_key()
