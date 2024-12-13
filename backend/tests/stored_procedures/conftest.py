@@ -1,19 +1,20 @@
 import asyncio
 import contextlib
 import logging
-from pathlib import Path
-from typing import AsyncGenerator, Tuple
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import AsyncGenerator
+
 import async_timeout
+import bcrypt
 import docker
 import pytest
-import os
-import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import text
-from backend.services.database_manager import DatabaseManager
-from backend.db.models_acl import User, Role, Permission
+
+from backend.db.models_acl import User
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ async def _get_tutor_role_id(session: AsyncSession) -> str:
     result = await session.execute(text("SELECT id FROM roles WHERE name = 'TUTOR'"))
     return result.scalar()
 
+
 @pytest.fixture(scope="session")
 async def postgres_container(event_loop):
     """Proporciona un contenedor PostgreSQL configurado para las pruebas"""
@@ -146,15 +148,13 @@ async def postgres_container(event_loop):
             logger.info(f"No se encontró contenedor existente con nombre parcial {CONTAINER_NAME}")
 
         # Crear nuevo contenedor
-        encrypt_key = _generate_encrypt_key()
         container = client.containers.run(
             image=IMAGE,
             name=CONTAINER_NAME,
             environment={
                 "POSTGRES_USER": USERNAME,
                 "POSTGRES_PASSWORD": PASSWORD,
-                "POSTGRES_DB": DBNAME,
-                "ENCRYPT_KEY": encrypt_key
+                "POSTGRES_DB": DBNAME
             },
             ports={
                 '5432/tcp': ('127.0.0.1', port)
@@ -164,73 +164,30 @@ async def postgres_container(event_loop):
         )
 
         logger.info(f"Contenedor creado: {container.id}")
-        logger.info(f"Estado inicial: {container.status}")
-
-        while container.status != "running":
-            logger.info(f"Esperando a que el contenedor esté running... Estado actual: {container.status}")
-            await asyncio.sleep(1)
-            container.reload()
-
-        logs = container.logs().decode('utf-8')
-        logger.info(f"Logs del contenedor:\n{logs}")
 
         # Esperar a que PostgreSQL esté listo
         logger.info("Esperando a que PostgreSQL esté listo...")
         await _wait_for_postgres(container, port)
 
-        # Inicializar schema
-        logger.info("=== Iniciando carga de schema... ===")
-        await _load_schema(container, port)
-        logger.info("=== Schema cargado exitosamente ===")
-
-        # Cargar datos de prueba
-        logger.info("=== Iniciando carga de datos de prueba... ===")
-        await _load_test_data(container, port)
-        logger.info("=== Datos de prueba cargados ===")
+        # Obtener la clave de encriptación generada por el contenedor
+        encrypt_key = await _get_encryption_key(container, port)
 
         yield container, port, encrypt_key
 
-    except Exception as e:
-        logger.error(f"Error durante la configuración del contenedor: {str(e)}")
-        if container:
-            logger.info("Limpiando contenedor debido a error...")
-            try:
-                await _remove_container(container)
-                logger.info("Contenedor eliminado después de error")
-            except Exception as cleanup_error:
-                logger.error(f"Error durante la limpieza del contenedor: {str(cleanup_error)}")
-        raise
-
     finally:
-        logger.info("=== Iniciando limpieza final de postgres_container ===")
         if container:
-            try:
-                logger.info(f"Limpieza final del contenedor {container.id}...")
-                await _remove_container(container)
-                logger.info("Contenedor detenido y eliminado exitosamente")
-            except Exception as e:
-                logger.error(f"Error durante la limpieza final del contenedor: {str(e)}")
+            logger.info("=== Iniciando limpieza final ===")
+            await _remove_container(container)
+            logger.info("=== Limpieza completada ===")
 
-        # Verificación adicional de limpieza
-        try:
-            existing = client.containers.get(CONTAINER_NAME)
-            logger.warning(
-                f"El contenedor {CONTAINER_NAME} sigue existiendo después de la limpieza. Intentando eliminar...")
-            await _remove_container(existing)
-            logger.info("Contenedor eliminado en la verificación final")
-        except docker.errors.NotFound:
-            logger.info("Verificación final: contenedor eliminado correctamente")
-        except Exception as e:
-            logger.error(f"Error durante la verificación final: {str(e)}")
-
-        # Liberar el puerto
-        logger.info(f"Liberando puerto {port}")
-        with contextlib.suppress(Exception):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.bind(('127.0.0.1', port))
-
-        logger.info("=== FIN postgres_container fixture ===")
+async def _get_encryption_key(container, port):
+    """Obtiene la clave de encriptación generada por el contenedor"""
+    async with _get_session(container, port) as session:
+        result = await session.execute(
+            text("SELECT key_value FROM encryption_config WHERE key_name = 'main_key'")
+        )
+        key = result.scalar()
+        return key
 
 async def _wait_for_postgres(container, port):
     max_attempts = 30
@@ -338,18 +295,30 @@ async def _remove_container(container, retries=3):
             logger.warning(f"Intento {attempt + 1} fallido al eliminar contenedor: {e}")
             await asyncio.sleep(1)  # Esperar antes del siguiente intento
 
+
+from backend.services.database_manager import DatabaseManager
+from backend.tests.test_settings import TestSettings
+
+
 @pytest.fixture(scope="function")
 async def db_session(postgres_container) -> AsyncGenerator[DatabaseManager, None]:
     container, port, encrypt_key = postgres_container
     logger.info("=== INICIO db_session fixture ===")
-    db_manager = DatabaseManager.get_instance()
+
+    # Crear configuración de prueba
+    test_settings = TestSettings(
+        POSTGRES_USER=USERNAME,
+        POSTGRES_PASSWORD=PASSWORD,
+        POSTGRES_DB=DBNAME,
+        POSTGRES_PORT=port,
+        POSTGRES_SERVER="localhost"
+    )
+
+    db_manager = DatabaseManager.get_instance(settings=test_settings)
     await db_manager.connect(encrypt_key)
 
     try:
         yield db_manager
-    except Exception as e:
-        logger.error(f"Error en db_session: {e}")
-        raise
     finally:
         await db_manager.disconnect()
         logger.info("=== FIN db_session fixture ===")

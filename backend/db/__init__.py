@@ -1,9 +1,10 @@
 """
 This module contains the database models and the database session.
 """
-from backend.core.config import get_settings
+#from backend.core.config import get_settings
 
-from .base import Base
+#from .base import Base
+"""
 from .session import (
     async_engine,
     check_database_connection,
@@ -12,13 +13,14 @@ from .session import (
     init_db,
 )
 
-settings = get_settings()
+# settings = get_settings()
 __all__ = [
-    "Base",
+#    "Base",
     "async_engine",
     "get_db",
     "get_db_context",
     "check_database_connection",
     "init_db",
-    "settings",
+#    "settings",
 ]
+"""

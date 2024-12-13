@@ -8,14 +8,12 @@ from typing import Any, Callable, Optional
 import asyncpg
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-
 from backend.core.config import get_settings
 from backend.db.models_acl import User, AuditLog
 
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
-
 
 class DatabaseManager:
     """
@@ -24,46 +22,67 @@ class DatabaseManager:
     _instance: Optional['DatabaseManager'] = None
     _lock = threading.Lock()
 
-    def __init__(self):
-        self.settings = get_settings()
+    def __init__(self, settings=None, encrypt_key=None):
+        self.settings = settings or get_settings()
+        self.encrypt_key = encrypt_key
         self.pool: asyncpg.Pool = None
         self.max_connections: int = 0
         self.engine = create_engine(
-            f"postgresql+asyncpg://{self.settings.db_user}:{self.settings.db_password}@{self.settings.db_host}:{self.settings.db_port}/{self.settings.db_name}",
-            echo=self.settings.db_echo
+            f"postgresql+asyncpg://{self.settings.POSTGRES_USER}:{self.settings.POSTGRES_PASSWORD}"
+            f"@{self.settings.POSTGRES_SERVER}:{self.settings.POSTGRES_PORT}/{self.settings.POSTGRES_DB}",
+            echo=True  # Para pruebas, podríamos parametrizar esto también
         )
         self.session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
 
     @classmethod
-    def get_instance(cls) -> 'DatabaseManager':
+    def get_instance(cls, settings=None, encrypt_key=None) -> 'DatabaseManager':
         """
         Obtiene la instancia única del DatabaseManager.
+        Permite inyección de configuración para pruebas.
         """
         with cls._lock:
             if cls._instance is None:
-                cls._instance = cls()
+                cls._instance = cls(settings=settings, encrypt_key=encrypt_key)
             return cls._instance
 
-    async def connect(self) -> None:
+    @classmethod
+    def reset_instance(cls):
+        """
+        Resetea la instancia del singleton.
+        Útil para pruebas.
+        """
+        with cls._lock:
+            cls._instance = None
+
+    async def connect(self, encrypt_key=None) -> None:
         """
         Crea un pool de conexiones a la base de datos.
         """
         try:
             logger.info("Conectando a la base de datos...")
-            self.max_connections = await self._get_max_connections()
-            logger.info(f"Capacidad máxima de conexiones del contenedor: {self.max_connections}")
-
             self.pool = await asyncpg.create_pool(
-                user=self.settings.db_user,
-                password=self.settings.db_password,
-                host=self.settings.db_host,
-                port=self.settings.db_port,
-                database=self.settings.db_name,
-                min_size=max(1, self.max_connections // 4),
-                max_size=self.max_connections
+                user=self.settings.POSTGRES_USER,
+                password=self.settings.POSTGRES_PASSWORD,
+                host=self.settings.POSTGRES_SERVER,
+                port=self.settings.POSTGRES_PORT,
+                database=self.settings.POSTGRES_DB,
+                min_size=2,
+                max_size=10
             )
+
+            # Verificar que la encriptación está inicializada
+            async with self.pool.acquire() as conn:
+                result = await conn.fetchval(
+                    "SELECT key_value FROM encryption_config WHERE key_name = 'main_key'"
+                )
+                if result:
+                    logger.info("Sistema de encriptación ya inicializado")
+                else:
+                    logger.info("Inicializando sistema de encriptación...")
+                    await conn.execute("SELECT generate_encryption_key()")
+
             logger.info("Conexión a la base de datos establecida correctamente")
-        except (asyncpg.PostgresError, Exception) as e:
+        except Exception as e:
             logger.error(f"Error al conectar a la base de datos: {e}")
             raise
 
@@ -72,27 +91,30 @@ class DatabaseManager:
         Cierra el pool de conexiones a la base de datos.
         """
         try:
-            logger.info("Cerrando conexión a la base de datos...")
-            await self.pool.close()
-            logger.info("Conexión a la base de datos cerrada correctamente")
-        except (asyncpg.PostgresError, Exception) as e:
+            if self.pool:
+                logger.info("Cerrando conexión a la base de datos...")
+                await self.pool.close()
+                logger.info("Conexión a la base de datos cerrada correctamente")
+        except Exception as e:
             logger.error(f"Error al cerrar la conexión a la base de datos: {e}")
             raise
 
     @contextmanager
-    async def transaction(self, user: User) -> Callable[..., Any]:
+    async def transaction(self, user: User = None) -> Callable[..., Any]:
         """
         Proporciona un contexto de transacción para ejecutar consultas.
+        User es opcional para permitir pruebas sin usuario.
         """
         async with self.pool.acquire() as conn:
             try:
                 async with conn.transaction():
                     yield conn
-                    await self._log_audit_event(user, "TRANSACTION_COMMITTED", "DATABASE")
-            except (asyncpg.PostgresError, Exception) as e:
+                    if user:
+                        await self._log_audit_event(user, "TRANSACTION_COMMITTED", "DATABASE")
+            except Exception as e:
                 logger.error(f"Error durante la transacción: {e}")
-                await conn.rollback()
-                await self._log_audit_event(user, "TRANSACTION_ROLLBACK", "DATABASE")
+                if user:
+                    await self._log_audit_event(user, "TRANSACTION_ROLLBACK", "DATABASE")
                 raise
 
     async def execute_procedure(self, user: User, procedure_name: str, *args: Any) -> None:
@@ -112,17 +134,27 @@ class DatabaseManager:
 
     async def get_schools(self, user: User) -> list[dict]:
         """
-        Obtiene todas las escuelas.
+        Obtiene todas las escuelas con sus campos desencriptados.
         """
         try:
-            logger.info("Obteniendo todas las escuelas...")
-            async with self.transaction(user) as conn:
-                rows = await conn.fetch("SELECT * FROM get_encrypted_schools()")
-                logger.info(f"Se obtuvieron {len(rows)} escuelas")
+            logger.info("Obteniendo escuelas...")
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT 
+                        id,
+                        decrypt_value(name) as name,
+                        decrypt_value(phone) as phone,
+                        decrypt_value(address) as address,
+                        decrypt_value(country) as country
+                    FROM schools
+                """)
+
+                schools = [dict(row) for row in rows]
                 await self._log_audit_event(user, "GET_SCHOOLS", "DATABASE")
-                return [dict(row) for row in rows]
-        except (asyncpg.PostgresError, Exception) as e:
-            logger.error("Error al obtener las escuelas: {e}")
+                return schools
+
+        except Exception as e:
+            logger.error(f"Error al obtener escuelas: {e}")
             await self._log_audit_event(user, "FAILED_GET_SCHOOLS", "DATABASE")
             raise
 

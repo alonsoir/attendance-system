@@ -128,3 +128,4 @@ dump.rdb
 
 # Poetry
 poetry.lock!/.env-dev.backup-20241115135414
+!/.env.test

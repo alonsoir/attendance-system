@@ -68,8 +68,7 @@ async def init_db():
     """
     Inicializa la base de datos con datos iniciales si es necesario.
     """
-    from backend.db.models import ServiceStatus, User
-
+    from backend.db.models import ServiceStatus
     async with AsyncSessionLocal() as db:  # Usa 'async with' para crear una sesión asincrónica
         try:
             # Verificar si ya existen registros de estado de servicio
