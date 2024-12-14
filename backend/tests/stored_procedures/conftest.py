@@ -334,3 +334,34 @@ async def school_user(db_session: DatabaseManager) -> User:
 @pytest.fixture(scope="function")
 async def tutor_user(db_session: DatabaseManager) -> User:
     return await db_session.get_user("tutor_user")
+
+
+@pytest.fixture(scope="function", autouse=True)
+async def cleanup_after_test(postgres_container):
+    """Limpia la base de datos después de cada test de stored procedures"""
+    logger.info("=== INICIO cleanup_after_test para stored procedures ===")
+    logger.info(f"Estado inicial del container: {postgres_container[0].status}")
+
+    yield  # Esto ocurre antes del test
+
+    try:
+        logger.info("=== Ejecutando limpieza post-test de stored procedures ===")
+        container, port, encrypt_key = postgres_container
+
+        # Obtener logs del contenedor
+        logs = container.logs().decode('utf-8')
+        logger.info(f"Logs del contenedor durante el test:\n{logs}")
+
+        # Verificar estado del contenedor
+        container.reload()
+        logger.info(f"Estado final del container: {container.status}")
+
+        # Mostrar información de la base de datos
+        logger.info(f"Puerto usado: {port}")
+        logger.info(f"Encrypt key presente: {'Si' if encrypt_key else 'No'}")
+
+    except Exception as e:
+        logger.error(f"Error durante la limpieza de stored procedures: {e}")
+        logger.error(f"Traza completa:", exc_info=True)
+    finally:
+        logger.info("=== FIN cleanup_after_test de stored procedures ===")

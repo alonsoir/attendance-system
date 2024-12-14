@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import threading
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import asyncpg
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+
 from backend.core.config import get_settings
 from backend.db.models_acl import User, AuditLog
 
@@ -99,8 +100,10 @@ class DatabaseManager:
             logger.error(f"Error al cerrar la conexión a la base de datos: {e}")
             raise
 
-    @contextmanager
-    async def transaction(self, user: User = None) -> Callable[..., Any]:
+    from typing import AsyncGenerator
+
+    @asynccontextmanager
+    async def transaction(self, user: User = None) -> AsyncGenerator[asyncpg.Connection, None]:
         """
         Proporciona un contexto de transacción para ejecutar consultas.
         User es opcional para permitir pruebas sin usuario.
@@ -124,7 +127,11 @@ class DatabaseManager:
         try:
             logger.info(f"Ejecutando procedimiento '{procedure_name}'...")
             async with self.transaction(user) as conn:
-                await conn.execute(f"CALL {procedure_name}({','.join(['$1'] * len(args))})", *args)
+                # Crear placeholders numerados: $1, $2, $3, etc.
+                placeholders = [f"${i + 1}" for i in range(len(args))]
+                query = f"CALL {procedure_name}({','.join(placeholders)})"
+                await conn.execute(query, *args)
+
             logger.info(f"Procedimiento '{procedure_name}' ejecutado correctamente")
             await self._log_audit_event(user, f"EXECUTED_PROCEDURE:{procedure_name}", "DATABASE")
         except (asyncpg.PostgresError, Exception) as e:
@@ -156,6 +163,29 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error al obtener escuelas: {e}")
             await self._log_audit_event(user, "FAILED_GET_SCHOOLS", "DATABASE")
+            raise
+
+    async def get_user(self, username: str) -> Optional[User]:
+        """
+        Obtiene un usuario por su nombre de usuario.
+        """
+        try:
+            logger.info(f"Obteniendo usuario: {username}")
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT id, decrypt_value(username) as username, 
+                           password_hash, role_id
+                    FROM users
+                    WHERE decrypt_value(username) = $1
+                """, username)
+
+                if not row:
+                    return None
+
+                return User(**dict(row))
+
+        except Exception as e:
+            logger.error(f"Error al obtener usuario: {e}")
             raise
 
     async def _get_max_connections(self) -> int:
