@@ -1396,3 +1396,84 @@ output:
 
     test_stored_procedures.py:86: AttributeError
 
+Posible solucion:
+
+En este caso, necesitarás:
+Modificar el test para que use el context manager transaction() en lugar de llamar a commit() directamente:
+    @pytest.mark.asyncio
+    async def test_update_encrypted_school(db_session, admin_user: User):
+        """Test de actualización de escuela encriptada"""
+        logger.info("Probando actualización de escuela encriptada")
+
+        # CREATE
+        school_id = None
+        test_school = {
+            "name": "Test School Salesianos",
+            "phone": "+34666777999",
+            "address": "Test Address 456",
+            "country": "Spain"
+        }
+
+        async with db_session.transaction(admin_user) as conn:
+            # CREATE
+            await db_session.execute_procedure(
+                admin_user,
+                "create_school",
+                test_school["name"],
+                test_school["phone"],
+                test_school["address"],
+                test_school["country"],
+                school_id
+            )
+
+            schools = await db_session.get_schools(admin_user)
+            assert len(schools) == 1
+            school_id = schools[0]["id"]
+
+            # UPDATE
+            await db_session.execute_procedure(
+                admin_user,
+                "update_encrypted_school",
+                school_id,
+                "Updated School Name",
+                "+34777888999",
+                "Updated Address",
+                "France"
+            )
+
+        # Verificar los cambios
+        updated_schools = await db_session.get_schools(admin_user)
+        assert updated_schools[0]["name"] == 'Updated School Name'
+        assert updated_schools[0]["phone"] == '+34777888999'
+        assert updated_schools[0]["address"] == 'Updated Address'
+        assert updated_schools[0]["country"] == 'France'
+
+Asegurarte de que el procedimiento almacenado update_encrypted_school está definido en tu base de datos.
+Debería verse así:
+
+    CREATE OR REPLACE PROCEDURE update_encrypted_school(
+        p_id UUID,
+        p_name VARCHAR(255),
+        p_phone VARCHAR(50),
+        p_address VARCHAR(255),
+        p_country VARCHAR(100)
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        UPDATE schools
+        SET
+            name = encrypt_value(p_name),
+            phone = encrypt_value(p_phone),
+            address = encrypt_value(p_address),
+            country = encrypt_value(p_country)
+        WHERE id = p_id;
+    END;
+    $$;
+
+Los cambios principales son:
+Eliminación de la llamada directa a commit()
+Uso del context manager transaction() para manejar la transacción
+Adición del procedimiento almacenado update_encrypted_school
+El context manager transaction() manejará automáticamente el commit cuando el bloque se complete exitosamente,
+o el rollback si ocurre algún error. Esto es más seguro y consistente que manejar los commits manualmente.
