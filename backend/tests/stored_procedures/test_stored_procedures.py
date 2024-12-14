@@ -64,8 +64,25 @@ async def test_update_encrypted_school(db_session, admin_user: User):
     logger.info("Probando actualización de escuela encriptada")
 
     # CREATE
-    await db_session.execute_procedure(admin_user, "create_encrypted_school",
-                                      "Test School", "+34666777888", "Test Address 123", "Spain")
+    school_id = None
+    test_school = {
+        "name": "Test School Salesianos",
+        "phone": "+34666777999",
+        "address": "Test Address 456",
+        "country": "Spain"
+    }
+
+    # CREATE
+    await db_session.execute_procedure(
+        admin_user,
+        "create_school",
+        test_school["name"],
+        test_school["phone"],
+        test_school["address"],
+        test_school["country"],
+        school_id
+    )
+
     await db_session.commit()
 
     schools = await db_session.get_schools(admin_user)
