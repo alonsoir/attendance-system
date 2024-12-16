@@ -8,7 +8,7 @@
         test-with-containers-with-stored-procedures-acl-encryption test-in-docker \
         docker-build docker-run docker-stop docker-all \
         db-init db-reset db-seed db-setup \
-        postgres-acl-build postgres-acl-service postgres-acl-scale postgres-acl-replicate \
+        postgres-acl-build  postgres-acl-scale postgres-acl-replicate \
         postgres-acl-remove postgres-acl-all security-check security-bandit security-safety security-gitguardian
 
 # =============================================================================
@@ -26,8 +26,8 @@ ENV = development
 ENV_FILE = .env-$(ENV)
 LOG_FILE = make.log
 LOG_DIR = logs
-FRONTEND_PATH = frontend
-BACKEND_PATH = backend
+FRONTEND_PATH = attendance_system/frontend
+BACKEND_PATH = attendance_system/backend
 DOCKER_COMPOSE_FILE = docker-compose.yml
 
 POSTGRES_PATH = postgresql
@@ -155,19 +155,19 @@ test: check-environment tests-unit tests-integration test-with-containers-withou
 
 tests-unit: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests unitarios...$(NC)"
-	@poetry run pytest tests/unit/ --junitxml=$(LOG_DIR)/unit-tests.xml
+	poetry run pytest tests/unit/ --junitxml=../$(LOG_DIR)/unit-tests.xml
 
 tests-integration: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests de integración...$(NC)"
-	@poetry run pytest tests/integration/ --junitxml=$(LOG_DIR)/integration-tests.xml
+	poetry run pytest tests/integration/ --junitxml=../$(LOG_DIR)/integration-tests.xml
 
 test-with-containers-without-stored-procedures-acl-encryption: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
-	PYTHONPATH=. pytest -v backend/tests/test_db.py -s --log-cli-level=INFO
+	cd $(BACKEND_PATH) && PYTHONPATH=. pytest -v tests/test_db.py -s --log-cli-level=INFO
 
-test-with-containers-with-stored-procedures-acl-encryption: check-environment
+test-with-containers-with-stored-procedures-acl-encryption: check-environment 
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
-	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
+	cd $(BACKEND_PATH) && PYTHONPATH=. pytest -v tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
 
 # =============================================================================
 # DOCKER
@@ -176,7 +176,9 @@ docker-all: docker-build docker-run
 
 docker-build: check-docker check-env
 	@echo "$(BLUE)$(EMOJI_INFO) Construyendo contenedores...$(NC)"
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) build
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) build \
+		--build-arg BACKEND_PATH=$(BACKEND_PATH) \
+		--build-arg FRONTEND_PATH=$(FRONTEND_PATH)
 	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores construidos.$(NC)"
 
 docker-run: check-docker
@@ -203,21 +205,12 @@ prod: check-docker
 # =============================================================================
 # POSTGRESQL CON ACL Y ENCRIPTACIÓN
 # =============================================================================
-postgres-acl-all: postgres-acl-build postgres-acl-service
+postgres-acl-all: postgres-acl-build 
 
 postgres-acl-build: check-docker
 	@echo "$(BLUE)$(EMOJI_INFO) Construyendo imagen PostgreSQL personalizada con ACL y encriptación...$(NC)"
 	@cd $(POSTGRES_PATH) && ./build_pg_container_acl_encrypt_decrypt_test.sh
 	@echo "$(GREEN)$(EMOJI_CHECK) Imagen PostgreSQL personalizada construida.$(NC)"
-
-postgres-acl-service: check-docker
-	@echo "$(BLUE)$(EMOJI_INFO) Iniciando servicio PostgreSQL en Docker Swarm...$(NC)"
-	@if ! docker node ls > /dev/null 2>&1; then \
-		echo "$(BLUE)$(EMOJI_INFO) Inicializando Docker Swarm...$(NC)"; \
-		docker swarm init --advertise-addr 127.0.0.1 || true; \
-	fi
-	@cd $(POSTGRES_PATH) && ./build_pg_container_acl_encrypt_decrypt_test.sh
-	@echo "$(GREEN)$(EMOJI_CHECK) Servicio PostgreSQL iniciado.$(NC)"
 
 postgres-acl-scale: check-docker
 	@echo "$(BLUE)$(EMOJI_INFO) Escalando servicio PostgreSQL...$(NC)"
@@ -243,7 +236,7 @@ postgres-acl-status: check-docker
 	@docker ps | grep $(POSTGRES_SERVICE_NAME)
 
 # Actualizar las dependencias de los tests
-test-with-containers-with-stored-procedures-acl-encryption: check-environment postgres-acl-service
+test-with-containers-with-stored-procedures-acl-encryption: check-environment postgres-acl-build
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
 	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
 
@@ -313,7 +306,7 @@ help:
 	@echo "  PostgreSQL con ACL y Encriptación:"
 	@echo "    make postgres-acl-all          - Construir e iniciar PostgreSQL con ACL"
 	@echo "    make postgres-acl-build        - Construir imagen PostgreSQL personalizada"
-	@echo "    make postgres-acl-service      - Iniciar servicio PostgreSQL en Swarm"
+	@echo "    make       - Iniciar servicio PostgreSQL en Swarm"
 	@echo "    make postgres-acl-scale        - Escalar servicio PostgreSQL"
 	@echo "    make postgres-acl-replicate    - Crear réplicas de PostgreSQL"
 	@echo "    make postgres-acl-remove       - Remover servicios PostgreSQL"

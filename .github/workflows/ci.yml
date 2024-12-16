@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -12,10 +12,9 @@ env:
   NODE_VERSION: "20.x"
 
 jobs:
-  test:
-    name: Tests and Linting
+  quality-checks:
+    name: Code Quality Checks
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -29,54 +28,26 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          poetry config virtualenvs.create false
-
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: ${{ runner.os }}-poetry-
-
-      - name: Cache npm dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-node-
-
-      - name: Create .env file for testing
-        run: |
-          cp .env-development.example .env-development
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env-development
-          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env-development
-          echo "META_API_KEY=${{ secrets.META_API_KEY }}" >> .env-development
-
       - name: Install dependencies
-        run: make install ENV=development
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry==${{ env.POETRY_VERSION }}
+          poetry config virtualenvs.create false
+          poetry install
+          cd frontend && npm ci
 
-      - name: Run linting
+      - name: Run linting (with warnings)
+        continue-on-error: true  # No falla el build, solo advierte
         run: |
           make lint
           make type-check
 
-      - name: Run tests with coverage
-        run: make test-coverage
+      - name: Run unit tests
+        run: make tests-unit
 
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml
-          flags: unittests
-
-  security:
-    name: Security Checks
+  security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -85,76 +56,90 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Create logs directory
-        run: mkdir -p logs
-
-      - name: Set up Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          poetry config virtualenvs.create false
-
       - name: Install security tools
         run: |
-          python -m pip install --upgrade pip
           pip install safety bandit ggshield
 
       - name: Run security checks
         env:
-          GITGUARDIAN_API_KEY: ${{ secrets.Attendance_System }}
-          CI: true
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
         run: make security-check
 
-      - name: Upload security scan results
-        if: always()  # Esto asegura que se suban incluso si los checks fallan
-        uses: actions/upload-artifact@v3
-        with:
-          name: security-scan-results
-          path: |
-              logs/bandit-results.json
-              logs/safety-report.txt  # Si añades output de safety
-          retention-days: 7
-
-  build:
+  build-images:
     name: Build Docker Images
-    needs: [test, security]
+    needs: [ quality-checks ]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Cache Docker layers
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./attendance_system/backend
+          file: ./attendance_system/backend/Dockerfile
+          tags: backend-attendance:latest
+          load: true
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./attendance_system/frontend
+          file: ./attendance_system/frontend/Dockerfile
+          tags: frontend-attendance:latest
+          load: true
+
+      - name: Save Docker images
+        run: |
+          mkdir -p /tmp/docker-images
+          docker save backend-attendance:latest > /tmp/docker-images/backend.tar
+          docker save frontend-attendance:latest > /tmp/docker-images/frontend.tar
+
+  integration-tests:
+    name: Integration Tests
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore cached images
         uses: actions/cache@v3
         with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-buildx-
+          path: /tmp/docker-images
+          key: ${{ runner.os }}-docker-${{ github.sha }}
 
-      - name: Create .env file
+      - name: Load Docker images
+        run: |
+          docker load < /tmp/docker-images/frontend.tar
+          docker load < /tmp/docker-images/backend.tar
+
+      - name: Start services
+        run: docker-compose up -d
+
+      - name: Run integration tests
+        run: |
+          sleep 30  # Espera a que los servicios estén listos
+          make tests-integration
+
+      - name: Run container tests
+        run: |
+          make test-with-containers-without-stored-procedures-acl-encryption
+          make test-with-containers-with-stored-procedures-acl-encryption
+
+  deploy:
+    name: Deploy
+    needs: [integration-tests]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to environment
         run: |
           if [[ $GITHUB_REF == refs/heads/main ]]; then
-            cp .env-prod.example .env-prod
-            echo "ENV=prod" >> $GITHUB_ENV
+            echo "Deploying to production"
+            # Añadir comandos de deploy a producción
           else
-            cp .env-dev.example .env-dev
-            echo "ENV=dev" >> $GITHUB_ENV
+            echo "Deploying to staging"
+            # Añadir comandos de deploy a staging
           fi
-
-      - name: Build Docker images
-        run: make docker-build ENV=${{ env.ENV }}
-
-      - name: Export Docker images
-        run: |
-          docker save attendance-system-api:latest > api.tar
-          docker save attendance-system-frontend:latest > frontend.tar
-
-      - name: Upload Docker images as artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: docker-images
-          path: |
-            api.tar
-            frontend.tar

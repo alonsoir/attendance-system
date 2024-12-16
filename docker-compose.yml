@@ -1,24 +1,45 @@
-version: '3.8'
+version: '3'
 
 services:
-  backend:
+  front:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000" # Exponer puerto del backend
-    volumes:
-      - ./backend:/app # Opcional para desarrollo
-    environment:
-      - APP_ENV=production
+      context: .
+      dockerfile: attendance_system/frontend/Dockerfile
+    image: frontend-attendance
+    deploy:
+      replicas: 1
 
-  frontend:
+  back:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000" # Exponer puerto del frontend
-    volumes:
-      - ./frontend:/app # Opcional para desarrollo
+      context: .
+      dockerfile: attendance_system/backend/Dockerfile
+    image: backend-attendance
+    deploy:
+      replicas: 2
+
+  db:
+    image: test-postgres-encrypted:latest
     environment:
-      - NODE_ENV=production
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+      - POSTGRES_DB=test_db
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    deploy:
+      replicas: 2
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    deploy:
+      replicas: 1
+
+  redis:
+    image: redis:latest
+    deploy:
+      replicas: 2
+
+volumes:
+  db-data:
+    driver: local
