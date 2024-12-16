@@ -47,14 +47,16 @@ check-docker:
 	@echo "$(BLUE)$(EMOJI_INFO) Verificando Docker...$(NC)"
 	@docker info > /dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) Docker no está corriendo!$(NC)" && exit 1)
 	@echo "$(GREEN)$(EMOJI_CHECK) Docker está corriendo.$(NC)"
-
 check-environment:
 	@echo "$(BLUE)$(EMOJI_INFO) Verificando entorno virtual...$(NC)"
-	@if [ -z "$(VIRTUAL_ENV)" ]; then \
+	@if [ -n "$$CI" ]; then \
+		echo "$(GREEN)$(EMOJI_CHECK) Ejecutando en CI - no se requiere entorno virtual.$(NC)"; \
+	elif [ -z "$(VIRTUAL_ENV)" ]; then \
 		poetry shell || (echo "$(RED)$(EMOJI_ERROR) No se pudo activar el entorno virtual!$(NC)" && exit 1); \
+	else \
+		echo "$(GREEN)$(EMOJI_CHECK) Entorno virtual activo.$(NC)"; \
 	fi
-	@echo "$(GREEN)$(EMOJI_CHECK) Entorno virtual activo.$(NC)"
-
+	@echo "$(GREEN)$(EMOJI_CHECK) Entorno virtual verificado.$(NC)"
 # =============================================================================
 # VERIFICACIONES DE SISTEMA
 # =============================================================================
