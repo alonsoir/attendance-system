@@ -14,15 +14,18 @@ from backend.core.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+
 class Base:
     @declared_attr
     def __tablename__(cls):
         return cls.__name__.lower()
 
+
 Base = declarative_base(cls=Base)
 
+
 class DatabaseManager:
-    _instance: Optional['DatabaseManager'] = None
+    _instance: Optional["DatabaseManager"] = None
     _engine: Optional[AsyncEngine] = None
     _sessionmaker: Optional[sessionmaker] = None
 
@@ -32,7 +35,7 @@ class DatabaseManager:
         return cls._instance
 
     @classmethod
-    def get_instance(cls) -> 'DatabaseManager':
+    def get_instance(cls) -> "DatabaseManager":
         if cls._instance is None:
             cls._instance = DatabaseManager()
         return cls._instance
@@ -43,9 +46,11 @@ class DatabaseManager:
             logger.info("Inicializando engine de base de datos...")
             try:
                 self._engine = create_async_engine(
-                    settings.DATABASE_URL.replace('postgresql://', 'postgresql+asyncpg://'),
+                    settings.DATABASE_URL.replace(
+                        "postgresql://", "postgresql+asyncpg://"
+                    ),
                     echo=settings.DB_ECHO_LOG,
-                    poolclass=NullPool
+                    poolclass=NullPool,
                 )
                 logger.info("Engine de base de datos inicializado correctamente")
             except Exception as e:
@@ -61,9 +66,7 @@ class DatabaseManager:
                 self.init_engine()
 
             self._sessionmaker = sessionmaker(
-                self._engine,
-                class_=AsyncSession,
-                expire_on_commit=False
+                self._engine, class_=AsyncSession, expire_on_commit=False
             )
 
         return self._sessionmaker
@@ -72,14 +75,7 @@ class DatabaseManager:
         """
         Inicializa la base de datos y crea todas las tablas necesarias.
         """
-        from .models import (
-            School,
-            Tutor,
-            Student,
-            TutorStudent,
-            Conversation,
-            Message
-        )
+        from .models import Conversation, Message, School, Student, Tutor, TutorStudent
 
         logger.info("Iniciando inicialización de base de datos...")
 
@@ -120,6 +116,7 @@ class DatabaseManager:
             self._engine = None
             self._sessionmaker = None
             logger.info("Recursos de base de datos liberados")
+
 
 # Instancia global para usar en la aplicación
 db = DatabaseManager.get_instance()

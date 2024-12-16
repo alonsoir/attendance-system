@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 # Configuración del logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 # Constantes
@@ -31,6 +31,7 @@ IMAGE = "test-postgres-encrypted"  # Usar la imagen personalizada
 USERNAME = "test_user"
 PASSWORD = "test_password"
 DBNAME = "test_db"
+
 
 def get_container_by_partial_name(client, partial_name: str):
     """
@@ -49,7 +50,9 @@ def get_container_by_partial_name(client, partial_name: str):
         if partial_name in container.name:
             logger.info(f"Contenedor encontrado: {container.name}")
             return container
-    raise docker.errors.NotFound(f"No se encontró contenedor con nombre parcial '{partial_name}'")
+    raise docker.errors.NotFound(
+        f"No se encontró contenedor con nombre parcial '{partial_name}'"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -64,7 +67,9 @@ def event_loop():
     loop.run_until_complete(asyncio.gather(*pending))
     loop.close()
 
+
 import socket
+
 
 def is_port_in_use(port: int) -> bool:
     """
@@ -79,10 +84,11 @@ def is_port_in_use(port: int) -> bool:
             # Setting SO_REUSEADDR before bind allows the socket to be bound
             # even if it's in a TIME_WAIT state
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('127.0.0.1', port))
+            s.bind(("127.0.0.1", port))
             return False
     except socket.error:
         return True
+
 
 def get_free_port() -> int:
     """
@@ -95,7 +101,7 @@ def get_free_port() -> int:
     logger.info("Buscando puerto disponible")
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('127.0.0.1', 0))  # Bind to port 0 lets OS pick a free port
+            s.bind(("127.0.0.1", 0))  # Bind to port 0 lets OS pick a free port
             s.listen(1)
             port = s.getsockname()[1]
             logger.info(f"Puerto disponible encontrado: {port}")
@@ -104,23 +110,28 @@ def get_free_port() -> int:
         logger.error(f"Error al buscar puerto disponible: {str(e)}")
         raise RuntimeError(f"No se pudo encontrar un puerto disponible: {str(e)}")
 
+
 def _generate_encrypt_key() -> str:
     """Genera una clave de cifrado segura"""
-    return os.urandom(32).decode('utf-8')
+    return os.urandom(32).decode("utf-8")
+
 
 def _hash_password(password: str) -> str:
     """Hashea una contraseña utilizando bcrypt"""
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
 
 async def _get_admin_role_id(session: AsyncSession) -> str:
     """Obtiene el ID del rol de administrador"""
     result = await session.execute(text("SELECT id FROM roles WHERE name = 'ADMIN'"))
     return result.scalar()
 
+
 async def _get_school_role_id(session: AsyncSession) -> str:
     """Obtiene el ID del rol de escuela"""
     result = await session.execute(text("SELECT id FROM roles WHERE name = 'SCHOOL'"))
     return result.scalar()
+
 
 async def _get_tutor_role_id(session: AsyncSession) -> str:
     """Obtiene el ID del rol de tutor"""
@@ -141,11 +152,15 @@ async def postgres_container(event_loop):
         # Limpieza de contenedor existente
         try:
             existing = get_container_by_partial_name(client, CONTAINER_NAME)
-            logger.info(f"Encontrado contenedor existente {existing.name}. Eliminándolo...")
+            logger.info(
+                f"Encontrado contenedor existente {existing.name}. Eliminándolo..."
+            )
             await _remove_container(existing)
             logger.info(f"Contenedor existente {CONTAINER_NAME} eliminado")
         except docker.errors.NotFound:
-            logger.info(f"No se encontró contenedor existente con nombre parcial {CONTAINER_NAME}")
+            logger.info(
+                f"No se encontró contenedor existente con nombre parcial {CONTAINER_NAME}"
+            )
 
         # Crear nuevo contenedor
         container = client.containers.run(
@@ -154,13 +169,11 @@ async def postgres_container(event_loop):
             environment={
                 "POSTGRES_USER": USERNAME,
                 "POSTGRES_PASSWORD": PASSWORD,
-                "POSTGRES_DB": DBNAME
+                "POSTGRES_DB": DBNAME,
             },
-            ports={
-                '5432/tcp': ('127.0.0.1', port)
-            },
+            ports={"5432/tcp": ("127.0.0.1", port)},
             detach=True,
-            remove=True
+            remove=True,
         )
 
         logger.info(f"Contenedor creado: {container.id}")
@@ -180,6 +193,7 @@ async def postgres_container(event_loop):
             await _remove_container(container)
             logger.info("=== Limpieza completada ===")
 
+
 async def _get_encryption_key(container, port):
     """Obtiene la clave de encriptación generada por el contenedor"""
     async with _get_session(container, port) as session:
@@ -189,15 +203,18 @@ async def _get_encryption_key(container, port):
         key = result.scalar()
         return key
 
+
 async def _wait_for_postgres(container, port):
     max_attempts = 30
     attempt = 0
 
-    port_bindings = container.attrs['NetworkSettings']['Ports']
+    port_bindings = container.attrs["NetworkSettings"]["Ports"]
     logger.info(f"Configuración de puertos: {port_bindings}")
 
     async def try_connect():
-        conn_str = f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
+        conn_str = (
+            f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
+        )
         engine = create_async_engine(conn_str)
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -216,16 +233,20 @@ async def _wait_for_postgres(container, port):
         if attempt % 5 == 0:
             container.reload()
             logger.info(f"Estado del contenedor: {container.status}")
-            logs = container.logs().decode('utf-8')
+            logs = container.logs().decode("utf-8")
             logger.info(f"Últimos logs:\n{logs}")
 
     raise TimeoutError("PostgreSQL no está disponible después de 30 intentos")
 
 
-async def _load_schema(container: docker.models.containers.Container, port: int) -> None:
+async def _load_schema(
+    container: docker.models.containers.Container, port: int
+) -> None:
     """Carga el esquema de la base de datos"""
     logger.info("Cargando esquema de la base de datos...")
-    schema_path = Path(__file__).resolve().parent.parent / "db" / "schema" / "init_database.sh"
+    schema_path = (
+        Path(__file__).resolve().parent.parent / "db" / "schema" / "init_database.sh"
+    )
 
     if not schema_path.exists():
         logger.error(f"Archivo de esquema no encontrado en {schema_path}")
@@ -237,8 +258,11 @@ async def _load_schema(container: docker.models.containers.Container, port: int)
         await session.commit()
         logger.info("Esquema de base de datos cargado exitosamente")
 
+
 @asynccontextmanager
-async def _get_session(container: docker.models.containers.Container, port: int, timeout: float = 480.0) -> AsyncGenerator[AsyncSession, None]:
+async def _get_session(
+    container: docker.models.containers.Container, port: int, timeout: float = 480.0
+) -> AsyncGenerator[AsyncSession, None]:
     """Proporciona una sesión de base de datos utilizando el contenedor de PostgreSQL"""
     logger.info("Creando sesión de base de datos")
 
@@ -257,20 +281,36 @@ async def _get_session(container: docker.models.containers.Container, port: int,
         logger.error(f"Tipo de error: {type(e)}")
         raise
 
+
 def _get_db_url(container: docker.models.containers.Container, port: int) -> str:
     """Obtiene la URL de conexión a la base de datos"""
     return f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
 
-async def _load_test_data(container: docker.models.containers.Container, port: int) -> None:
+
+async def _load_test_data(
+    container: docker.models.containers.Container, port: int
+) -> None:
     """Carga datos iniciales de prueba"""
     logger.info("=== Iniciando carga de datos de prueba ===")
 
     async with _get_session(container, port) as session:
         try:
             # Crear usuarios de prueba
-            admin_user = User(username="admin", password_hash=_hash_password("admin_password"), role_id=await _get_admin_role_id(session))
-            school_user = User(username="school_user", password_hash=_hash_password("school_password"), role_id=await _get_school_role_id(session))
-            tutor_user = User(username="tutor_user", password_hash=_hash_password("tutor_password"), role_id=await _get_tutor_role_id(session))
+            admin_user = User(
+                username="admin",
+                password_hash=_hash_password("admin_password"),
+                role_id=await _get_admin_role_id(session),
+            )
+            school_user = User(
+                username="school_user",
+                password_hash=_hash_password("school_password"),
+                role_id=await _get_school_role_id(session),
+            )
+            tutor_user = User(
+                username="tutor_user",
+                password_hash=_hash_password("tutor_password"),
+                role_id=await _get_tutor_role_id(session),
+            )
             session.add_all([admin_user, school_user, tutor_user])
             await session.commit()
 
@@ -279,6 +319,7 @@ async def _load_test_data(container: docker.models.containers.Container, port: i
         except Exception as e:
             logger.error(f"Error cargando datos de prueba: {e}")
             raise
+
 
 async def _remove_container(container, retries=3):
     """Helper function to remove a container with retries"""
@@ -290,7 +331,9 @@ async def _remove_container(container, retries=3):
             return True
         except Exception as e:
             if attempt == retries - 1:  # Último intento
-                logger.error(f"No se pudo eliminar el contenedor después de {retries} intentos: {e}")
+                logger.error(
+                    f"No se pudo eliminar el contenedor después de {retries} intentos: {e}"
+                )
                 return False
             logger.warning(f"Intento {attempt + 1} fallido al eliminar contenedor: {e}")
             await asyncio.sleep(1)  # Esperar antes del siguiente intento
@@ -311,7 +354,7 @@ async def db_session(postgres_container) -> AsyncGenerator[DatabaseManager, None
         POSTGRES_PASSWORD=PASSWORD,
         POSTGRES_DB=DBNAME,
         POSTGRES_PORT=port,
-        POSTGRES_SERVER="localhost"
+        POSTGRES_SERVER="localhost",
     )
 
     db_manager = DatabaseManager.get_instance(settings=test_settings)
@@ -323,13 +366,16 @@ async def db_session(postgres_container) -> AsyncGenerator[DatabaseManager, None
         await db_manager.disconnect()
         logger.info("=== FIN db_session fixture ===")
 
+
 @pytest.fixture(scope="function")
 async def admin_user(db_session: DatabaseManager) -> User:
     return await db_session.get_user("admin")
 
+
 @pytest.fixture(scope="function")
 async def school_user(db_session: DatabaseManager) -> User:
     return await db_session.get_user("school_user")
+
 
 @pytest.fixture(scope="function")
 async def tutor_user(db_session: DatabaseManager) -> User:
@@ -349,7 +395,7 @@ async def cleanup_after_test(postgres_container):
         container, port, encrypt_key = postgres_container
 
         # Obtener logs del contenedor
-        logs = container.logs().decode('utf-8')
+        logs = container.logs().decode("utf-8")
         logger.info(f"Logs del contenedor durante el test:\n{logs}")
 
         # Verificar estado del contenedor

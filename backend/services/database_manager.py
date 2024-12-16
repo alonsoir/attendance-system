@@ -7,20 +7,22 @@ from typing import Any, Optional
 
 import asyncpg
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 from backend.core.config import get_settings
-from backend.db.models_acl import User, AuditLog
+from backend.db.models_acl import AuditLog, User
 
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
+
 class DatabaseManager:
     """
     Singleton que gestiona la conexión a la base de datos PostgreSQL.
     """
-    _instance: Optional['DatabaseManager'] = None
+
+    _instance: Optional["DatabaseManager"] = None
     _lock = threading.Lock()
 
     def __init__(self, settings=None, encrypt_key=None):
@@ -31,12 +33,12 @@ class DatabaseManager:
         self.engine = create_engine(
             f"postgresql+asyncpg://{self.settings.POSTGRES_USER}:{self.settings.POSTGRES_PASSWORD}"
             f"@{self.settings.POSTGRES_SERVER}:{self.settings.POSTGRES_PORT}/{self.settings.POSTGRES_DB}",
-            echo=True  # Para pruebas, podríamos parametrizar esto también
+            echo=True,  # Para pruebas, podríamos parametrizar esto también
         )
         self.session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
 
     @classmethod
-    def get_instance(cls, settings=None, encrypt_key=None) -> 'DatabaseManager':
+    def get_instance(cls, settings=None, encrypt_key=None) -> "DatabaseManager":
         """
         Obtiene la instancia única del DatabaseManager.
         Permite inyección de configuración para pruebas.
@@ -68,7 +70,7 @@ class DatabaseManager:
                 port=self.settings.POSTGRES_PORT,
                 database=self.settings.POSTGRES_DB,
                 min_size=2,
-                max_size=10
+                max_size=10,
             )
 
             # Verificar que la encriptación está inicializada
@@ -103,7 +105,9 @@ class DatabaseManager:
     from typing import AsyncGenerator
 
     @asynccontextmanager
-    async def transaction(self, user: User = None) -> AsyncGenerator[asyncpg.Connection, None]:
+    async def transaction(
+        self, user: User = None
+    ) -> AsyncGenerator[asyncpg.Connection, None]:
         """
         Proporciona un contexto de transacción para ejecutar consultas.
         User es opcional para permitir pruebas sin usuario.
@@ -113,14 +117,20 @@ class DatabaseManager:
                 async with conn.transaction():
                     yield conn
                     if user:
-                        await self._log_audit_event(user, "TRANSACTION_COMMITTED", "DATABASE")
+                        await self._log_audit_event(
+                            user, "TRANSACTION_COMMITTED", "DATABASE"
+                        )
             except Exception as e:
                 logger.error(f"Error durante la transacción: {e}")
                 if user:
-                    await self._log_audit_event(user, "TRANSACTION_ROLLBACK", "DATABASE")
+                    await self._log_audit_event(
+                        user, "TRANSACTION_ROLLBACK", "DATABASE"
+                    )
                 raise
 
-    async def execute_procedure(self, user: User, procedure_name: str, *args: Any) -> None:
+    async def execute_procedure(
+        self, user: User, procedure_name: str, *args: Any
+    ) -> None:
         """
         Ejecuta un procedimiento almacenado en la base de datos.
         """
@@ -133,10 +143,14 @@ class DatabaseManager:
                 await conn.execute(query, *args)
 
             logger.info(f"Procedimiento '{procedure_name}' ejecutado correctamente")
-            await self._log_audit_event(user, f"EXECUTED_PROCEDURE:{procedure_name}", "DATABASE")
+            await self._log_audit_event(
+                user, f"EXECUTED_PROCEDURE:{procedure_name}", "DATABASE"
+            )
         except (asyncpg.PostgresError, Exception) as e:
             logger.error(f"Error al ejecutar el procedimiento '{procedure_name}': {e}")
-            await self._log_audit_event(user, f"FAILED_PROCEDURE:{procedure_name}", "DATABASE")
+            await self._log_audit_event(
+                user, f"FAILED_PROCEDURE:{procedure_name}", "DATABASE"
+            )
             raise
 
     async def get_schools(self, user: User) -> list[dict]:
@@ -146,7 +160,8 @@ class DatabaseManager:
         try:
             logger.info("Obteniendo escuelas...")
             async with self.pool.acquire() as conn:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT 
                         id,
                         decrypt_value(name) as name,
@@ -154,7 +169,8 @@ class DatabaseManager:
                         decrypt_value(address) as address,
                         decrypt_value(country) as country
                     FROM schools
-                """)
+                """
+                )
 
                 schools = [dict(row) for row in rows]
                 await self._log_audit_event(user, "GET_SCHOOLS", "DATABASE")
@@ -172,12 +188,15 @@ class DatabaseManager:
         try:
             logger.info(f"Obteniendo usuario: {username}")
             async with self.pool.acquire() as conn:
-                row = await conn.fetchrow("""
+                row = await conn.fetchrow(
+                    """
                     SELECT id, decrypt_value(username) as username, 
                            password_hash, role_id
                     FROM users
                     WHERE decrypt_value(username) = $1
-                """, username)
+                """,
+                    username,
+                )
 
                 if not row:
                     return None
@@ -193,7 +212,9 @@ class DatabaseManager:
         Obtiene la capacidad máxima de conexiones del contenedor PostgreSQL.
         """
         try:
-            logger.info("Obteniendo capacidad máxima de conexiones del contenedor PostgreSQL...")
+            logger.info(
+                "Obteniendo capacidad máxima de conexiones del contenedor PostgreSQL..."
+            )
             async with self.pool.acquire() as conn:
                 result = await conn.fetch("SHOW max_connections;")
                 max_connections = int(result[0]["max_connections"])
@@ -213,7 +234,7 @@ class DatabaseManager:
                     user_id=user.id,
                     action=action,
                     resource=resource,
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
                 session.add(audit_log)
                 await session.commit()
@@ -239,26 +260,40 @@ class DatabaseManager:
         try:
             async with self.pool.acquire() as conn:
                 # Verificar conexiones activas
-                result = await conn.fetch("SELECT COUNT(*) AS active_connections FROM pg_stat_activity;")
+                result = await conn.fetch(
+                    "SELECT COUNT(*) AS active_connections FROM pg_stat_activity;"
+                )
                 active_connections = result[0]["active_connections"]
                 logger.info(f"Conexiones activas: {active_connections}")
 
                 # Verificar latencia de consultas
-                result = await conn.fetch("SELECT now() - pg_backend_timestamp() AS query_latency;")
+                result = await conn.fetch(
+                    "SELECT now() - pg_backend_timestamp() AS query_latency;"
+                )
                 query_latency = result[0]["query_latency"].total_seconds()
                 logger.info(f"Latencia de consultas: {query_latency} segundos")
 
                 # Verificar espacio en disco
-                result = await conn.fetch("SELECT pg_database_size(current_database()) AS database_size;")
+                result = await conn.fetch(
+                    "SELECT pg_database_size(current_database()) AS database_size;"
+                )
                 database_size = result[0]["database_size"]
-                logger.info(f"Tamaño de la base de datos: {database_size / (1024 ** 3):.2f} GB")
+                logger.info(
+                    f"Tamaño de la base de datos: {database_size / (1024 ** 3):.2f} GB"
+                )
 
                 # Registrar métricas en un sistema de monitorización (p.ej. Prometheus)
-                self._record_database_metrics(active_connections, query_latency, database_size)
+                self._record_database_metrics(
+                    active_connections, query_latency, database_size
+                )
         except Exception as e:
-            logger.error(f"Error al verificar el estado de salud de la base de datos: {e}")
+            logger.error(
+                f"Error al verificar el estado de salud de la base de datos: {e}"
+            )
 
-    def _record_database_metrics(self, active_connections: int, query_latency: float, database_size: int) -> None:
+    def _record_database_metrics(
+        self, active_connections: int, query_latency: float, database_size: int
+    ) -> None:
         """
         Registra métricas de la base de datos en un sistema de monitorización.
         """

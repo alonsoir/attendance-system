@@ -2,14 +2,17 @@ import re
 from enum import Enum
 from typing import Dict
 
+
 # Constants
 class Language(str, Enum):
     EN_US = "en-US"
     ES_ES = "es-ES"
 
+
 class Region(str, Enum):
     US = "US"
     ES = "ES"
+
 
 # Service Status Constants
 SERVICE_STATUS = {

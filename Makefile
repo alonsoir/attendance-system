@@ -1,11 +1,15 @@
 # =============================================================================
-# DECLARACIÓN DE PHONY TARGETS
+# DECLARACIÓN DE PHONY TARGETS (actualizado)
 # =============================================================================
 .PHONY: help check-docker check-environment check-deps validate-versions check-env \
         generate-secret install backend-build frontend-install frontend-build \
         dev prod run format lint test tests-unit tests-integration \
-        test-with-containers-without-stored-procedures-acl-encryption test-in-docker docker-build docker-run docker-stop \
-        db-init db-reset db-seed db-setup
+        test-with-containers-without-stored-procedures-acl-encryption \
+        test-with-containers-with-stored-procedures-acl-encryption test-in-docker \
+        docker-build docker-run docker-stop docker-all \
+        db-init db-reset db-seed db-setup \
+        postgres-acl-build postgres-acl-service postgres-acl-scale postgres-acl-replicate \
+        postgres-acl-remove postgres-acl-all
 
 # =============================================================================
 # VARIABLES Y CONFIGURACIÓN
@@ -25,6 +29,13 @@ LOG_DIR = logs
 FRONTEND_PATH = frontend
 BACKEND_PATH = backend
 DOCKER_COMPOSE_FILE = docker-compose.yml
+
+POSTGRES_PATH = postgresql
+POSTGRES_VERSION = 15
+POSTGRES_IMAGE_NAME = test-postgres-encrypted
+POSTGRES_SERVICE_NAME = test-postgres-encrypted
+POSTGRES_REPLICAS = 3
+POSTGRES_SCALE = 5
 
 # Colores y emojis
 include mk/colors.mk
@@ -76,6 +87,43 @@ frontend-install:
 	@cd $(FRONTEND_PATH) && npm ci
 	@echo "$(GREEN)$(EMOJI_CHECK) Frontend instalado.$(NC)"
 
+frontend-build:
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo frontend...$(NC)"
+	@cd $(FRONTEND_PATH) && npm run build
+	@echo "$(GREEN)$(EMOJI_CHECK) Frontend construido.$(NC)"
+
+# =============================================================================
+# FORMATEO Y LINTING
+# =============================================================================
+format: format-backend format-frontend
+	@echo "$(GREEN)$(EMOJI_CHECK) Formateo completado.$(NC)"
+
+format-backend: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Formateando código backend...$(NC)"
+	@cd $(BACKEND_PATH) && poetry run black .
+	@cd $(BACKEND_PATH) && poetry run isort .
+	@echo "$(GREEN)$(EMOJI_CHECK) Código backend formateado.$(NC)"
+
+format-frontend:
+	@echo "$(BLUE)$(EMOJI_INFO) Formateando código frontend...$(NC)"
+	@cd $(FRONTEND_PATH) && npm run format
+	@echo "$(GREEN)$(EMOJI_CHECK) Código frontend formateado.$(NC)"
+
+lint: lint-backend lint-frontend
+	@echo "$(GREEN)$(EMOJI_CHECK) Linting completado.$(NC)"
+
+lint-backend: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando linting en backend...$(NC)"
+	@cd $(BACKEND_PATH) && poetry run flake8 .
+	@cd $(BACKEND_PATH) && poetry run mypy .
+	@cd $(BACKEND_PATH) && poetry run pylint **/*.py
+	@echo "$(GREEN)$(EMOJI_CHECK) Linting backend completado.$(NC)"
+
+lint-frontend:
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando linting en frontend...$(NC)"
+	@cd $(FRONTEND_PATH) && npm run lint
+	@echo "$(GREEN)$(EMOJI_CHECK) Linting frontend completado.$(NC)"
+
 # =============================================================================
 # BASE DE DATOS
 # =============================================================================
@@ -91,6 +139,11 @@ db-reset: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Reseteando base de datos...$(NC)"
 	@python -m backend.db.reset_db
 	@echo "$(GREEN)$(EMOJI_CHECK) Base de datos reseteada.$(NC)"
+
+db-seed: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Sembrando datos iniciales...$(NC)"
+	@python -m backend.db.seed_db
+	@echo "$(GREEN)$(EMOJI_CHECK) Datos iniciales sembrados.$(NC)"
 
 # =============================================================================
 # TESTS
@@ -113,6 +166,7 @@ test-with-containers-without-stored-procedures-acl-encryption: check-environment
 test-with-containers-with-stored-procedures-acl-encryption: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
 	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
+
 # =============================================================================
 # DOCKER
 # =============================================================================
@@ -122,6 +176,16 @@ docker-build: check-docker check-env
 	@echo "$(BLUE)$(EMOJI_INFO) Construyendo contenedores...$(NC)"
 	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) build
 	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores construidos.$(NC)"
+
+docker-run: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Iniciando contenedores...$(NC)"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores iniciados.$(NC)"
+
+docker-stop: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Deteniendo contenedores...$(NC)"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) down
+	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores detenidos.$(NC)"
 
 # =============================================================================
 # DESARROLLO Y PRODUCCIÓN
@@ -135,6 +199,56 @@ prod: check-docker
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) up $(APP_NAME)-backend $(APP_NAME)-frontend
 
 # =============================================================================
+# POSTGRESQL CON ACL Y ENCRIPTACIÓN
+# =============================================================================
+postgres-acl-all: postgres-acl-build postgres-acl-service
+
+postgres-acl-build: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo imagen PostgreSQL personalizada con ACL y encriptación...$(NC)"
+	@cd $(POSTGRES_PATH) && ./build_pg_container_acl_encrypt_decrypt_test.sh
+	@echo "$(GREEN)$(EMOJI_CHECK) Imagen PostgreSQL personalizada construida.$(NC)"
+
+postgres-acl-service: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Iniciando servicio PostgreSQL en Docker Swarm...$(NC)"
+	@if ! docker node ls > /dev/null 2>&1; then \
+		echo "$(BLUE)$(EMOJI_INFO) Inicializando Docker Swarm...$(NC)"; \
+		docker swarm init --advertise-addr 127.0.0.1 || true; \
+	fi
+	@cd $(POSTGRES_PATH) && ./build_pg_container_acl_encrypt_decrypt_test.sh
+	@echo "$(GREEN)$(EMOJI_CHECK) Servicio PostgreSQL iniciado.$(NC)"
+
+postgres-acl-scale: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Escalando servicio PostgreSQL...$(NC)"
+	@cd $(POSTGRES_PATH) && ./scale_postgres_encrypted.sh $(POSTGRES_SCALE)
+	@echo "$(GREEN)$(EMOJI_CHECK) Servicio PostgreSQL escalado a $(POSTGRES_SCALE) instancias.$(NC)"
+
+postgres-acl-replicate: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Creando réplicas de PostgreSQL...$(NC)"
+	@cd $(POSTGRES_PATH) && ./replica_postgres_encrypted.sh $(POSTGRES_REPLICAS)
+	@echo "$(GREEN)$(EMOJI_CHECK) Creadas $(POSTGRES_REPLICAS) réplicas de PostgreSQL.$(NC)"
+
+postgres-acl-remove: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Removiendo servicios PostgreSQL...$(NC)"
+	@cd $(POSTGRES_PATH) && ./remove_postgres_encrypted.sh
+	@echo "$(GREEN)$(EMOJI_CHECK) Servicios PostgreSQL removidos.$(NC)"
+
+postgres-acl-status: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Estado de servicios PostgreSQL:$(NC)"
+	@docker service ls | grep $(POSTGRES_SERVICE_NAME)
+	@echo "$(BLUE)$(EMOJI_INFO) Nodos del swarm:$(NC)"
+	@docker node ls
+	@echo "$(BLUE)$(EMOJI_INFO) Contenedores en ejecución:$(NC)"
+	@docker ps | grep $(POSTGRES_SERVICE_NAME)
+
+# Actualizar las dependencias de los tests
+test-with-containers-with-stored-procedures-acl-encryption: check-environment postgres-acl-service
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
+	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
+
+
+
+
+# =============================================================================
 # AYUDA
 # =============================================================================
 help:
@@ -144,20 +258,40 @@ help:
 	@echo "    make prod                 - Iniciar en modo producción"
 	@echo "    make install              - Instalar todas las dependencias"
 	@echo ""
+	@echo "  Calidad de código:"
+	@echo "    make format               - Formatear todo el código"
+	@echo "    make format-backend       - Formatear código backend"
+	@echo "    make format-frontend      - Formatear código frontend"
+	@echo "    make lint                 - Ejecutar linting en todo el código"
+	@echo "    make lint-backend         - Ejecutar linting en backend"
+	@echo "    make lint-frontend        - Ejecutar linting en frontend"
+	@echo ""
 	@echo "  Base de datos:"
 	@echo "    make db-setup             - Configurar base de datos completa"
 	@echo "    make db-init              - Inicializar base de datos"
 	@echo "    make db-reset             - Resetear base de datos"
+	@echo "    make db-seed              - Sembrar datos iniciales"
 	@echo ""
 	@echo "  Tests:"
 	@echo "    make test                 - Ejecutar todos los tests"
 	@echo "    make tests-unit           - Ejecutar tests unitarios"
 	@echo "    make tests-integration    - Ejecutar tests de integración"
-	@echo "    make test-with-containers-without-stored-procedures-acl-encryption - Ejecutar tests con contenedores"
+	@echo "    make test-with-containers-without-stored-procedures-acl-encryption    - Ejecutar tests con contenedores sin SP"
+	@echo "    make test-with-containers-with-stored-procedures-acl-encryption      - Ejecutar tests con contenedores con SP"
 	@echo ""
 	@echo "  Docker:"
 	@echo "    make docker-build         - Construir contenedores"
 	@echo "    make docker-run           - Iniciar contenedores"
 	@echo "    make docker-stop          - Detener contenedores"
+	@echo "    make docker-all           - Construir e iniciar contenedores"
+	@echo "    make docker-clean         - Detener y eliminar contenedores"@echo ""
+	@echo "  PostgreSQL con ACL y Encriptación:"
+	@echo "    make postgres-acl-all          - Construir e iniciar PostgreSQL con ACL"
+	@echo "    make postgres-acl-build        - Construir imagen PostgreSQL personalizada"
+	@echo "    make postgres-acl-service      - Iniciar servicio PostgreSQL en Swarm"
+	@echo "    make postgres-acl-scale        - Escalar servicio PostgreSQL"
+	@echo "    make postgres-acl-replicate    - Crear réplicas de PostgreSQL"
+	@echo "    make postgres-acl-remove       - Remover servicios PostgreSQL"
+	@echo "    make postgres-acl-status       - Ver estado de servicios PostgreSQL"
 
 .DEFAULT_GOAL := help

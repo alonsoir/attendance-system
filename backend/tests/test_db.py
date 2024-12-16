@@ -10,9 +10,9 @@ from backend.tests.utils.docker_check import check_docker
 logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.skipif(
-    not check_docker(),
-    reason="Docker no está disponible o no está corriendo"
+    not check_docker(), reason="Docker no está disponible o no está corriendo"
 )
+
 
 @pytest.mark.asyncio
 async def test_connection_details(postgres_container):
@@ -24,9 +24,11 @@ async def test_connection_details(postgres_container):
     assert port is not None
 
 
+import uuid
+
 import pytest
 from sqlalchemy import text
-import uuid
+
 
 @pytest.mark.asyncio
 async def test_schema_creation(db_session):
@@ -39,14 +41,21 @@ async def test_schema_creation(db_session):
     logger.info(f"Conectado a base de datos: {db_name}")
 
     tables = [
-        'schools', 'tutors', 'students', 'tutor_student',
-        'conversations', 'messages', 'service_status'
+        "schools",
+        "tutors",
+        "students",
+        "tutor_student",
+        "conversations",
+        "messages",
+        "service_status",
     ]
 
     for table in tables:
         logger.info(f"Verificando existencia de tabla: {table}")
         result = await db_session.execute(
-            text(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table}')")
+            text(
+                f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table}')"
+            )
         )
         exists = result.scalar()
         logger.info(f"Tabla {table} existe: {exists}")
@@ -61,59 +70,58 @@ async def test_school_crud_operations(db_session):
     # CREATE
     school_id = str(uuid.uuid4())
     await db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO schools (id, name, phone, address, country)
         VALUES (:id, :name, :phone, :address, :country)
-        """),
+        """
+        ),
         {
-            'id': school_id,
-            'name': 'Test School',
-            'phone': '+34666777888',
-            'address': 'Test Address 123',
-            'country': 'Spain'
-        }
+            "id": school_id,
+            "name": "Test School",
+            "phone": "+34666777888",
+            "address": "Test Address 123",
+            "country": "Spain",
+        },
     )
     await db_session.commit()
 
     # READ
     result = await db_session.execute(
-        text("SELECT * FROM schools WHERE id = :id"),
-        {'id': school_id}
+        text("SELECT * FROM schools WHERE id = :id"), {"id": school_id}
     )
     school = result.fetchone()
-    assert school.name == 'Test School'
-    assert school.phone == '+34666777888'
-    assert school.address == 'Test Address 123'
-    assert school.country == 'Spain'
+    assert school.name == "Test School"
+    assert school.phone == "+34666777888"
+    assert school.address == "Test Address 123"
+    assert school.country == "Spain"
 
     # UPDATE
     await db_session.execute(
         text("UPDATE schools SET name = :name WHERE id = :id"),
-        {'id': school_id, 'name': 'Updated School Name'}
+        {"id": school_id, "name": "Updated School Name"},
     )
     await db_session.commit()
 
     result = await db_session.execute(
-        text("SELECT name FROM schools WHERE id = :id"),
-        {'id': school_id}
+        text("SELECT name FROM schools WHERE id = :id"), {"id": school_id}
     )
     updated_name = result.fetchone()[0]
-    assert updated_name == 'Updated School Name'
+    assert updated_name == "Updated School Name"
 
     # DELETE
     await db_session.execute(
-        text("DELETE FROM schools WHERE id = :id"),
-        {'id': school_id}
+        text("DELETE FROM schools WHERE id = :id"), {"id": school_id}
     )
     await db_session.commit()
 
     result = await db_session.execute(
-        text("SELECT COUNT(*) FROM schools WHERE id = :id"),
-        {'id': school_id}
+        text("SELECT COUNT(*) FROM schools WHERE id = :id"), {"id": school_id}
     )
     count = result.scalar()
     assert count == 0
     logger.info("Prueba de operaciones CRUD en schools completada")
+
 
 @pytest.mark.asyncio
 async def test_relationships(db_session):
@@ -123,48 +131,54 @@ async def test_relationships(db_session):
     # Crear una escuela
     school_id = str(uuid.uuid4())
     await db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO schools (id, name, phone, address, country)
         VALUES (:id, :name, :phone, :address, :country)
-        """),
+        """
+        ),
         {
-            'id': school_id,
-            'name': 'Test School',
-            'phone': '+34666777888',
-            'address': 'Test Address 123',
-            'country': 'Spain'
-        }
+            "id": school_id,
+            "name": "Test School",
+            "phone": "+34666777888",
+            "address": "Test Address 123",
+            "country": "Spain",
+        },
     )
 
     # Crear un estudiante asociado a la escuela
     student_id = str(uuid.uuid4())
     await db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO students (id, name, date_of_birth, school_id)
         VALUES (:id, :name, :dob, :school_id)
-        """),
+        """
+        ),
         {
-            'id': student_id,
-            'name': 'Test Student',
-            'dob': date(2010, 1, 1),
-            'school_id': school_id
-        }
+            "id": student_id,
+            "name": "Test Student",
+            "dob": date(2010, 1, 1),
+            "school_id": school_id,
+        },
     )
     await db_session.commit()
 
     # Verificar la relación
     result = await db_session.execute(
-        text("""
+        text(
+            """
         SELECT s.name as student_name, sch.name as school_name
         FROM students s
         JOIN schools sch ON s.school_id = sch.id
         WHERE s.id = :student_id
-        """),
-        {'student_id': student_id}
+        """
+        ),
+        {"student_id": student_id},
     )
     row = result.fetchone()
-    assert row.student_name == 'Test Student'
-    assert row.school_name == 'Test School'
+    assert row.student_name == "Test Student"
+    assert row.school_name == "Test School"
 
 
 @pytest.mark.asyncio
@@ -177,38 +191,43 @@ async def test_constraints(db_session):
     school_id2 = str(uuid.uuid4())
 
     await db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO schools (id, name, phone, address, country)
         VALUES (:id, :name, :phone, :address, :country)
-        """),
+        """
+        ),
         {
-            'id': school_id1,
-            'name': 'Test School 1',
-            'phone': '+34666777888',
-            'address': 'Test Address 123',
-            'country': 'Spain'
-        }
+            "id": school_id1,
+            "name": "Test School 1",
+            "phone": "+34666777888",
+            "address": "Test Address 123",
+            "country": "Spain",
+        },
     )
     await db_session.commit()
 
     # Intentar insertar otra escuela con el mismo teléfono
     with pytest.raises(Exception) as exc_info:
         await db_session.execute(
-            text("""
+            text(
+                """
             INSERT INTO schools (id, name, phone, address, country)
             VALUES (:id, :name, :phone, :address, :country)
-            """),
+            """
+            ),
             {
-                'id': school_id2,
-                'name': 'Test School 2',
-                'phone': '+34666777888',  # Mismo teléfono
-                'address': 'Test Address 456',
-                'country': 'Spain'
-            }
+                "id": school_id2,
+                "name": "Test School 2",
+                "phone": "+34666777888",  # Mismo teléfono
+                "address": "Test Address 456",
+                "country": "Spain",
+            },
         )
         await db_session.commit()
 
     assert "duplicate key value violates unique constraint" in str(exc_info.value)
+
 
 @pytest.mark.asyncio
 async def test_school_creation(db_session):
@@ -218,6 +237,7 @@ async def test_school_creation(db_session):
     schools = result.scalars().all()
     logger.info(f"Encontradas {len(schools)} escuelas")
     assert len(schools) == 2
+
 
 @pytest.mark.asyncio
 async def test_database_connection(db_session):

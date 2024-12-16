@@ -1,10 +1,11 @@
 import uuid
 
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = "users"
@@ -17,6 +18,7 @@ class User(Base):
     role = relationship("Role", back_populates="users")
     audit_logs = relationship("AuditLog", back_populates="user")
 
+
 class Role(Base):
     __tablename__ = "roles"
 
@@ -24,7 +26,10 @@ class Role(Base):
     name = Column(String, nullable=False, unique=True)
 
     users = relationship("User", back_populates="role")
-    permissions = relationship("Permission", secondary="role_permissions", back_populates="roles")
+    permissions = relationship(
+        "Permission", secondary="role_permissions", back_populates="roles"
+    )
+
 
 class Permission(Base):
     __tablename__ = "permissions"
@@ -32,13 +37,19 @@ class Permission(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False, unique=True)
 
-    roles = relationship("Role", secondary="role_permissions", back_populates="permissions")
+    roles = relationship(
+        "Role", secondary="role_permissions", back_populates="permissions"
+    )
+
 
 class RolePermission(Base):
     __tablename__ = "role_permissions"
 
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id"), primary_key=True)
-    permission_id = Column(UUID(as_uuid=True), ForeignKey("permissions.id"), primary_key=True)
+    permission_id = Column(
+        UUID(as_uuid=True), ForeignKey("permissions.id"), primary_key=True
+    )
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
