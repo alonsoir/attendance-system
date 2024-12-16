@@ -28,6 +28,48 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Check .env-development file
+        run: ls -la .env-development || echo "El archivo .env-development no existe"
+
+      - name: Create .env-development file
+        run: |
+          echo "Creating .env-development file..."
+          echo "PROJECT_NAME=${{ secrets.PROJECT_NAME }}" >> .env-development
+          echo "PROJECT_DESCRIPTION=${{ secrets.PROJECT_DESCRIPTION }}" >> .env-development
+          echo "VERSION=${{ secrets.VERSION }}" >> .env-development
+          
+          echo "API_V1_STR=${{ secrets.API_V1_STR }}" >> .env-development
+          echo "BACKEND_CORS_ORIGINS=${{ secrets.BACKEND_CORS_ORIGINS }}" >> .env-development
+          echo "ENABLE_METRICS=${{ secrets.ENABLE_METRICS }}" >> .env-development
+          
+          echo "PROMETHEUS_PORT=${{ secrets.PROMETHEUS_PORT }}" >> .env-development
+          echo "GRAFANA_PORT=${{ secrets.GRAFANA_PORT }}" >> .env-development
+          echo "GRAFANA_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}" >> .env-development
+          
+          echo "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" >> .env-development
+          echo "ENABLE_WHATSAPP_CALLBACK=${{ secrets.ENABLE_WHATSAPP_CALLBACK }}" >> .env-development
+          echo "MOCK_EXTERNAL_SERVICES=${{ secrets.MOCK_EXTERNAL_SERVICES }}" >> .env-development
+          
+          echo "POSTGRES_SERVER=${{ secrets.POSTGRES_SERVER }}" >> .env-development
+          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env-development
+          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env-development
+          
+          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env-development
+          echo "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" >> .env-development
+          echo "REDIS_HOST=${{ secrets.REDIS_HOST }}" >> .env-development
+          
+          echo "REDIS_PORT=${{ secrets.REDIS_PORT }}" >> .env-development
+          echo "REDIS_URL=${{ secrets.REDIS_URL }}" >> .env-development
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env-development
+          
+          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env-development
+          echo "WHATSAPP_CALLBACK_TOKEN=${{ secrets.WHATSAPP_CALLBACK_TOKEN }}" >> .env-development
+          echo "WHATSAPP_META_API_KEY=${{ secrets.WHATSAPP_META_API_KEY }}" >> .env-development
+        
+          echo "WHATSAPP_PROVIDER=${{ secrets.WHATSAPP_PROVIDER }}" >> .env-development
+          echo "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" >> .env-development
+          echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> .env-development
+          echo ".env-development file created successfully."
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

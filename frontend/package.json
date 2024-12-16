@@ -11,7 +11,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "init:env": "python init_env.py"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",

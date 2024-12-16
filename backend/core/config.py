@@ -1,6 +1,7 @@
 """
 Configuración de la aplicación.
 """
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,6 +37,11 @@ class Settings(BaseSettings):
     VITE_API_URL: str
     # todo refactorize this to load different settings for each environment
     model_config = SettingsConfigDict(env_file=".env-development")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not os.path.exists(".env-development"):
+            raise FileNotFoundError("El archivo .env-development no se encontró")
 
     def print_settings(self):
         model_dump = self.model_dump()
