@@ -105,7 +105,7 @@ jobs:
           path: |
               logs/bandit-results.json
               logs/safety-report.txt  # Si añades output de safety
-            retention-days: 7
+          retention-days: 7
 
   build:
     name: Build Docker Images
