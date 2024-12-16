@@ -85,14 +85,27 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Create logs directory
+        run: mkdir -p logs
+
       - name: Install security tools
         run: |
-          pip install safety bandit gitguardian-scanner
+          pip install safety bandit ggshield
 
       - name: Run security checks
         env:
-          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+          GITGUARDIAN_API_KEY: ${{ secrets.Attendance_System }}
         run: make security-check
+
+      - name: Upload security scan results
+        if: always()  # Esto asegura que se suban incluso si los checks fallan
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-scan-results
+          path: |
+              logs/bandit-results.json
+              logs/safety-report.txt  # Si añades output de safety
+            retention-days: 7
 
   build:
     name: Build Docker Images

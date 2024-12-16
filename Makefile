@@ -9,7 +9,7 @@
         docker-build docker-run docker-stop docker-all \
         db-init db-reset db-seed db-setup \
         postgres-acl-build postgres-acl-service postgres-acl-scale postgres-acl-replicate \
-        postgres-acl-remove postgres-acl-all
+        postgres-acl-remove postgres-acl-all security-check security-bandit security-safety security-gitguardian
 
 # =============================================================================
 # VARIABLES Y CONFIGURACIÓN
@@ -245,7 +245,30 @@ test-with-containers-with-stored-procedures-acl-encryption: check-environment po
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
 	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
 
+# =============================================================================
+# SECURITY CHECKS
+# =============================================================================
 
+security-check: check-environment security-bandit security-safety security-gitguardian
+	@echo "$(GREEN)$(EMOJI_CHECK) Verificaciones de seguridad completadas.$(NC)"
+
+security-bandit: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando análisis de seguridad con Bandit...$(NC)"
+	@cd $(BACKEND_PATH) && bandit -r . -f json -o ../$(LOG_DIR)/bandit-results.json
+	@echo "$(GREEN)$(EMOJI_CHECK) Análisis Bandit completado.$(NC)"
+
+security-safety: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando dependencias con Safety...$(NC)"
+	@cd $(BACKEND_PATH) && safety check
+	@echo "$(GREEN)$(EMOJI_CHECK) Verificación Safety completada.$(NC)"
+
+security-gitguardian: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando escaneo con GitGuardian...$(NC)"
+	@if [ -z "$$GITGUARDIAN_API_KEY" ]; then \
+		echo "$(RED)$(EMOJI_ERROR) GITGUARDIAN_API_KEY no está configurada$(NC)" && exit 1; \
+	fi
+	@cd $(BACKEND_PATH) && ggshield secret scan path .
+	@echo "$(GREEN)$(EMOJI_CHECK) Escaneo GitGuardian completado.$(NC)"
 
 
 # =============================================================================
