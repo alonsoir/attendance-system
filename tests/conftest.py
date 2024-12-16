@@ -12,11 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import sessionmaker
 
 from backend.core.config import Settings, get_settings
-from backend.core.security import get_password_hash
 from backend.db.models import Base
 from backend.db.session import create_engine, get_db
 from backend.main import app
-from backend.services import AttendanceManager
+from backend.services.attendance import AttendanceManager
 from backend.services.whatsapp import WhatsAppService
 
 # Configuración y variables de entorno

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.api.endpoints import websocket_router, whatsapp_router
 from backend.core.app import app, settings
 from backend.db.session import check_database_connection, init_db
-from backend.services import AttendanceManager
+from backend.services.attendance import AttendanceManager
 
 # Configurar logging
 logger = logging.getLogger("backend")

@@ -95,7 +95,7 @@ db-reset: check-environment
 # =============================================================================
 # TESTS
 # =============================================================================
-test: check-environment tests-unit tests-integration test-with-containers-without-stored-procedures-acl-encryption
+test: check-environment tests-unit tests-integration test-with-containers-without-stored-procedures-acl-encryption test-with-containers-with-stored-procedures-acl-encryption
 	@echo "$(GREEN)$(EMOJI_CHECK) Tests completados.$(NC)"
 
 tests-unit: check-environment
@@ -106,11 +106,11 @@ tests-integration: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests de integración...$(NC)"
 	@poetry run pytest tests/integration/ --junitxml=$(LOG_DIR)/integration-tests.xml
 
-test-with-containers-without-stored-procedures-acl-encryption:
+test-with-containers-without-stored-procedures-acl-encryption: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
 	PYTHONPATH=. pytest -v backend/tests/test_db.py -s --log-cli-level=INFO
 
-test-with-containers-with-stored-procedures-acl-encryption:
+test-with-containers-with-stored-procedures-acl-encryption: check-environment
 	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
 	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
 # =============================================================================

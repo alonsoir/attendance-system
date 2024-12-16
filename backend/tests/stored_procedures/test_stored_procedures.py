@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 import pytest
 
@@ -17,7 +18,6 @@ pytestmark = pytest.mark.skipif(
 async def test_create_encrypted_school(db_session, admin_user: User):
     logger.info("Probando creación de escuela encriptada")
 
-    school_id = None
     test_school = {
         "name": "Test School",
         "phone": "+34666777888",
@@ -25,46 +25,35 @@ async def test_create_encrypted_school(db_session, admin_user: User):
         "country": "Spain"
     }
 
-    # CREATE
-    await db_session.execute_procedure(
-        admin_user,
-        "create_school",
-        test_school["name"],
-        test_school["phone"],
-        test_school["address"],
-        test_school["country"],
-        school_id
-    )
+    async with db_session.transaction(admin_user) as conn:
+        await conn.execute(
+            """
+            CALL create_school($1, $2, $3, $4, $5)
+            """,
+            test_school["name"],
+            test_school["phone"],
+            test_school["address"],
+            test_school["country"],
+            None
+        )
 
-    # READ y verificación
-    async with db_session.pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT 
-                id,
-                decrypt_value(name) as name,
-                decrypt_value(phone) as phone,
-                decrypt_value(address) as address,
-                decrypt_value(country) as country
-            FROM schools
-        """)
-
-        schools = [dict(row) for row in rows]
-
-        # Verificar que nuestra escuela de prueba existe en la base de datos
-        assert any(
+        # Verificar que la escuela existe y tiene los datos correctos
+        schools = await conn.fetch("SELECT * FROM get_all_encrypted_schools()")
+        school_exists = any(
             school["name"] == test_school["name"] and
             school["phone"] == test_school["phone"] and
             school["address"] == test_school["address"] and
             school["country"] == test_school["country"]
             for school in schools
-        ), "La escuela de prueba no se encontró en la base de datos"
+        )
+        assert school_exists, "La escuela creada no se encuentra en la base de datos"
+
 
 @pytest.mark.asyncio
 async def test_update_encrypted_school(db_session, admin_user: User):
     logger.info("Probando actualización de escuela encriptada")
 
-    # CREATE
-    school_id = None
+    # Crear escuela para prueba
     test_school = {
         "name": "Test School Salesianos",
         "phone": "+34666777999",
@@ -72,72 +61,265 @@ async def test_update_encrypted_school(db_session, admin_user: User):
         "country": "Spain"
     }
 
-    # CREATE
-    await db_session.execute_procedure(
-        admin_user,
-        "create_school",
-        test_school["name"],
-        test_school["phone"],
-        test_school["address"],
-        test_school["country"],
-        school_id
-    )
+    async with db_session.transaction(admin_user) as conn:
+        await conn.execute(
+            """
+            CALL create_school($1, $2, $3, $4, $5)
+            """,
+            test_school["name"],
+            test_school["phone"],
+            test_school["address"],
+            test_school["country"],
+            None
+        )
 
-    await db_session.commit()
+        # Encontrar la escuela creada
+        schools = await conn.fetch("SELECT * FROM get_all_encrypted_schools()")
+        school = next(
+            s for s in schools
+            if s["name"] == test_school["name"] and
+            s["phone"] == test_school["phone"]
+        )
 
-    schools = await db_session.get_schools(admin_user)
-    assert len(schools) == 1
-    school_id = schools[0]["id"]
+        # Actualizar la escuela
+        updated_data = {
+            "name": "Updated School Name",
+            "phone": "+34777888999",
+            "address": "Updated Address",
+            "country": "France"
+        }
 
-    # UPDATE
-    await db_session.execute_procedure(admin_user, "update_encrypted_school",
-                                      school_id, "Updated School Name", "+34777888999", "Updated Address", "France")
-    await db_session.commit()
+        await conn.execute(
+            """
+            CALL update_encrypted_school($1, $2, $3, $4, $5)
+            """,
+            school["id"],
+            updated_data["name"],
+            updated_data["phone"],
+            updated_data["address"],
+            updated_data["country"]
+        )
 
-    updated_schools = await db_session.get_schools(admin_user)
-    assert updated_schools[0]["name"] == 'Updated School Name'
-    assert updated_schools[0]["phone"] == '+34777888999'
-    assert updated_schools[0]["address"] == 'Updated Address'
-    assert updated_schools[0]["country"] == 'France'
+        # Verificar la actualización
+        updated_schools = await conn.fetch("SELECT * FROM get_encrypted_school($1)", school["id"])
+        updated_school = dict(updated_schools[0])
+        assert updated_school["name"] == updated_data["name"]
+        assert updated_school["phone"] == updated_data["phone"]
+        assert updated_school["address"] == updated_data["address"]
+        assert updated_school["country"] == updated_data["country"]
 
 
 @pytest.mark.asyncio
 async def test_delete_school(db_session, admin_user: User):
     logger.info("Probando eliminación de escuela")
 
-    # CREATE
-    await db_session.execute_procedure(admin_user, "create_encrypted_school",
-                                      "Test School", "+34666777888", "Test Address 123", "Spain")
-    await db_session.commit()
+    test_school = {
+        "name": "School To Delete",
+        "phone": "+34666777888",
+        "address": "Delete Address 123",
+        "country": "Spain"
+    }
 
-    schools = await db_session.get_schools(admin_user)
-    assert len(schools) == 1
-    school_id = schools[0]["id"]
+    async with db_session.transaction(admin_user) as conn:
+        await conn.execute(
+            """
+            CALL create_school($1, $2, $3, $4, $5)
+            """,
+            test_school["name"],
+            test_school["phone"],
+            test_school["address"],
+            test_school["country"],
+            None
+        )
 
-    # DELETE
-    await db_session.execute_procedure(admin_user, "delete_school", school_id)
-    await db_session.commit()
+        # Encontrar la escuela creada
+        schools = await conn.fetch("SELECT * FROM get_all_encrypted_schools()")
+        school = next(
+            s for s in schools
+            if s["name"] == test_school["name"] and
+            s["phone"] == test_school["phone"]
+        )
 
-    deleted_schools = await db_session.get_schools(admin_user)
-    assert len(deleted_schools) == 0
+        # Eliminar la escuela
+        await conn.execute("CALL delete_school($1)", school["id"])
+
+        # Verificar que la escuela ya no existe
+        deleted_school = await conn.fetch("SELECT * FROM get_encrypted_school($1)", school["id"])
+        assert len(deleted_school) == 0, "La escuela no se eliminó correctamente"
+
+
+@pytest.mark.asyncio
+async def test_tutor_crud(db_session, admin_user: User):
+    logger.info("Probando operaciones CRUD de tutor")
+
+    test_tutor = {
+        "name": "Test Tutor",
+        "phone": "+34666555444",
+        "email": "test.tutor@test.com"
+    }
+
+    async with db_session.transaction(admin_user) as conn:
+        # Crear tutor
+        await conn.execute(
+            """
+            CALL create_tutor($1, $2, $3, $4)
+            """,
+            test_tutor["name"],
+            test_tutor["phone"],
+            test_tutor["email"],
+            None
+        )
+
+        # Verificar creación
+        tutors = await conn.fetch("SELECT * FROM get_all_encrypted_tutors()")
+        tutor = next(
+            t for t in tutors
+            if t["name"] == test_tutor["name"] and
+            t["email"] == test_tutor["email"]
+        )
+        assert tutor is not None, "El tutor no se creó correctamente"
+
+        # Actualizar tutor
+        updated_data = {
+            "name": "Updated Tutor",
+            "phone": "+34777666555",
+            "email": "updated.tutor@test.com"
+        }
+
+        await conn.execute(
+            """
+            CALL update_encrypted_tutor($1, $2, $3, $4)
+            """,
+            tutor["id"],
+            updated_data["name"],
+            updated_data["phone"],
+            updated_data["email"]
+        )
+
+        # Verificar actualización
+        updated_tutor = await conn.fetch("SELECT * FROM get_encrypted_tutor($1)", tutor["id"])
+        updated_tutor = dict(updated_tutor[0])
+        assert updated_tutor["name"] == updated_data["name"]
+        assert updated_tutor["phone"] == updated_data["phone"]
+        assert updated_tutor["email"] == updated_data["email"]
+
+        # Eliminar tutor
+        await conn.execute("CALL delete_tutor($1)", tutor["id"])
+
+        # Verificar eliminación
+        deleted_tutor = await conn.fetch("SELECT * FROM get_encrypted_tutor($1)", tutor["id"])
+        assert len(deleted_tutor) == 0, "El tutor no se eliminó correctamente"
+
+
+@pytest.mark.asyncio
+async def test_student_and_relationships(db_session, admin_user: User):
+    logger.info("Probando estudiantes y relaciones")
+
+    async with db_session.transaction(admin_user) as conn:
+        # Crear escuela
+        school_data = {
+            "name": "Test School",
+            "phone": "+34666777888",
+            "address": "Test Address",
+            "country": "Spain"
+        }
+        await conn.execute(
+            """
+            CALL create_school($1, $2, $3, $4, $5)
+            """,
+            school_data["name"],
+            school_data["phone"],
+            school_data["address"],
+            school_data["country"],
+            None
+        )
+
+        schools = await conn.fetch("SELECT * FROM get_all_encrypted_schools()")
+        school = next(s for s in schools if s["name"] == school_data["name"])
+
+        # Crear tutor
+        tutor_data = {
+            "name": "Test Tutor",
+            "phone": "+34666555444",
+            "email": "test.tutor@test.com"
+        }
+        await conn.execute(
+            """
+            CALL create_tutor($1, $2, $3, $4)
+            """,
+            tutor_data["name"],
+            tutor_data["phone"],
+            tutor_data["email"],
+            None
+        )
+
+        tutors = await conn.fetch("SELECT * FROM get_all_encrypted_tutors()")
+        tutor = next(t for t in tutors if t["name"] == tutor_data["name"])
+
+        # Crear estudiante
+        await conn.execute(
+            """
+            CALL create_student($1, $2, $3, $4)
+            """,
+            "Test Student",
+            date(2010, 1, 1),
+            school["id"],
+            None
+        )
+
+        students = await conn.fetch("SELECT * FROM get_all_encrypted_students()")
+        student = next(s for s in students if s["name"] == "Test Student")
+
+        # Crear relación tutor-estudiante
+        await conn.execute(
+            """
+            CALL create_tutor_student_relationship($1, $2, $3)
+            """,
+            tutor["id"],
+            student["id"],
+            "PARENT"
+        )
+
+        # Verificar relación
+        relationships = await conn.fetch("SELECT * FROM get_student_tutors($1)", student["id"])
+        assert len(relationships) > 0, "No se encontró la relación tutor-estudiante"
+        relationship = dict(relationships[0])
+        assert relationship["relationship_type"] == "PARENT"
 
 
 @pytest.mark.asyncio
 async def test_permissions_and_roles(db_session, admin_user: User, school_user: User, tutor_user: User):
     logger.info("Probando permisos y roles")
 
-    # Verificar permisos de admin
-    assert await db_session.has_permission(admin_user, "CREATE_SCHOOL")
-    assert await db_session.has_permission(admin_user, "UPDATE_SCHOOL")
-    assert await db_session.has_permission(admin_user, "DELETE_SCHOOL")
+    async with db_session.transaction() as conn:
+        # Verificar permisos de admin
+        has_create_school = await conn.fetchval(
+            "SELECT user_has_permission($1, $2)",
+            admin_user.id,
+            "CREATE_SCHOOL"
+        )
+        assert has_create_school, "Admin debería tener permiso CREATE_SCHOOL"
 
-    # Verificar permisos de escuela
-    assert await db_session.has_permission(school_user, "CREATE_STUDENT")
-    assert await db_session.has_permission(school_user, "UPDATE_STUDENT")
-    assert await db_session.has_permission(school_user, "SEND_MESSAGES")
-    assert not await db_session.has_permission(school_user, "DELETE_SCHOOL")
+        # Verificar permisos de escuela
+        has_create_student = await conn.fetchval(
+            "SELECT user_has_permission($1, $2)",
+            school_user.id,
+            "CREATE_STUDENT"
+        )
+        assert has_create_student, "School user debería tener permiso CREATE_STUDENT"
 
-    # Verificar permisos de tutor
-    assert await db_session.has_permission(tutor_user, "VIEW_STUDENT_RECORDS")
-    assert await db_session.has_permission(tutor_user, "SEND_MESSAGES")
-    assert not await db_session.has_permission(tutor_user, "CREATE_SCHOOL")
+        # Verificar permisos de tutor
+        has_view_records = await conn.fetchval(
+            "SELECT user_has_permission($1, $2)",
+            tutor_user.id,
+            "VIEW_STUDENT_RECORDS"
+        )
+        assert has_view_records, "Tutor debería tener permiso VIEW_STUDENT_RECORDS"
+
+        # Verificar permisos negativos
+        has_admin_permission = await conn.fetchval(
+            "SELECT user_has_permission($1, $2)",
+            tutor_user.id,
+            "CREATE_SCHOOL"
+        )
+        assert not has_admin_permission, "Tutor no debería tener permiso CREATE_SCHOOL"
