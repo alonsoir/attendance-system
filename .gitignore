@@ -103,8 +103,8 @@ local_settings.py
 
 # Media and static files (en desarrollo)
 media/
-static/
-!frontend/public/static/
+# static/
+# !frontend/public/static/
 
 # Secrets
 secrets/
