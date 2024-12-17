@@ -1,7 +1,7 @@
 # ============================================================================
 # Etapa de compilación
 # ============================================================================
-FROM node:20-alpine as builder
+FROM node:20-alpine AS builder
 
 # Instalar dependencias del sistema y Vault
 RUN apk add --no-cache \
@@ -20,7 +20,7 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copiar archivos de configuración y scripts
-COPY ./attendance_system/frontend/package*.json ./
+COPY package*.json ./package*.json
 COPY ./attendance_system/frontend/scripts/fetch-vault-secrets.sh /app/scripts/
 RUN chmod 500 /app/scripts/fetch-vault-secrets.sh
 
@@ -65,9 +65,9 @@ COPY --chown=appuser:appgroup ./attendance_system/frontend/nginx.conf /etc/nginx
 # Copiar archivos construidos
 COPY --from=builder --chown=appuser:appgroup /app/dist /usr/share/nginx/html
 
-# Copiar scripts
-COPY --chown=appuser:appgroup ./attendance_system/frontend/scripts/fetch-vault-secrets.sh /app/scripts/
-COPY --chown=appuser:appgroup ./attendance_system/frontend/frontend-entrypoint.sh /app/entrypoint.sh
+# Copiar scripts. El fetch-vault-secrets.sh se ejecutará en el entrypoint.sh
+# COPY --chown=appuser:appgroup fetch-vault-secrets.sh /app/scripts/
+COPY --chown=appuser:appgroup frontend-entrypoint.sh /app/entrypoint.sh
 RUN chmod 500 /app/scripts/fetch-vault-secrets.sh /app/entrypoint.sh
 
 # Configurar permisos
