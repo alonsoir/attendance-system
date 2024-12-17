@@ -26,8 +26,8 @@ ENV = development
 ENV_FILE = .env-$(ENV)
 LOG_FILE = make.log
 LOG_DIR = logs
-FRONTEND_PATH = attendance_system/frontend
-BACKEND_PATH = attendance_system/backend
+FRONTEND_PATH = frontend
+BACKEND_PATH = backend
 DOCKER_COMPOSE_FILE = docker-compose.yml
 
 POSTGRES_PATH = postgresql

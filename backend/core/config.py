@@ -6,6 +6,10 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Obtener la ruta absoluta de la raíz del proyecto
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # directorio actual (config.py)
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, "../../"))  # ir a la raíz del proyecto
+ENV_FILE_PATH = os.path.join(ROOT_DIR, ".env-production")  # construir la ruta completa
 
 class Settings(BaseSettings):
     PROJECT_NAME: str
@@ -36,12 +40,12 @@ class Settings(BaseSettings):
     FRONTEND_PORT: int
     VITE_API_URL: str
     # todo refactorize this to load different settings for each environment
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if not os.path.exists(".env"):
-            raise FileNotFoundError("El archivo .env no se encontró")
+        if not os.path.exists(ENV_FILE_PATH):
+            raise FileNotFoundError(f"El archivo {ENV_FILE_PATH} no se encontró")
 
     def print_settings(self):
         model_dump = self.model_dump()
