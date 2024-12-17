@@ -36,12 +36,12 @@ class Settings(BaseSettings):
     FRONTEND_PORT: int
     VITE_API_URL: str
     # todo refactorize this to load different settings for each environment
-    model_config = SettingsConfigDict(env_file=".env-development")
+    model_config = SettingsConfigDict(env_file=".env")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if not os.path.exists(".env-development"):
-            raise FileNotFoundError("El archivo .env-development no se encontró")
+        if not os.path.exists(".env"):
+            raise FileNotFoundError("El archivo .env no se encontró")
 
     def print_settings(self):
         model_dump = self.model_dump()
