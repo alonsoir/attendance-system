@@ -62,8 +62,8 @@ WORKDIR /app
 COPY --chown=root:root security/seccomp-profile.json /etc/docker/seccomp-profile.json
 
 # Copiar solo los archivos necesarios para la instalación de dependencias
-COPY --chown=nobody:nogroup ../pyproject.toml ./pyproject.toml
-COPY --chown=nobody:nogroup ../poetry.lock ./poetry.lock
+COPY --chown=nobody:nogroup pyproject.toml ./pyproject.toml
+COPY --chown=nobody:nogroup poetry.lock ./poetry.lock
 
 # Instalar dependencias según el entorno
 RUN if [ "$APP_ENV" = "production" ] ; then \
