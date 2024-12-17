@@ -16,7 +16,7 @@ services:
       - vault-data:/vault/file
     command: server -dev
     healthcheck:
-      test: ["CMD", "vault", "status"]
+      test: [ "CMD", "vault", "status" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -36,8 +36,8 @@ services:
 
   front:
     build:
-      context: ./attendance_system/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
     image: frontend-attendance
     environment:
       - VAULT_ADDR=http://vault:8200
@@ -50,8 +50,8 @@ services:
 
   back:
     build:
-      context: ./attendance_system/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     image: backend-attendance
     environment:
       - VAULT_ADDR=http://vault:8200
@@ -88,11 +88,11 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./attendance_system/nginx/conf/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./attendance_system/nginx/conf/conf.d:/etc/nginx/conf.d:ro
-      - ./attendance_system/nginx/html:/usr/share/nginx/html:ro
-      - ./attendance_system/nginx/static:/usr/share/nginx/static:ro
-      - ./attendance_system/nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+      - ./nginx/static:/usr/share/nginx/static:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - front
       - back
@@ -131,9 +131,23 @@ services:
     depends_on:
       - prometheus
 
+  falco:
+    image: falcosecurity/falco:latest
+    container_name: falco
+    privileged: true
+    volumes:
+      - /host:/host:ro
+      - /dev:/dev:ro
+      - /proc:/proc:ro
+      - /sys:/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    cap_add:
+      - SYS_ADMIN
+    depends_on:
+      - vault
+    command: falco --config /etc/falco/falco.yaml --stdout --severity=info
+
 volumes:
-  db-data:
-    driver: local
   vault-data:
     driver: local
   prometheus-data:
