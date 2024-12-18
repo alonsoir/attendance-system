@@ -652,3 +652,7 @@ make docker-build ENV=dev
    - Ejecutar tests en producción con Docker Compose: `make docker-compose-test ENV=prod`
    - Ejecutar tests en producción con Docker Compose y Docker Swarm: `make docker-compose-test ENV=prod`
    
+## License
+
+Proprietary and confidential
+Copyright (c) 2024 Alonso Isidoro Román. All rights reserved.

@@ -13,15 +13,6 @@ from backend.services.whatsapp import MessageProvider, WhatsAppService
 
 logger = logging.getLogger(__name__)
 
-""""
-"status": "success",
-                "phone": phone_number,
-                "message": message,
-                "provider": "meta",
-                "timestamp": str(datetime.now()),
-"""
-
-
 @dataclass
 class IncomingMessage:
     """Estructura de datos para mensajes entrantes de WhatsApp"""
@@ -286,10 +277,7 @@ class AttendanceManager:
             ValueError: Si se detectan errores en los datos.
         """
         errors = []
-        # Validar messaging_product: str
-        #     to: str
-        #     type: str
-        #     body: int
+
         messaging_product = outgoing.messaging_product
         if not messaging_product:
             errors.append("messaging_product is required")

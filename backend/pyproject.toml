@@ -3,9 +3,8 @@ name = "attendance-system"
 version = "0.1.0"
 description = "A system for managing student attendance using AI and WhatsApp"
 authors = ["Alonso Isidoro Román <alonsoir@gmail.com>"]
-readme = "README.md"
 packages = [{include = "backend"}]
-license = "MIT"
+license = "Proprietary"
 repository = "https://github.com/alonsoir/attendance-system"
 
 [tool.poetry.dependencies]

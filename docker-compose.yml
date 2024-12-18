@@ -3,7 +3,6 @@ version: '3.8'
 services:
   vault:
     image: vault:1.13.3
-    container_name: vault
     ports:
       - "8200:8200"
     environment:
@@ -16,55 +15,69 @@ services:
       - vault-data:/vault/file
     command: server -dev
     healthcheck:
-      test: [ "CMD", "vault", "status" ]
+      test: ["CMD", "vault", "status"]
       interval: 30s
       timeout: 10s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   vault-init:
     image: vault:1.13.3
     depends_on:
-      vault:
-        condition: service_healthy
+      - vault
     environment:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=attendance_root_token
     volumes:
-      - ./attendance_system/backend/scripts:/scripts
-      - ./.env:/app/.env
+      - ./attendance_system/backend/scripts:/scripts:ro
+      - ./.env:/app/.env:ro
     command: ["/bin/sh", "-c", "chmod +x /scripts/init-vault.sh && /scripts/init-vault.sh"]
 
   front:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
     image: frontend-attendance
     environment:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=attendance_root_token
     depends_on:
-      vault-init:
-        condition: service_completed_successfully
+      - vault-init
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     deploy:
       replicas: 1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   back:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
     image: backend-attendance
     environment:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=attendance_root_token
     depends_on:
-      vault-init:
-        condition: service_completed_successfully
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - vault-init
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     deploy:
-      replicas: 2
+      replicas: 1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   db:
     image: test-postgres-encrypted:latest
@@ -80,7 +93,7 @@ services:
       timeout: 5s
       retries: 5
     deploy:
-      replicas: 2
+      replicas: 1
 
   nginx:
     image: nginx:latest
@@ -93,6 +106,8 @@ services:
       - ./nginx/html:/usr/share/nginx/html:ro
       - ./nginx/static:/usr/share/nginx/static:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+    environment:
+      - NGINX_ENTRYPOINT_QUIET_LOGS=1
     depends_on:
       - front
       - back
@@ -108,7 +123,7 @@ services:
       timeout: 5s
       retries: 5
     deploy:
-      replicas: 2
+      replicas: 1
 
   prometheus:
     image: prom/prometheus:latest
@@ -133,8 +148,6 @@ services:
 
   falco:
     image: falcosecurity/falco:latest
-    container_name: falco
-    privileged: true
     volumes:
       - /host:/host:ro
       - /dev:/dev:ro
@@ -143,9 +156,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     cap_add:
       - SYS_ADMIN
-    depends_on:
-      - vault
     command: falco --config /etc/falco/falco.yaml --stdout --severity=info
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   vault-data:
@@ -154,7 +170,9 @@ volumes:
     driver: local
   grafana-data:
     driver: local
+  db-data:
+    driver: local
 
 networks:
   default:
-    driver: bridge
+    driver: overlay
