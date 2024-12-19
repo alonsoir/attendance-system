@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   vault:
     image: vault:1.13.3
@@ -38,6 +36,10 @@ services:
     command: ["/bin/sh", "-c", "chmod +x /scripts/init-vault.sh && /scripts/init-vault.sh"]
 
   front:
+    build:
+      context: .
+    env_file:
+      - .env
     image: frontend-attendance
     environment:
       - VAULT_ADDR=http://vault:8200
@@ -58,6 +60,10 @@ services:
         max-file: "3"
 
   back:
+    build:
+      context: .
+    env_file:
+        - .env
     image: backend-attendance
     environment:
       - VAULT_ADDR=http://vault:8200
@@ -78,13 +84,21 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      - ./backend:/app:rw
 
   db:
+    build:
+      context: .
+    env_file:
+      - .env
     image: test-postgres-encrypted:latest
     environment:
       - POSTGRES_USER=test_user
       - POSTGRES_PASSWORD=test_password
       - POSTGRES_DB=test_db
+    ports:
+      - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -116,6 +130,10 @@ services:
       replicas: 1
 
   redis:
+    build:
+      context: .
+    env_file:
+      - .env
     image: redis:latest
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -126,6 +144,10 @@ services:
       replicas: 1
 
   prometheus:
+    build:
+      context: .
+    env_file:
+      - .env
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
@@ -136,6 +158,10 @@ services:
       - back
 
   grafana:
+    build:
+      context: .
+    env_file:
+      - .env
     image: grafana/grafana:latest
     ports:
       - "3000:3000"

@@ -4,7 +4,7 @@ set -euo pipefail
 # Configuración
 MAX_RETRIES=30
 RETRY_DELAY=2
-LOG_FILE="/app/logs/entrypoint.log"
+LOG_FILE="/tmp/entrypoint.log"
 
 # Función de logging
 log_message() {
@@ -50,24 +50,26 @@ wait_for_service() {
 
 # Función para verificar y obtener secretos de Vault
 fetch_vault_secrets() {
-    log_message "INFO" "Obteniendo secretos de Vault..."
+    log_message "INFO" "Obteniendo secretos para el backend de Vault..."
 
     if [ -z "${VAULT_ADDR:-}" ] || [ -z "${VAULT_TOKEN:-}" ]; then
         log_message "ERROR" "Variables de Vault no configuradas"
         return 1
-    }
+    fi
 
     # Verificar que Vault está accesible
-    if ! curl -sf -o /dev/null "$VAULT_ADDR/v1/sys/health"; then
+    vault_health_url="$VAULT_ADDR/v1/sys/health"
+    log_message "INFO" "Verificando ruta de estado de Vault: $vault_health_url"
+    if ! curl -sf -o /dev/null "$vault_health_url"; then
         log_message "ERROR" "No se puede conectar a Vault"
         return 1
-    }
+    fi
 
     # Cargar secretos usando el script dedicado
     if ! /app/scripts/fetch-secrets.sh; then
         log_message "ERROR" "Error al obtener secretos de Vault"
         return 1
-    }
+    fi
 
     log_message "INFO" "Secretos obtenidos exitosamente"
     return 0
@@ -140,7 +142,7 @@ main() {
     if ! fetch_vault_secrets; then
         log_message "ERROR" "Error al obtener secretos"
         exit 1
-    }
+    fi
 
     # Esperar servicios dependientes
     if ! wait_for_service "$POSTGRES_SERVER" "$POSTGRES_PORT" "PostgreSQL"; then
@@ -151,7 +153,7 @@ main() {
     if ! wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis"; then
         log_message "ERROR" "Error esperando Redis"
         exit 1
-    }
+    fi
 
     # Iniciar el backend
     log_message "INFO" "Iniciando servicio uvicorn..."

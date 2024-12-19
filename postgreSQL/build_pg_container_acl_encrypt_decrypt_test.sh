@@ -1,89 +1,26 @@
 #!/bin/bash
 set -e
 
+IMAGE_NAME="test-postgres-encrypted"
+SERVICE_NAME="temp-postgres-encrypted"
+SECRET_NAME="postgres_encrypt_key"
+
 echo "=== Iniciando configuración de PostgreSQL con encriptación autogestionada ==="
-
-# Función para esperar que un servicio se elimine
-wait_service_removal() {
-    local service_name=$1
-    local max_attempts=30
-    local attempt=1
-
-    while docker service ls | grep -q "$service_name"; do
-        echo "- Intento $attempt: Esperando que el servicio $service_name se elimine..."
-        if [ $attempt -ge $max_attempts ]; then
-            echo "ERROR: Timeout esperando que el servicio se elimine"
-            exit 1
-        fi
-        sleep 2
-        ((attempt++))
-    done
-    echo "- Servicio $service_name eliminado correctamente"
-}
-
-# Función para esperar que una imagen se elimine
-wait_image_removal() {
-    local image_name=$1
-    local max_attempts=30
-    local attempt=1
-
-    while docker images | grep -q "$image_name"; do
-        echo "- Intento $attempt: Esperando que la imagen $image_name se elimine..."
-        if [ $attempt -ge $max_attempts ]; then
-            echo "ERROR: Timeout esperando que la imagen se elimine"
-            exit 1
-        fi
-        sleep 2
-        ((attempt++))
-    done
-    echo "- Imagen $image_name eliminada correctamente"
-}
-
-# Función para esperar que el servicio esté listo
-wait_service_ready() {
-    local service_name=$1
-    local max_attempts=60
-    local attempt=1
-
-    while true; do
-        if docker service ls | grep "$service_name" | grep -q "1/1"; then
-            echo "- Servicio $service_name está listo"
-            return 0
-        fi
-
-        if [ $attempt -ge $max_attempts ]; then
-            echo "ERROR: Timeout esperando que el servicio esté listo"
-            exit 1
-        fi
-
-        echo "- Intento $attempt: Esperando que el servicio esté listo..."
-        sleep 2
-        ((attempt++))
-    done
-}
 
 # Limpiar recursos existentes
 echo "=== Limpiando recursos antiguos... ==="
-echo "- Eliminando servicio anterior si existe..."
-if docker service ls | grep -q "test-postgres-encrypted"; then
-    docker service rm test-postgres-encrypted
-    wait_service_removal "test-postgres-encrypted"
+if docker images | grep -q "$IMAGE_NAME"; then
+    echo "- Eliminando imagen existente..."
+    docker rmi -f "$IMAGE_NAME"
 fi
 
-echo "- Eliminando imagen anterior si existe..."
-if docker images | grep -q "test-postgres-encrypted"; then
-    docker rmi -f test-postgres-encrypted
-    wait_image_removal "test-postgres-encrypted"
+if docker secret ls | grep -q "$SECRET_NAME"; then
+    echo "- Eliminando secreto existente..."
+    docker secret rm "$SECRET_NAME"
 fi
 
-echo "- Eliminando secretos antiguos si existen..."
-if docker secret ls | grep -q "postgres_encrypt_key"; then
-    docker secret rm postgres_encrypt_key || true
-fi
-
-# Construir imagen
 echo "=== Construyendo nueva imagen... ==="
-docker build -t test-postgres-encrypted -f dockerfile_pg_container_acl_encrypt_decrypt_test .
+docker build -t "$IMAGE_NAME" -f dockerfile_pg_container_acl_encrypt_decrypt_test .
 
 # Verificar Swarm
 echo "=== Verificando Docker Swarm... ==="
@@ -94,43 +31,45 @@ else
     echo "- Swarm ya está activo"
 fi
 
-# Crear servicio
-echo "=== Creando servicio PostgreSQL... ==="
-docker service create --name test-postgres-encrypted \
+# Crear servicio temporal para extraer clave
+echo "=== Creando servicio temporal PostgreSQL... ==="
+docker service create --name "$SERVICE_NAME" \
     -e POSTGRES_USER=test_user \
     -e POSTGRES_PASSWORD=test_password \
     -e POSTGRES_DB=test_db \
-    -p 5432:5432 \
-    test-postgres-encrypted
+    "$IMAGE_NAME"
 
 # Esperar que el servicio esté listo
 echo "=== Esperando que el servicio esté completamente listo... ==="
-wait_service_ready "test-postgres-encrypted"
+until docker service ps "$SERVICE_NAME" | grep -q "Running"; do
+    echo "- Servicio aún no está listo..."
+    sleep 2
+done
+echo "- Servicio está listo"
 
-# Extraer y guardar la clave en Docker Secrets
-echo "=== Extrayendo y guardando la clave de encriptación... ==="
-container_id=$(docker ps -q --filter name=test-postgres-encrypted)
+# Extraer clave de encriptación
+echo "=== Extrayendo clave de encriptación... ==="
+container_id=$(docker ps -q --filter "name=${SERVICE_NAME}")
 if [ -n "$container_id" ]; then
     echo "- Contenedor encontrado: $container_id"
 
-    # Esperar que PostgreSQL esté listo
     echo "- Esperando que PostgreSQL esté listo..."
-    until docker exec $container_id pg_isready -U test_user; do
+    until docker exec "$container_id" pg_isready -U test_user; do
         echo "  PostgreSQL aún no está listo..."
         sleep 2
     done
 
     echo "- Extrayendo clave de encriptación..."
-    encrypt_key=$(docker exec $container_id psql -U test_user -d test_db -t -c \
+    encrypt_key=$(docker exec "$container_id" psql -U test_user -d test_db -t -c \
         "SELECT key_value FROM encryption_config WHERE key_name = 'main_key';")
 
     if [ -n "$encrypt_key" ]; then
         echo "- Guardando clave en Docker Secrets..."
-        echo "$encrypt_key" | docker secret create postgres_encrypt_key -
+        echo "$encrypt_key" | docker secret create "$SECRET_NAME" -
         echo "- Clave guardada exitosamente en Docker Secrets"
 
-        echo "- Verificando secret creado:"
-        docker secret ls | grep postgres_encrypt_key
+        # La transferencia al Vault se delega al init-swarm.sh
+        echo "- Clave disponible en Docker Secrets, lista para transferencia al Vault"
     else
         echo "ERROR: No se pudo extraer la clave de encriptación"
         exit 1
@@ -140,10 +79,8 @@ else
     exit 1
 fi
 
-echo "=== Verificando estado final... ==="
-echo "- Estado del servicio:"
-docker service ls
-echo "- Estado de los secretos:"
-docker secret ls
+# Limpiar servicio temporal
+echo "=== Limpiando servicio temporal... ==="
+docker service rm "$SERVICE_NAME"
 
 echo "=== Configuración completada exitosamente ==="

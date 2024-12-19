@@ -77,7 +77,7 @@ load_secrets_from_env() {
     if [ ! -f "$env_file" ]; then
         log_message "ERROR" "Archivo .env no encontrado"
         return 1
-    }
+    fi
 
     log_message "INFO" "Cargando secretos desde .env..."
 

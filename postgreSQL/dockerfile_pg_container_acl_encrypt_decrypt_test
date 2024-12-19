@@ -12,10 +12,6 @@ COPY init-db.sql /docker-entrypoint-initdb.d/01-init-db.sql
 COPY init_database_schema.sql /docker-entrypoint-initdb.d/02-schema.sql
 COPY init_database_data.sql /docker-entrypoint-initdb.d/03-data.sql
 
-ENV POSTGRES_USER=test_user
-ENV POSTGRES_PASSWORD=test_password
-ENV POSTGRES_DB=test_db
-
 EXPOSE 5432
 
 CMD ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]

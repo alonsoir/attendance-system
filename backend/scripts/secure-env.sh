@@ -70,7 +70,7 @@ encrypt_env() {
     if [ ! -f "$ENV_FILE" ]; then
         log_message "ERROR" "Archivo $ENV_FILE no encontrado"
         return 1
-    }
+    fi
 
     # Generar IV aleatorio
     iv=$(openssl rand -hex 12)
@@ -91,7 +91,7 @@ decrypt_env() {
     if [ ! -f "$SECURE_ENV_FILE" ]; then
         log_message "ERROR" "Archivo $SECURE_ENV_FILE no encontrado"
         return 1
-    }
+    fi
 
     # Leer IV y datos encriptados
     IFS=':' read -r iv encrypted_data < "$SECURE_ENV_FILE"

@@ -22,7 +22,7 @@ fetch_from_vault() {
         if [ -z "${VAULT_TOKEN:-}" ]; then
             log_message "ERROR" "VAULT_TOKEN no está configurado"
             return 1
-        }
+        fi
 
         response=$(curl -sf \
             -H "X-Vault-Token: $VAULT_TOKEN" \
