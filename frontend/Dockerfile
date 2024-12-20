@@ -10,6 +10,10 @@ RUN apk add --no-cache curl bash ca-certificates jq
 
 # Copiar archivos de configuración
 COPY package*.json ./
+
+# Crear directorio para scripts
+RUN mkdir -p /app /app/scripts
+
 COPY scripts/fetch-vault-secrets.sh /app/scripts/fetch-vault-secrets.sh
 RUN chmod 500 /app/scripts/fetch-vault-secrets.sh
 
@@ -35,13 +39,14 @@ FROM nginx:alpine
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Configuración de nginx
-COPY --chown=appuser:appgroup nginx/conf /etc/nginx/conf.d/
+COPY --chown=appuser:appgroup nginx/conf/conf.d /etc/nginx/conf.d/
+COPY --chown=appuser:appgroup nginx/conf/nginx.conf /etc/nginx/nginx.conf
 
 # Copiar archivos construidos
 COPY --from=builder --chown=appuser:appgroup /app/dist /usr/share/nginx/html
 
-# Scripts necesarios
-COPY --chown=appuser:appgroup frontend-entrypoint.sh /app/entrypoint.sh
+# Copiar script de entrada
+COPY frontend-entrypoint.sh /app/entrypoint.sh
 RUN chmod 500 /app/entrypoint.sh
 
 # Configurar permisos

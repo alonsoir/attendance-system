@@ -8,8 +8,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Obtener la ruta absoluta de la raíz del proyecto
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # directorio actual (config.py)
-ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, "../../"))  # ir a la raíz del proyecto
+ROOT_DIR = os.path.abspath(
+    os.path.join(BASE_DIR, "../../")
+)  # ir a la raíz del proyecto
 ENV_FILE_PATH = os.path.join(ROOT_DIR, ".env-production")  # construir la ruta completa
+
 
 class Settings(BaseSettings):
     PROJECT_NAME: str

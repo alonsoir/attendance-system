@@ -1,204 +1,278 @@
 services:
   vault:
     image: vault:1.13.3
+    container_name: vault
+    restart: always
+    env_file:
+      - .env
     ports:
       - "8200:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: attendance_root_token
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-      VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_API_ADDR: http://vault:8200
+      VAULT_CLUSTER_ADDR: https://vault:8201
+    volumes:
+      - ${PROJECT_ROOT}/backend/scripts:/scripts
+      - vault-data:/vault/data
+    command: server -config=/scripts/vault.hcl
     cap_add:
       - IPC_LOCK
-    volumes:
-      - vault-data:/vault/file
-    command: server -dev
-    healthcheck:
-      test: ["CMD", "vault", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    networks:
+      - default
 
   vault-init:
-    image: vault:1.13.3
-    depends_on:
-      - vault
-    environment:
-      - VAULT_ADDR=http://vault:8200
-      - VAULT_TOKEN=attendance_root_token
-    volumes:
-      - ./attendance_system/backend/scripts:/scripts:ro
-      - ./.env:/app/.env:ro
-    command: ["/bin/sh", "-c", "chmod +x /scripts/init-vault.sh && /scripts/init-vault.sh"]
+   image: vault:1.13.3
+   env_file:
+     - .env
+   depends_on:
+     - vault
+   environment:
+     - VAULT_ADDR=http://vault:8200
+     - VAULT_TOKEN=attendance_root_token
+   networks:
+     - default
+   volumes:
+     - ${PROJECT_ROOT}/backend/scripts:/scripts
+     - ./.env:/app/.env:ro
+     - vault-data:/vault/file
+     - ${PROJECT_ROOT}/vault-init:/vault-init
+   command: [ "/bin/bash", "-c", "chmod +x /scripts/init-vault.sh && /scripts/init-vault.sh" ]
 
   front:
-    build:
-      context: .
-    env_file:
-      - .env
-    image: frontend-attendance
-    environment:
-      - VAULT_ADDR=http://vault:8200
-      - VAULT_TOKEN=attendance_root_token
-    depends_on:
-      - vault-init
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    deploy:
-      replicas: 1
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+   build:
+     context: .
+     dockerfile: attendance_system/frontend/Dockerfile
+   image: frontend-attendance
+   env_file:
+     - .env
+   environment:
+     - VAULT_ADDR=http://vault:8200
+     - VAULT_TOKEN=attendance_root_token
+     - VITE_API_URL=http://back:8000
+   networks:
+     - default
+   depends_on:
+     - back
+     - vault-init
+   healthcheck:
+     test: ["CMD", "curl", "-f", "http://localhost:80/health", "||", "exit", "1"]
+     interval: 10s
+     timeout: 5s
+     retries: 3
+   deploy:
+     replicas: 1
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
+   volumes:
+     - ./logs:/app/logs:rw
 
   back:
-    build:
-      context: .
-    env_file:
-        - .env
-    image: backend-attendance
-    environment:
-      - VAULT_ADDR=http://vault:8200
-      - VAULT_TOKEN=attendance_root_token
-    depends_on:
-      - vault-init
-      - db
-      - redis
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    deploy:
-      replicas: 1
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    volumes:
-      - ./backend:/app:rw
+   build:
+     context: .
+     dockerfile: attendance_system/backend/Dockerfile
+   image: backend-attendance
+   env_file:
+     - .env
+   environment:
+     - POSTGRES_SERVER=db
+     - POSTGRES_PORT=5432
+     - REDIS_HOST=redis
+     - REDIS_PORT=6379
+     - VAULT_ADDR=http://vault:8200
+     - VAULT_TOKEN=attendance_root_token
+     - PROJECT_NAME=${PROJECT_NAME}
+     - PROJECT_DESCRIPTION=${PROJECT_DESCRIPTION}
+     - VERSION=${VERSION}
+     - API_V1_STR=${API_V1_STR}
+     - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+     - ENABLE_METRICS=${ENABLE_METRICS}
+     - SECRET_KEY=${SECRET_KEY}
+     - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+   networks:
+     - default
+   depends_on:
+     - vault-init
+     - db
+     - redis
+   healthcheck:
+     test: ["CMD", "curl", "-f", "http://localhost:8000/health", "||", "exit", "1"]
+     interval: 30s
+     timeout: 10s
+     retries: 3
+     start_period: 40s
+   deploy:
+     replicas: 1
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
+   volumes:
+     - ./logs:/app/logs:rw
 
   db:
-    build:
-      context: .
-    env_file:
-      - .env
-    image: test-postgres-encrypted:latest
-    environment:
-      - POSTGRES_USER=test_user
-      - POSTGRES_PASSWORD=test_password
-      - POSTGRES_DB=test_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U test_user"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      replicas: 1
+   image: test-postgres-encrypted:latest
+   env_file:
+     - .env
+   environment:
+     POSTGRES_USER: test_user
+     POSTGRES_PASSWORD: test_password
+     POSTGRES_DB: test_db
+   networks:
+     - default
+   ports:
+     - "5432:5432"
+   volumes:
+     - db-data:/var/lib/postgresql/data
+   healthcheck:
+     test: ["CMD-SHELL", "pg_isready -U test_user"]
+     interval: 10s
+     timeout: 5s
+     retries: 5
+   deploy:
+     replicas: 1
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
 
   nginx:
-    image: nginx:latest
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/conf/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/html:/usr/share/nginx/html:ro
-      - ./nginx/static:/usr/share/nginx/static:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    environment:
-      - NGINX_ENTRYPOINT_QUIET_LOGS=1
-    depends_on:
-      - front
-      - back
-      - vault
-    deploy:
-      replicas: 1
+   image: nginx:latest
+   ports:
+     - "80:80"
+     - "443:443"
+   volumes:
+     - ./nginx/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+     - ./nginx/conf/conf.d:/etc/nginx/conf.d:ro
+     - ./nginx/html:/usr/share/nginx/html:ro
+     - ./nginx/static:/usr/share/nginx/static:ro
+     - ./nginx/ssl:/etc/nginx/ssl:ro
+   networks:
+     - default
+   environment:
+     - NGINX_ENTRYPOINT_QUIET_LOGS=1
+   depends_on:
+     - front
+     - back
+   healthcheck:
+     test: ["CMD", "nginx", "-t"]
+     interval: 30s
+     timeout: 10s
+     retries: 3
+   deploy:
+     replicas: 1
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
 
   redis:
-    build:
-      context: .
-    env_file:
-      - .env
-    image: redis:latest
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      replicas: 1
+   image: redis:latest
+   healthcheck:
+     test: ["CMD", "redis-cli", "ping"]
+     interval: 10s
+     timeout: 5s
+     retries: 5
+   networks:
+     - default
+   deploy:
+     replicas: 1
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
 
   prometheus:
-    build:
-      context: .
-    env_file:
+   image: prom/prometheus:latest
+   env_file:
       - .env
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus:/etc/prometheus
-      - prometheus-data:/prometheus
-    depends_on:
-      - back
+   ports:
+     - "9090:9090"
+   volumes:
+     - ./prometheus:/etc/prometheus:ro
+     - prometheus-data:/prometheus
+   networks:
+     - default
+   depends_on:
+     - back
+   deploy:
+     replicas: 1
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
 
   grafana:
-    build:
-      context: .
-    env_file:
-      - .env
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      - prometheus
+   image: grafana/grafana:latest
+   env_file:
+     - .env
+   ports:
+     - "3000:3000"
+   environment:
+     - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+   networks:
+     - default
+   volumes:
+     - grafana-data:/var/lib/grafana
+   depends_on:
+     - prometheus
+   deploy:
+     replicas: 1
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
 
   falco:
-    image: falcosecurity/falco:latest
-    volumes:
-      - /host:/host:ro
-      - /dev:/dev:ro
-      - /proc:/proc:ro
-      - /sys:/sys:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    cap_add:
-      - SYS_ADMIN
-    command: falco --config /etc/falco/falco.yaml --stdout --severity=info
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+   image: falcosecurity/falco:latest
+   privileged: true
+   volumes:
+     - /var/run/docker.sock:/var/run/docker.sock:ro
+     - /proc:/host/proc:ro
+     - /sys/kernel/debug:/sys/kernel/debug
+     - /dev:/host/dev:ro
+     - /etc:/host/etc:ro
+     - /var/lib/docker:/var/lib/docker:ro
+     - /run/containerd:/run/containerd:ro
+   security_opt:
+     - no-new-privileges:false
+   environment:
+     - FALCO_BPF_PROBE=""  # Forzar uso de eBPF
+   command: >
+     falco
+     --cri /run/containerd/containerd.sock
+     --driver bpf
+     --modern-bpf
+     -o json_output=true
+     --stdout
+     --severity=info
+   networks:
+     - default
+   logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
+
 
 volumes:
-  vault-data:
-    driver: local
-  prometheus-data:
-    driver: local
-  grafana-data:
-    driver: local
-  db-data:
-    driver: local
+ vault-data:
+   driver: local
+ prometheus-data:
+   driver: local
+ grafana-data:
+   driver: local
+ db-data:
+   driver: local
 
 networks:
-  default:
-    driver: overlay
+ default:
+   driver: overlay
+   attachable: true

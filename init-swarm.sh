@@ -38,6 +38,13 @@ cleanup_environment() {
         fi
     done
 
+    # Eliminar volúmenes relacionados
+    echo "Eliminando volúmenes previos..."
+    volumes=$(docker volume ls --filter name="${STACK_NAME}" -q)
+    if [ ! -z "$volumes" ]; then
+        docker volume rm $volumes 2>&1 | tee -a "${LOG_DIR}/cleanup.log"
+    fi
+
     # Limpiar redes huérfanas
     echo "Limpiando redes..."
     docker network prune -f 2>&1 | tee -a "${LOG_DIR}/cleanup.log"

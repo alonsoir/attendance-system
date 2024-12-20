@@ -173,7 +173,6 @@ def test_settings():
 
 @pytest.fixture(scope="session", autouse=True)
 def event_loop():
-    
     loop = asyncio.get_event_loop()
     yield loop
     loop.close()
@@ -212,7 +211,6 @@ async def setup_database(async_engine):
         # Eliminar todas las tablas después de ejecutar las pruebas
         await conn.run_sync(Base.metadata.drop_all)
         print("Tablas eliminadas exitosamente después de la sesión de pruebas.")
-
 
 
 @pytest.fixture(scope="session")
@@ -317,6 +315,7 @@ async def test_interaction(
         "status": interaction.status,
     }
 """
+
 
 @pytest.fixture
 def mock_claude_response() -> Dict[str, Any]:

@@ -25,27 +25,15 @@ cleanup() {
 trap cleanup EXIT
 trap 'trap - EXIT; cleanup' INT TERM
 
-# Función mejorada para esperar servicios
 wait_for_service() {
     local host=$1
     local port=$2
-    local service_name=$3
-    local retries=0
-
-    log_message "INFO" "Esperando a que $service_name ($host:$port) esté disponible..."
-
+    local service=$3
+    echo "Esperando a que $service ($host:$port) esté disponible..."
     while ! nc -z "$host" "$port"; do
-        if [ $retries -eq $MAX_RETRIES ]; then
-            log_message "ERROR" "Tiempo de espera agotado para $service_name ($host:$port)"
-            return 1
-        fi
-        retries=$((retries + 1))
-        log_message "WARN" "Intento $retries de $MAX_RETRIES para $service_name"
-        sleep $RETRY_DELAY
+        sleep 1
     done
-
-    log_message "INFO" "$service_name está disponible"
-    return 0
+    echo "$service está disponible"
 }
 
 # Función para verificar y obtener secretos de Vault
@@ -138,10 +126,15 @@ main() {
         exit 1
     fi
 
+    # Esperar por los servicios
+    wait_for_service "$POSTGRES_SERVER" "$POSTGRES_PORT" "PostgreSQL"
+    wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis"
+    wait_for_service "vault" "8200" "Vault"
+
     # Obtener secretos de Vault
     if ! fetch_vault_secrets; then
         log_message "ERROR" "Error al obtener secretos"
-        exit 1
+        # exit 1
     fi
 
     # Esperar servicios dependientes

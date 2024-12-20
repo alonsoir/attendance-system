@@ -24,6 +24,17 @@ cleanup() {
 trap cleanup EXIT
 trap 'trap - EXIT; cleanup' INT TERM
 
+wait_for_service() {
+    local host=$1
+    local port=$2
+    local service=$3
+    echo "Esperando a que $service ($host:$port) esté disponible..."
+    while ! nc -z "$host" "$port"; do
+        sleep 1
+    done
+    echo "$service está disponible"
+}
+
 # Verificar y obtener secretos de Vault
 fetch_vault_secrets() {
     log_message "INFO" "Obteniendo secretos para el frontend de Vault..."
@@ -49,12 +60,14 @@ fetch_vault_secrets() {
 # Función principal
 main() {
     log_message "INFO" "Iniciando servicio frontend..."
+    # Esperar por el backend
+    wait_for_service "back" "8000" "Backend API"
+    wait_for_service "vault" "8200" "Vault"
 
     # Obtener secretos de Vault
     if ! fetch_vault_secrets; then
         log_message "ERROR" "Error al obtener secretos"
-        exit 1
-    }
+    fi
 
     # Iniciar nginx
     log_message "INFO" "Iniciando nginx..."

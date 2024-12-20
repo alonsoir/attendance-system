@@ -7,7 +7,8 @@ FROM python:3.10-slim AS deps-check
 
 WORKDIR /deps-check
 
-COPY ./backend/pyproject.toml ./backend/poetry.lock ./
+COPY backend/pyproject.toml  ./pyproject.toml
+COPY backend/poetry.lock ./poetry.lock
 
 RUN pip install --no-cache-dir poetry safety && \
     poetry export -f requirements.txt -o requirements.txt --without-hashes && \
@@ -37,10 +38,12 @@ RUN apt-get update && \
 
 RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
 
-COPY ./backend/pyproject.toml ./backend/poetry.lock ./
+COPY backend/pyproject.toml ./pyproject.toml
+COPY backend/poetry.lock ./poetry.lock
+
 RUN poetry install --no-root $( [ "$APP_ENV" == "production" ] && echo "--no-dev" || echo "" )
 
-COPY ./backend/ ./
+COPY backend/ ./
 
 RUN poetry run bandit -r . && \
     poetry run pylint --disable=all --enable=security . || true && \
@@ -62,9 +65,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl ca-certificates netcat-traditional && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-
-RUN groupadd -r apprunner && \
-    useradd -r -g apprunner -d /app apprunner
 
 WORKDIR /app
 COPY --from=builder /app /app

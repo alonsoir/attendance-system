@@ -13,6 +13,7 @@ from backend.services.whatsapp import MessageProvider, WhatsAppService
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class IncomingMessage:
     """Estructura de datos para mensajes entrantes de WhatsApp"""

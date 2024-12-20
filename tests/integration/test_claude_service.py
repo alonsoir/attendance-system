@@ -74,7 +74,7 @@ async def test_generate_claude_response_when_college_integration_en():
             "likely_to_be_on_leave_tomorrow",
             "reach_out_tomorrow",
             "conversation_id",
-            "reason"
+            "reason",
         ]
     )
 
@@ -93,8 +93,17 @@ async def test_generate_claude_response_when_college_integration_en():
         palabra in response["response"].lower()
         # hay veces que Claude responde en Español y en Inglés, aunque le indiques claramente que responda en el
         # idioma en el que ha sido enviado el mensaje.
-        for palabra in ["urgent", "concerned", "contact", "immediately", "find out","preocupa","estudiante",
-                        "inusual","averiguar"]
+        for palabra in [
+            "urgent",
+            "concerned",
+            "contact",
+            "immediately",
+            "find out",
+            "preocupa",
+            "estudiante",
+            "inusual",
+            "averiguar",
+        ]
     )
 
     await claude_service.close_session()
@@ -105,10 +114,12 @@ async def test_generate_claude_response_when_college_integration_en():
 async def test_generate_claude_response_when_tutor_integration_en():
     """Test generating real Claude responses in English"""
     claude_service = ClaudeService.get_instance()
-    message_from_tutor = ("My son is sick and will be staying home for a few days. "
-                          "He has been prescribed broad-spectrum antibiotics at the hospital, "
-                          "so he will be home for a few days until his fever is gone. "
-                          "I will let you know when he can return to school.")
+    message_from_tutor = (
+        "My son is sick and will be staying home for a few days. "
+        "He has been prescribed broad-spectrum antibiotics at the hospital, "
+        "so he will be home for a few days until his fever is gone. "
+        "I will let you know when he can return to school."
+    )
     response = await claude_service.generate_response_when_tutor(
         message_from_tutor=message_from_tutor
     )
@@ -123,7 +134,7 @@ async def test_generate_claude_response_when_tutor_integration_en():
             "likely_to_be_on_leave_tomorrow",
             "reach_out_tomorrow",
             "conversation_id",
-            "reason"
+            "reason",
         ]
     )
 
@@ -161,10 +172,12 @@ async def test_generate_claude_response_when_tutor_integration_en():
 async def test_generate_claude_response_when_tutor_integration_es():
     """Test generating real Claude responses, in Spanish"""
     claude_service = ClaudeService.get_instance()
-    message_from_tutor = ("Mi hijo está enfermo y se ha quedado en casa, "
-                          "le he puesto antibióticos de amplio espectro recetados por el hospital, "
-                          "por lo que permanecerá en casa hasta que deje de tener fiebre. "
-                          "Creo que en cinco días no tendrá fiebre y podrá volver a la escuela.")
+    message_from_tutor = (
+        "Mi hijo está enfermo y se ha quedado en casa, "
+        "le he puesto antibióticos de amplio espectro recetados por el hospital, "
+        "por lo que permanecerá en casa hasta que deje de tener fiebre. "
+        "Creo que en cinco días no tendrá fiebre y podrá volver a la escuela."
+    )
     response = await claude_service.generate_response_when_tutor(
         message_from_tutor=message_from_tutor
     )
@@ -179,7 +192,7 @@ async def test_generate_claude_response_when_tutor_integration_es():
             "likely_to_be_on_leave_tomorrow",
             "reach_out_tomorrow",
             "conversation_id",
-            "reason"
+            "reason",
         ]
     )
 
