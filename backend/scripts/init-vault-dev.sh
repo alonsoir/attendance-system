@@ -33,13 +33,15 @@ for i in {1..30}; do
   sleep 2
 done
 
+# Limpia los datos de Consul
+echo "Limpiando datos de Consul..."
+curl --request PUT --data '{"recurse": true}' $CONSUL_ADDR/v1/kv/vault?recurse=true
 
 # Inicia Vault con Consul como backend y configuración personalizada
 echo "Iniciando Vault con Consul como backend..."
 docker run --rm -d \
   --name=vault \
   --network vault-consul-network \
-  -e 'VAULT_DEV_ROOT_TOKEN_ID=myroot' \
   -e 'VAULT_ADDR=http://127.0.0.1:8200' \
   -e 'VAULT_API_ADDR=http://127.0.0.1:8200' \
   -e 'VAULT_LISTEN_ADDRESS=0.0.0.0:8200' \
@@ -53,23 +55,40 @@ until curl --silent --fail $VAULT_ADDR/v1/sys/health; do
   sleep 1
 done
 
-# Inicializa Vault
-echo "Inicializando Vault. {$VAULT_ADDR} {$VAULT_INIT_DIR/init.txt}"
-docker exec -i vault vault operator init -address=$VAULT_ADDR > $VAULT_INIT_DIR/init.txt
+# Verifica si Vault ya está inicializado
+echo "Verificando si Vault ya está inicializado..."
+VAULT_INIT_STATUS=$(curl --silent --fail $VAULT_ADDR/v1/sys/init | jq -r .initialized)
+if [ "$VAULT_INIT_STATUS" == "true" ]; then
+  echo "Vault ya está inicializado."
+else
+  # Inicializa Vault
+  echo "Inicializando Vault. address: {$VAULT_ADDR}..."
+  docker exec -i vault vault operator init -address=$VAULT_ADDR
+fi
 
-# Guarda las claves de desbloqueo y el token raíz
-echo "Guardando las claves de desbloqueo y el token raíz..."
-cat $VAULT_INIT_DIR/init.txt | grep 'Unseal Key' > $VAULT_INIT_DIR/keys.txt
-cat $VAULT_INIT_DIR/init.txt | grep 'Initial Root Token' > $VAULT_INIT_DIR/root_token.txt
+# Extrae la Unseal Key y el Root Token del log del contenedor de Vault
+echo "Extrayendo la Unseal Key y el Root Token del log del contenedor de Vault..."
+UNSEAL_KEY=$(docker logs vault 2>&1 | grep 'Unseal Key' | head -n 1 | sed 's/.*Unseal Key: //')
+ROOT_TOKEN=$(docker logs vault 2>&1 | grep 'Root Token' | head -n 1 | sed 's/.*Root Token: //')
 
-echo "Vault inicializado con Consul como backend. Las claves de desbloqueo y el token raíz se encuentran en:"
-echo "  - $VAULT_INIT_DIR/keys.txt"
-echo "  - $VAULT_INIT_DIR/root_token.txt"
+# Verifica si la Unseal Key y el Root Token se extrajeron correctamente
+if [ -z "$UNSEAL_KEY" ] || [ -z "$ROOT_TOKEN" ]; then
+  echo "Error: No se pudo extraer la Unseal Key o el Root Token del log del contenedor de Vault."
+  exit 1
+fi
 
-# Desbloquea Vault (unseal)
-echo "Desbloqueando Vault (unseal)..."
-UNSEAL_KEY=$(head -n 1 $VAULT_INIT_DIR/keys.txt | sed 's/Unseal Key 1: //')
 echo "Clave de desbloqueo: $UNSEAL_KEY"
-docker exec -it vault vault operator unseal -address=$VAULT_ADDR $UNSEAL_KEY
+echo "Root Token: $ROOT_TOKEN"
+
+# Verifica si Vault ya está desbloqueado
+echo "Verificando si Vault ya está desbloqueado..."
+VAULT_SEALED_STATUS=$(curl --silent --fail $VAULT_ADDR/v1/sys/seal-status | jq -r .sealed)
+if [ "$VAULT_SEALED_STATUS" == "false" ]; then
+  echo "Vault ya está desbloqueado."
+else
+  # Desbloquea Vault (unseal)
+  echo "Desbloqueando Vault (unseal)..."
+  docker exec -it vault vault operator unseal -address=$VAULT_ADDR $UNSEAL_KEY
+fi
 
 echo "Vault ha sido desbloqueado."
