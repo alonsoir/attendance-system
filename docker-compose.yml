@@ -120,6 +120,10 @@ services:
      POSTGRES_USER: test_user
      POSTGRES_PASSWORD: test_password
      POSTGRES_DB: test_db
+     POSTGRES_SHARED_BUFFERS: 256MB
+     POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
+     POSTGRES_WORK_MEM: 16MB
+   command: postgres -c "huge_pages=off"
    networks:
      - default
    ports:
@@ -127,12 +131,17 @@ services:
    volumes:
      - db-data:/var/lib/postgresql/data
    healthcheck:
-     test: ["CMD-SHELL", "pg_isready -U test_user"]
+     test: ["CMD-SHELL", "pg_isready -U test_user -d test_db"]
      interval: 10s
      timeout: 5s
      retries: 5
    deploy:
      replicas: 1
+     resources:
+       limits:
+         memory: '1G'
+       reservations:
+         memory: '512M'
    logging:
      driver: "json-file"
      options:
