@@ -7,7 +7,7 @@ tls {
 
 # Direcciones de red
 bind_addr = "0.0.0.0"
-advertise_addr = "{{ GetPrivateIP }}"
+advertise_addr = "127.0.0.1"  # Usa la IP privada del contenedor o nodo
 client_addr = "0.0.0.0"
 
 # Directorio de datos
@@ -19,4 +19,4 @@ bootstrap_expect = 1
 
 # Logs
 log_level = "INFO"
-enable_syslog = true
+enable_syslog = false  # Desactiva si no estás utilizando syslog
