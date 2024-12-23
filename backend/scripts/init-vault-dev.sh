@@ -80,6 +80,15 @@ fi
 echo "Clave de desbloqueo: $UNSEAL_KEY"
 echo "Root Token: $ROOT_TOKEN"
 
+# Guarda las claves en archivos
+echo "Guardando las claves en archivos..."
+echo "Unseal Key: $UNSEAL_KEY" > $VAULT_INIT_DIR/unseal_key.txt
+echo "Root Token: $ROOT_TOKEN" > $VAULT_INIT_DIR/root_token.txt
+
+echo "Claves guardadas en:"
+echo "  - $VAULT_INIT_DIR/unseal_key.txt"
+echo "  - $VAULT_INIT_DIR/root_token.txt"
+
 # Verifica si Vault ya está desbloqueado
 echo "Verificando si Vault ya está desbloqueado..."
 VAULT_SEALED_STATUS=$(curl --silent --fail $VAULT_ADDR/v1/sys/seal-status | jq -r .sealed)
