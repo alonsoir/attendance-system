@@ -3,6 +3,7 @@ set -e
 
 # Configuración
 VAULT_ADDR=${VAULT_ADDR:-"http://127.0.0.1:8200"}
+CONSUL_ADDR=${CONSUL_ADDR:-"http://127.0.0.1:8500"}
 KEYS_FILE="/vault/file/vault-keys.txt"
 MAX_RETRIES=30
 RETRY_DELAY=5
@@ -13,6 +14,14 @@ log_message() {
     local level="$1"
     local message="$2"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message" | tee -a "$LOG_FILE"
+}
+
+# Función para verificar si Consul está inicializado
+is_consul_initialized() {
+    if wget -q -O- "${CONSUL_ADDR}/v1/status/leader" | grep -q '"Address":'; then
+        return 0
+    fi
+    return 1
 }
 
 # Función para verificar si Vault está inicializado
@@ -26,6 +35,22 @@ is_vault_initialized() {
 # Función para verificar si Vault está unsealed
 is_vault_unsealed() {
     vault status 2>/dev/null | grep -q 'Sealed.*false'
+}
+
+# Esperar a que Consul esté disponible
+wait_for_consul() {
+    local retries=0
+    log_message "INFO" "Esperando a que Consul esté disponible..."
+    while ! is_consul_initialized; do
+        if [ $retries -ge $MAX_RETRIES ]; then
+            log_message "ERROR" "Timeout esperando a que Consul esté disponible"
+            exit 1
+        fi
+        retries=$((retries + 1))
+        log_message "WARN" "Intento $retries de $MAX_RETRIES. Reintentando en $RETRY_DELAY segundos..."
+        sleep $RETRY_DELAY
+    done
+    log_message "INFO" "Consul está disponible"
 }
 
 # Esperar a que Vault esté disponible
@@ -57,6 +82,22 @@ initialize_vault() {
     fi
     chmod 600 "$KEYS_FILE"
     log_message "INFO" "Vault inicializado, claves guardadas en $KEYS_FILE"
+}
+
+# Extraer Unseal Key y Root Token del log del contenedor de Vault
+extract_vault_keys() {
+    log_message "INFO" "Extrayendo Unseal Key y Root Token del log del contenedor de Vault..."
+    UNSEAL_KEY=$(docker logs vault 2>&1 | grep 'Unseal Key' | head -n 1 | sed 's/.*Unseal Key: //')
+    ROOT_TOKEN=$(docker logs vault 2>&1 | grep 'Root Token' | head -n 1 | sed 's/.*Root Token: //')
+
+    if [ -z "$UNSEAL_KEY" ] || [ -z "$ROOT_TOKEN" ]; then
+        log_message "ERROR" "No se pudo extraer la Unseal Key o el Root Token del log del contenedor de Vault"
+        exit 1
+    fi
+
+    echo "Unseal Key: $UNSEAL_KEY" > /vault/file/unseal_key.txt
+    echo "Root Token: $ROOT_TOKEN" > /vault/file/root_token.txt
+    log_message "INFO" "Unseal Key y Root Token guardados en /vault/file/"
 }
 
 # Realizar unseal de Vault
@@ -100,8 +141,10 @@ verify_vault_status() {
 # Función principal
 main() {
     log_message "INFO" "Iniciando proceso de inicialización de Vault..."
+    wait_for_consul
     wait_for_vault
     initialize_vault
+    extract_vault_keys
     unseal_vault
     verify_vault_status
     log_message "INFO" "Vault está completamente inicializado y operativo"
