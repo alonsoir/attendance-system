@@ -1,5 +1,5 @@
-storage "file" {
-  path = "/vault/data"
+storage "consul" {
+  address = "http://consul:8500"
 }
 
 listener "tcp" {
@@ -8,9 +8,7 @@ listener "tcp" {
   tls_disable   = 1
 }
 
-api_addr = "http://localhost:8200"
-cluster_addr = "https://localhost:8201"
-
-# Configuración de logeo
+api_addr = "http://vault:8200"
+cluster_addr = "https://vault:8201"
 log_level = "info"
 disable_mlock = true
