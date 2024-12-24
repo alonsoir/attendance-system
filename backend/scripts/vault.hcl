@@ -1,14 +1,11 @@
 storage "consul" {
-  address = "http://consul:8500"
+  address = "consul:8500"
+  path    = "vault"
 }
 
 listener "tcp" {
-  address       = "0.0.0.0:8200"
-  cluster_address = "0.0.0.0:8201"
-  tls_disable   = 1
+  address     = "0.0.0.0:8200"
+  tls_disable = 1
 }
 
-api_addr = "http://vault:8200"
-cluster_addr = "https://vault:8201"
-log_level = "info"
 disable_mlock = true

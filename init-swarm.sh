@@ -163,8 +163,12 @@ show_service_logs() {
     done
 }
 
+
 # Función principal
 main() {
+    # Esto es para simular la creación de un clúster de Docker Swarm
+    docker node update --label-add type=worker $(docker node ls -q)
+    docker node update --label-add type=manager $(docker node ls -q)
     cleanup_environment
     build_images
     initialize_swarm
