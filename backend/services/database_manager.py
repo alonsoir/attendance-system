@@ -156,6 +156,8 @@ class DatabaseManager:
     async def get_schools(self, user: User) -> list[dict]:
         """
         Obtiene todas las escuelas con sus campos desencriptados.
+        Probablemente deprecado. Esto tiene que ser un procedimiento
+        almacenado.
         """
         try:
             logger.info("Obteniendo escuelas...")
@@ -183,7 +185,8 @@ class DatabaseManager:
 
     async def get_user(self, username: str) -> Optional[User]:
         """
-        Obtiene un usuario por su nombre de usuario.
+        Obtiene un usuario por su nombre de usuario. Probablemente deprecado. Esto tiene que ser un procedimiento
+        almacenado.
         """
         try:
             logger.info(f"Obteniendo usuario: {username}")

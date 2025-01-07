@@ -8,8 +8,10 @@ from starlette.websockets import WebSocket
 
 from backend.core import get_settings
 from backend.services.claude import ClaudeService
+from backend.services.database_manager import DatabaseManager
 from backend.services.utils import PhoneNumberValidator
 from backend.services.whatsapp import MessageProvider, WhatsAppService
+from tests.conftest import whatsapp_service
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +104,25 @@ class AttendanceManager:
     def __init__(self):
         if self.__initialized:
             return  # Prevent re-initializing Singleton
+        settings = get_settings()
+        # Configuración del servicio
+
+        whatsapp_service = WhatsAppService(
+            provider=MessageProvider.META,
+            meta_api_key=settings.WHATSAPP_META_API_KEY,
+            callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
+        )
+        whatsapp_service.initialize()  # Inicializar el cliente HTTP
+
+        claude_service = ClaudeService.get_instance()
+        claude_service.initialize()
+
+        self.whatsapp_service = whatsapp_service
+        self.claude_service = claude_service
+
+        self.database_manager = DatabaseManager().get_instance()
+        self.database_manager.connect()
+
         self.active_connections = {}
         self.__initialized = True
 
@@ -384,37 +405,23 @@ class AttendanceManager:
             f"{validated_data.message_content}. Please provide a response to this message."
         )
 
-        # Tengo que enviar un mensaje a Claude de parte del tutor!!!!
-        service = ClaudeService.get_instance()
-        service.initialize()
-        response: Dict[str, Any] = await service.generate_response_when_tutor(message)
+
+        response: Dict[str, Any] = await self.claude_service.generate_response_when_tutor(message)
         return response
 
     async def _send_message_to_tutor_From_Claude(
         self, validated_data: MessageData
     ) -> MessageData:
         message = (
-            f"Hola, {validated_data.tutor_name}. Soy Attendance Manager, nos ha contactado el colegio "
-            f"{validated_data.college_name} solicitando información sobre el estudiante "
-            f"{validated_data.student_name}. ¿Puedes proporcionarnos el estado actual de "
-            f"{validated_data.student_name}?"
+            f"Hola, {validated_data.tutor_name}. I am the Attendance Manager, the school has contacted us "
+            f"{validated_data.college_name} requesting information about the student "
+            f"{validated_data.student_name}. Can you tell us how it is going with {validated_data.student_name}?"
         )
-
-        settings = get_settings()
-        # Configuración del servicio
-
-        service = WhatsAppService(
-            provider=MessageProvider.META,
-            meta_api_key=settings.WHATSAPP_META_API_KEY,
-            callback_token=settings.WHATSAPP_CALLBACK_TOKEN,
-        )
-        service.initialize()  # Inicializar el cliente HTTP
-
         logger.info(f"Sending message to tutor: {validated_data.tutor_phone}")
-        response: Dict[str, Any] = await service.send_message(
+        response: Dict[str, Any] = await self.whatsapp_service.send_message(
             validated_data.tutor_phone, message
         )
-        print(response)
+        logger.info(response)
         return response
 
     async def _save_interaction_to_db(
@@ -428,12 +435,12 @@ class AttendanceManager:
     async def _wait_for_tutor_response(
         self, validated_data: MessageData
     ) -> Dict[str, Any]:
-        tutor_response = await ClaudeService.get_instance().wait_for_tutor_response(
+        tutor_response = await self.claude_service.wait_for_tutor_response(
             validated_data.student_name, validated_data.tutor_phone
         )
 
         # Guardar la respuesta del tutor en la base de datos
-
+        logger.info(f"Saving tutor response to database: {tutor_response}")
         return tutor_response
 
     async def _generate_pdf_report(

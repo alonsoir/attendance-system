@@ -1,0 +1,118 @@
+erDiagram
+    roles {
+        UUID id PK
+        VARCHAR_50 name
+        TIMESTAMP created_at
+        UUID created_by
+        TIMESTAMP updated_at
+        UUID updated_by
+    }
+    
+    permissions {
+        UUID id PK
+        VARCHAR_50 name
+        TIMESTAMP created_at
+        UUID created_by
+        TIMESTAMP updated_at
+        UUID updated_by
+    }
+    
+    role_permissions {
+        UUID role_id PK,FK
+        UUID permission_id PK,FK
+        TIMESTAMP created_at
+        UUID created_by
+    }
+    
+    users {
+        UUID id PK
+        VARCHAR_50 username
+        VARCHAR_100 password_hash
+        UUID role_id FK
+        VARCHAR_6 entity_type
+        UUID entity_id
+        TIMESTAMP created_at
+        UUID created_by
+        TIMESTAMP updated_at
+        UUID updated_by
+    }
+    
+    schools {
+        UUID id PK
+        VARCHAR_50 name
+        VARCHAR_20 phone
+        VARCHAR_50 address
+        VARCHAR_20 state
+        VARCHAR_5 country
+        TIMESTAMP created_at
+        UUID created_by
+        TIMESTAMP updated_at
+        UUID updated_by
+    }
+    
+    tutors {
+        UUID id PK
+        VARCHAR_50 name
+        VARCHAR_20 phone
+        VARCHAR_50 email
+        TIMESTAMP created_at
+        UUID created_by
+        TIMESTAMP updated_at
+        UUID updated_by
+    }
+    
+    students {
+        UUID id PK
+        VARCHAR_50 name
+        DATE date_of_birth
+        UUID school_id FK
+        TIMESTAMP created_at
+        UUID created_by
+        TIMESTAMP updated_at
+        UUID updated_by
+    }
+    
+    messages {
+        UUID id PK
+        VARCHAR_50 claude_conversation_id
+        UUID student_id FK
+        UUID school_id FK
+        UUID tutor_id FK
+        sender_type_enum sender_type
+        VARCHAR_1000 content
+        TIMESTAMP created_at
+        UUID created_by
+    }
+
+    system_config {
+        VARCHAR_50 key PK
+        TEXT value
+        VARCHAR_200 description
+        TIMESTAMP updated_at
+        UUID updated_by
+    }
+
+    system_notifications {
+        UUID id PK
+        notification_level level
+        notification_category category
+        VARCHAR_500 message
+        JSONB details
+        VARCHAR_6 source_entity_type
+        UUID source_entity_id
+        BOOLEAN acknowledged
+        UUID acknowledged_by FK
+        TIMESTAMP acknowledged_at
+        TIMESTAMP created_at
+    }
+
+    roles ||--o{ users : "has"
+    roles ||--o{ role_permissions : "has"
+    permissions ||--o{ role_permissions : "has"
+    schools ||--o{ students : "has"
+    schools ||--o{ messages : "participates"
+    students ||--o{ messages : "involves"
+    tutors ||--o{ messages : "participates"
+    users ||--o{ system_notifications : "acknowledges"
+    users ||--o{ schools : "manages"
+    users ||--o{ tutors : "manages"
