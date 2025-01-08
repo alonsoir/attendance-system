@@ -31,8 +31,8 @@ BEGIN
         WHERE schemaname = 'public'
         AND tablename IN ('messages', 'archived_messages', 'students', 'schools', 'tutors')
     LOOP
-        -- VACUUM ANALYZE para cada tabla
-        EXECUTE 'VACUUM ANALYZE ' || v_table_name;
+        -- ANALYZE for each table
+        EXECUTE 'ANALYZE ' || v_table_name;
 
         -- Registrar progreso
         INSERT INTO system_notifications (

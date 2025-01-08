@@ -1,88 +1,102 @@
 -- Tablas para el sistema ACL
 CREATE TABLE roles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID
+   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   name VARCHAR(50) NOT NULL,
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   created_by UUID,
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   updated_by UUID
 );
 
 CREATE TABLE permissions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID
+   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   name VARCHAR(50) NOT NULL,
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   created_by UUID,
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   updated_by UUID
 );
 
 CREATE TABLE role_permissions (
-    role_id UUID REFERENCES roles(id),
-    permission_id UUID REFERENCES permissions(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    PRIMARY KEY (role_id, permission_id)
+   role_id UUID REFERENCES roles(id),
+   permission_id UUID REFERENCES permissions(id),
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   created_by UUID,
+   PRIMARY KEY (role_id, permission_id)
 );
 
--- Tabla de usuarios con referencia a entidad
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(50) NOT NULL,
-    password_hash VARCHAR(100) NOT NULL,
-    role_id UUID REFERENCES roles(id),
-    entity_type VARCHAR(6) CHECK (entity_type IN ('SCHOOL', 'TUTOR')),
-    entity_id UUID,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID,
-    CONSTRAINT valid_entity_reference CHECK (
-        (entity_type = 'SCHOOL' AND EXISTS (SELECT 1 FROM schools WHERE id = entity_id))
-        OR
-        (entity_type = 'TUTOR' AND EXISTS (SELECT 1 FROM tutors WHERE id = entity_id))
-    )
-);
-
--- Tablas principales del sistema
 CREATE TABLE schools (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(50) NOT NULL,
-    phone VARCHAR(20),
-    address VARCHAR(50),
-    state VARCHAR(20),
-    country VARCHAR(5),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID REFERENCES users(id),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID REFERENCES users(id)
+   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   name VARCHAR(50) NOT NULL,
+   phone VARCHAR(20),
+   address VARCHAR(50),
+   state VARCHAR(20),
+   country VARCHAR(5),
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   created_by UUID,
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   updated_by UUID
 );
 
 CREATE TABLE tutors (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(50) NOT NULL,
-    phone VARCHAR(20),
-    email VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID REFERENCES users(id),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID REFERENCES users(id)
+   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   name VARCHAR(50) NOT NULL,
+   phone VARCHAR(20),
+   email VARCHAR(50),
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   created_by UUID,
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   updated_by UUID
 );
+
+CREATE TABLE users (
+   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   username VARCHAR(50) NOT NULL,
+   password_hash VARCHAR(100) NOT NULL,
+   role_id UUID REFERENCES roles(id),
+   entity_type VARCHAR(6) CHECK (entity_type IN ('SCHOOL', 'TUTOR')),
+   entity_id UUID,
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   created_by UUID,
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   updated_by UUID
+);
+
+-- En lugar de las foreign keys condicionales, usamos un trigger
+CREATE OR REPLACE FUNCTION validate_entity_reference()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.entity_type = 'SCHOOL' THEN
+        IF NOT EXISTS (SELECT 1 FROM schools WHERE id = NEW.entity_id) THEN
+            RAISE EXCEPTION 'Invalid school reference';
+        END IF;
+    ELSIF NEW.entity_type = 'TUTOR' THEN
+        IF NOT EXISTS (SELECT 1 FROM tutors WHERE id = NEW.entity_id) THEN
+            RAISE EXCEPTION 'Invalid tutor reference';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_entity_reference
+    BEFORE INSERT OR UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_entity_reference();
 
 CREATE TABLE students (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(50) NOT NULL,
-    date_of_birth DATE,
-    school_id UUID REFERENCES schools(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID REFERENCES users(id),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID REFERENCES users(id)
+   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   name VARCHAR(50) NOT NULL,
+   date_of_birth DATE,
+   school_id UUID REFERENCES schools(id),
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   created_by UUID,
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   updated_by UUID
 );
 
--- Tabla principal de mensajes (particionada)
 CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     claude_conversation_id VARCHAR(50) NOT NULL,
     student_id UUID REFERENCES students(id),
     school_id UUID REFERENCES schools(id),
@@ -90,31 +104,31 @@ CREATE TABLE messages (
     sender_type sender_type_enum NOT NULL,
     content VARCHAR(1000) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID REFERENCES users(id)
+    created_by UUID,
+    PRIMARY KEY (id, created_at),
+    CONSTRAINT unique_id UNIQUE (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
--- Tabla para la configuración del sistema
 CREATE TABLE system_config (
-    key VARCHAR(50) PRIMARY KEY,
-    value TEXT,
-    description VARCHAR(200),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID REFERENCES users(id)
+   key VARCHAR(50) PRIMARY KEY,
+   value TEXT,
+   description VARCHAR(200),
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+   updated_by UUID REFERENCES users(id)
 );
 
--- Tabla para notificaciones del sistema
 CREATE TABLE system_notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    level notification_level NOT NULL,
-    category notification_category NOT NULL,
-    message VARCHAR(500) NOT NULL,
-    details JSONB,
-    source_entity_type VARCHAR(6),
-    source_entity_id UUID,
-    acknowledged BOOLEAN DEFAULT FALSE,
-    acknowledged_by UUID REFERENCES users(id),
-    acknowledged_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+   level notification_level NOT NULL,
+   category notification_category NOT NULL,
+   message VARCHAR(500) NOT NULL,
+   details JSONB,
+   source_entity_type VARCHAR(6),
+   source_entity_id UUID,
+   acknowledged BOOLEAN DEFAULT FALSE,
+   acknowledged_by UUID REFERENCES users(id),
+   acknowledged_at TIMESTAMP WITH TIME ZONE,
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Índices

@@ -7,7 +7,7 @@ CREATE OR REPLACE PROCEDURE create_role(
 LANGUAGE plpgsql AS $$
 BEGIN
     INSERT INTO roles (id, name, created_by, updated_by)
-    VALUES (uuid_generate_v4(), encrypt_value(p_name), p_created_by, p_created_by)
+    VALUES (uuid_generate_v4(), p_name, p_created_by, p_created_by)
     RETURNING id INTO p_id;
 END;
 $$;
@@ -20,7 +20,7 @@ CREATE OR REPLACE PROCEDURE create_permission(
 LANGUAGE plpgsql AS $$
 BEGIN
     INSERT INTO permissions (id, name, created_by, updated_by)
-    VALUES (uuid_generate_v4(), encrypt_value(p_name), p_created_by, p_created_by)
+    VALUES (uuid_generate_v4(), p_name, p_created_by, p_created_by)
     RETURNING id INTO p_id;
 END;
 $$;
@@ -43,7 +43,7 @@ BEGIN
     )
     VALUES (
         uuid_generate_v4(),
-        encrypt_value(p_username),
+        p_username,
         crypt(p_password, gen_salt('bf')),
         p_role_id,
         p_entity_type,
@@ -73,9 +73,9 @@ BEGIN
     )
     VALUES (
         uuid_generate_v4(),
-        encrypt_value(p_name),
-        encrypt_value(p_phone),
-        encrypt_value(p_address),
+        p_name,
+        p_phone,
+        p_address,
         p_state,
         p_country,
         p_created_by,
@@ -100,9 +100,9 @@ BEGIN
     )
     VALUES (
         uuid_generate_v4(),
-        encrypt_value(p_name),
-        encrypt_value(p_phone),
-        encrypt_value(p_email),
+        p_name,
+        p_phone,
+        p_email,
         p_created_by,
         p_created_by
     )
@@ -125,7 +125,7 @@ BEGIN
     )
     VALUES (
         uuid_generate_v4(),
-        encrypt_value(p_name),
+        p_name,
         p_date_of_birth,
         p_school_id,
         p_created_by,
@@ -160,7 +160,7 @@ BEGIN
         p_school_id,
         p_tutor_id,
         p_sender_type,
-        encrypt_value(p_content),
+        p_content,
         p_created_by
     )
     RETURNING id INTO p_id;
@@ -205,9 +205,9 @@ CREATE OR REPLACE PROCEDURE update_school(
 LANGUAGE plpgsql AS $$
 BEGIN
     UPDATE schools
-    SET name = encrypt_value(p_name),
-        phone = encrypt_value(p_phone),
-        address = encrypt_value(p_address),
+    SET name = p_name,
+        phone = p_phone,
+        address = p_address,
         state = p_state,
         country = p_country,
         updated_at = CURRENT_TIMESTAMP,
@@ -230,9 +230,9 @@ CREATE OR REPLACE PROCEDURE update_tutor(
 LANGUAGE plpgsql AS $$
 BEGIN
     UPDATE tutors
-    SET name = encrypt_value(p_name),
-        phone = encrypt_value(p_phone),
-        email = encrypt_value(p_email),
+    SET name = p_name,
+        phone = p_phone,
+        email = p_email,
         updated_at = CURRENT_TIMESTAMP,
         updated_by = p_updated_by
     WHERE id = p_id;
@@ -253,7 +253,7 @@ CREATE OR REPLACE PROCEDURE update_student(
 LANGUAGE plpgsql AS $$
 BEGIN
     UPDATE students
-    SET name = encrypt_value(p_name),
+    SET name = p_name,
         date_of_birth = p_date_of_birth,
         school_id = p_school_id,
         updated_at = CURRENT_TIMESTAMP,
@@ -262,6 +262,32 @@ BEGIN
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Student with ID % not found', p_id;
+    END IF;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE update_role_permission(
+    p_role_id UUID,
+    p_permission_id UUID,
+    p_action VARCHAR(10)  -- 'ADD' o 'REMOVE'
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF p_action = 'ADD' THEN
+        INSERT INTO role_permissions (role_id, permission_id)
+        VALUES (p_role_id, p_permission_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    ELSIF p_action = 'REMOVE' THEN
+        DELETE FROM role_permissions
+        WHERE role_id = p_role_id AND permission_id = p_permission_id;
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Role-Permission relationship not found for role_id % and permission_id %',
+                          p_role_id, p_permission_id;
+        END IF;
+    ELSE
+        RAISE EXCEPTION 'Invalid action: %. Must be either ADD or REMOVE', p_action;
     END IF;
 END;
 $$;
