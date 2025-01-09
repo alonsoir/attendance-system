@@ -208,7 +208,7 @@ prod: check-docker
 postgres-acl-all: postgres-acl-build 
 
 postgres-acl-build: check-docker
-	@echo "$(BLUE)$(EMOJI_INFO) Construyendo imagen PostgreSQL personalizada con ACL y encriptación...$(NC)"
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo imagen PostgreSQL personalizada con ACL, encriptación, server.crt, procedimientos almacenados...$(NC)"
 	@cd $(POSTGRES_PATH) && ./build_pg_container_acl_encrypt_decrypt_test.sh
 	@echo "$(GREEN)$(EMOJI_CHECK) Imagen PostgreSQL personalizada construida.$(NC)"
 

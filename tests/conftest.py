@@ -14,9 +14,9 @@ from sqlalchemy.orm import sessionmaker
 from backend.core.config import Settings, get_settings
 from backend.db.models import Base
 from backend.db.session import create_engine, get_db
-from backend.main import app
-from backend.services.attendance import AttendanceManager
-from backend.services.whatsapp import WhatsAppService
+# from backend.main import app
+# from backend.services.attendance import AttendanceManager
+# from backend.services.whatsapp import WhatsAppService
 
 # Configuración y variables de entorno
 os.environ["APP_ENV"] = "development"
@@ -76,7 +76,7 @@ async def asyncTestingSessionLocal():
     )
     yield asyncTestingSessionLocal
 
-
+'''
 @pytest.fixture(scope="session")
 async def whatsapp_service():
     settings = Settings()
@@ -89,19 +89,19 @@ async def whatsapp_service():
     await service.init_service()  # Inicializar el cliente HTTP
     yield service  # Proveer la instancia a las pruebas
     await service.close_service()  # Cerrar después de las pruebas
-
+'''
 
 @pytest.fixture(autouse=True)
 def mock_logging(monkeypatch):
     pass
 
-
+'''
 @pytest.fixture(scope="session")
 def attendance_manager():
     """Fixture para el Singleton AttendanceManager."""
     return AttendanceManager()
 
-
+'''
 """
 @pytest.mark.asyncio
 async def test_singleton_instance(whatsapp_service):
@@ -250,11 +250,12 @@ async def async_client(db_session: AsyncSession):
         finally:
             pass
 
+    '''
     app.dependency_overrides[get_db] = override_get_db
     async with httpx.AsyncClient(app=app, base_url="http://test") as client:
         yield client
     app.dependency_overrides.clear()
-
+    '''
 
 @pytest.fixture
 def client(db_session) -> Generator:
@@ -266,11 +267,12 @@ def client(db_session) -> Generator:
         finally:
             pass
 
+    '''
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
-
+    '''
 
 # ---- Fixtures de datos de prueba ----
 """

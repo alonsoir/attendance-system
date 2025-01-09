@@ -1,8 +1,16 @@
 #!/bin/bash
 set -e
 
-IMAGE_NAME="test-postgres-encrypted"
-SERVICE_NAME="temp-postgres-encrypted"
+# Este script crea una imagen de Docker con PostgreSQL configurado para encriptación de datos con
+# claves autogestionadas.
+# Con el paso del tiempo voy añadiendo más funcionalidades.
+# Ahora mismo, hay encriptación de datos, SSL, particionado de tablas, seguridad, informes, procedimientos almacenados,
+# acl.
+# También se añade un cronjob para realizar copias de seguridad de la base de datos.
+
+IMAGE_NAME="test-postgres-encrypted-acl-procedures-cron-ssl-partitioning-security-reports-optimized"
+
+SERVICE_NAME="test-postgres-full"
 SECRET_NAME="postgres_encrypt_key"
 
 echo "=== Iniciando configuración de PostgreSQL con encriptación autogestionada ==="
@@ -20,7 +28,7 @@ if docker secret ls | grep -q "$SECRET_NAME"; then
 fi
 
 echo "=== Construyendo nueva imagen... ==="
-docker build -t "$IMAGE_NAME" -f dockerfile_pg_container_acl_encrypt_decrypt_test .
+docker build -t "$IMAGE_NAME" -f Dockerfile .
 
 # Verificar Swarm
 echo "=== Verificando Docker Swarm... ==="

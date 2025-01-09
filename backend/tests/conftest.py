@@ -22,8 +22,8 @@ logging.basicConfig(
 )
 
 # Constantes
-CONTAINER_NAME = "test-postgres"
-IMAGE = "test-postgres"  # Usar la imagen personalizada
+CONTAINER_NAME = "test-postgres-encrypted-acl-procedures-cron-ssl-partitioning-security-reports-optimized"
+IMAGE = "test-postgres-encrypted-acl-procedures-cron-ssl-partitioning-security-reports-optimized"  # Usar la imagen personalizada
 USERNAME = "test_user"
 PASSWORD = "test_password"
 DBNAME = "test_db"

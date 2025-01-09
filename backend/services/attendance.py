@@ -11,7 +11,6 @@ from backend.services.claude import ClaudeService
 from backend.services.database_manager import DatabaseManager
 from backend.services.utils import PhoneNumberValidator
 from backend.services.whatsapp import MessageProvider, WhatsAppService
-from tests.conftest import whatsapp_service
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +114,6 @@ class AttendanceManager:
         whatsapp_service.initialize()  # Inicializar el cliente HTTP
 
         claude_service = ClaudeService.get_instance()
-        claude_service.initialize()
 
         self.whatsapp_service = whatsapp_service
         self.claude_service = claude_service
