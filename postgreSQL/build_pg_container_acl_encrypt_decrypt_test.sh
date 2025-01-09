@@ -8,9 +8,9 @@ set -e
 # acl.
 # También se añade un cronjob para realizar copias de seguridad de la base de datos.
 
-IMAGE_NAME="test-postgres-encrypted-acl-procedures-cron-ssl-partitioning-security-reports-optimized"
+IMAGE_NAME="test-postgres-full-citus"
 
-SERVICE_NAME="test-postgres-full"
+SERVICE_NAME="test-postgres-full-citus"
 SECRET_NAME="postgres_encrypt_key"
 
 echo "=== Iniciando configuración de PostgreSQL con encriptación autogestionada ==="

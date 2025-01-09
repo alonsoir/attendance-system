@@ -180,6 +180,60 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Coordinador
+  coordinator:
+      image: test-postgres-full-citus:latest  # Tu imagen personalizada con PostgreSQL 15 y Citus
+      environment:
+        POSTGRES_USER: test_user
+        POSTGRES_PASSWORD: test_password
+        POSTGRES_DB: test_db
+        POSTGRES_SHARED_BUFFERS: 256MB
+        POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
+        POSTGRES_WORK_MEM: 16MB         # Base de datos inicial
+      ports:
+        - "5432:5432"              # Exponer el puerto del coordinador
+      volumes:
+        - coordinator_data:/var/lib/postgresql/data  # Volumen persistente para el coordinador
+      depends_on:
+        - consul
+      deploy:
+        replicas: 1                # Solo un nodo coordinador
+        resources:
+          limits:
+            memory: '1G'
+          reservations:
+            memory: '512M'
+        placement:
+          constraints:
+            - node.role == manager # Ejecutar el coordinador solo en nodos manager
+      command: >
+        postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  # Workers
+  worker:
+      image: test-postgres-full-citus:latest  # La misma imagen personalizada con soporte para Citus
+      environment:
+        POSTGRES_USER: test_user
+        POSTGRES_PASSWORD: test_password
+        POSTGRES_DB: test_db
+        POSTGRES_SHARED_BUFFERS: 256MB
+        POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
+        POSTGRES_WORK_MEM: 16MB
+      volumes:
+        - worker_data:/var/lib/postgresql/data  # Volumen persistente para cada worker
+      depends_on:
+        - consul
+      deploy:
+        mode: replicated
+        replicas: 1  # Inicialmente se puede poner sin workers (puedes escalar dinámicamente)
+        resources:
+          limits:
+            memory: '1G'
+          reservations:
+            memory: '512M'
+      command: >
+        postgres -c config_file=/etc/postgresql/postgresql.conf
+
   nginx:
     image: nginx:latest
     ports:
@@ -319,6 +373,10 @@ volumes:
   db-data:
     driver: local
   consul-data:
+    driver: local
+  coordinator_data:
+    driver: local
+  worker_data:
     driver: local
 
 networks:

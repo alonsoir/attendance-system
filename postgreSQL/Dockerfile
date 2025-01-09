@@ -1,9 +1,11 @@
 FROM postgres:15
 
-# Instalar extensiones y OpenSSL
 RUN apt-get update && \
-    apt-get install -y postgresql-contrib postgresql-15-cron openssl && \
+    apt-get install -y curl gnupg && \
+    curl https://install.citusdata.com/community/deb.sh | bash && \
+    apt-get install -y postgresql-contrib postgresql-15-cron openssl postgresql-15-citus-11.2 && \
     rm -rf /var/lib/apt/lists/*
+
 
 # Crear directorio para configuraciones y certificados
 RUN mkdir -p /etc/postgresql/ssl && \

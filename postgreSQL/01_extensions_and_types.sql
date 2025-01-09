@@ -3,6 +3,7 @@
 
 -- Crear extensión pg_cron de manera simple
 CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS citus;
 -- Crear tipos ENUM para el sistema
 CREATE TYPE sender_type_enum AS ENUM ('CLAUDE', 'SCHOOL', 'TUTOR');
 CREATE TYPE notification_level AS ENUM (
