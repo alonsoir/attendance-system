@@ -4,19 +4,16 @@ from pathlib import Path
 from typing import Any, Dict, Generator
 from unittest.mock import AsyncMock
 
-import httpx
 import pytest
 from dotenv import load_dotenv
-from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.core.config import Settings, get_settings
 from backend.db.models import Base
-from backend.db.session import create_engine, get_db
-# from backend.main import app
-# from backend.services.attendance import AttendanceManager
-# from backend.services.whatsapp import WhatsAppService
+from backend.db.session import create_engine
+
+
 
 # Configuración y variables de entorno
 os.environ["APP_ENV"] = "development"

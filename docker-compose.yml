@@ -182,57 +182,216 @@ services:
 
   # Coordinador
   coordinator:
-      image: test-postgres-full-citus:latest  # Tu imagen personalizada con PostgreSQL 15 y Citus
-      environment:
-        POSTGRES_USER: test_user
-        POSTGRES_PASSWORD: test_password
-        POSTGRES_DB: test_db
-        POSTGRES_SHARED_BUFFERS: 256MB
-        POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
-        POSTGRES_WORK_MEM: 16MB         # Base de datos inicial
-      ports:
-        - "5432:5432"              # Exponer el puerto del coordinador
-      volumes:
-        - coordinator_data:/var/lib/postgresql/data  # Volumen persistente para el coordinador
-      depends_on:
-        - consul
-      deploy:
-        replicas: 1                # Solo un nodo coordinador
-        resources:
-          limits:
-            memory: '1G'
-          reservations:
-            memory: '512M'
-        placement:
-          constraints:
-            - node.role == manager # Ejecutar el coordinador solo en nodos manager
-      command: >
-        postgres -c config_file=/etc/postgresql/postgresql.conf
+    image: test-postgres-full-citus:latest
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_db
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB   # Para operaciones de mantenimiento
+      # Añadir variables para rendimiento
+      POSTGRES_MAX_CONNECTIONS: 100
+      POSTGRES_MAX_WORKER_PROCESSES: 8
+      POSTGRES_MAX_PARALLEL_WORKERS: 8
+      POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4
+    ports:
+      - "5432:5432"
+    volumes:
+      - coordinator_data:/var/lib/postgresql/data
+    depends_on:
+      - consul
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          # BALANCEADA Puede usar hasta 1.5 núcleos. Equivalente a cpu_quota: 150000, cpu_period: 100000
+          # cpus: '1.5'
+          # memory: '1G'
+          cpus: '1.5'
+          # AGRESIVA Puede usar hasta 2 núcleos. eEquivalente a cpu_quota: 200000, cpu_period: 100000
+          # cpus: '2.0'
+          # memory: '4G'
+          # Consecuencias:
+          # Ideal para operaciones intensivas de cifrado
+          # Óptimo para muchas operaciones concurrentes
+          # Puede impactar negativamente otros servicios
+          # Mayor consumo de energía
+
+          # CONSERVADORA.
+          # cpus: '0.5'      # Equivalente a cpu_quota: 50000, cpu_period: 100000
+          # memory: '512M'
+          # Menor rendimiento en operaciones pesadas
+          # Mejor para entornos compartidos
+          # Menor impacto en la factura del cloud
+          # Puede causar cuellos de botella en picos de carga
+
+          # BALANCEADA.
+          # Buen equilibrio rendimiento/recursos
+          # Maneja bien picos ocasionales
+          # Permite otras cargas en el sistema
+          # Costo moderado en cloud
+
+          # DESARROLLO.
+          # cpus: '0.8'     # Garantiza el 80% de un núcleo
+          # memory: '768M'
+          # ALTA DISPONIBILIDAD.
+          # cpus: '3.0'     # Equivalente a cpu_quota: 300000, cpu_period: 100000
+          # memory: '8G'
+
+          # microservicios
+          # cpus: '0.3'      # Equivalente a cpu_quota: 30000, cpu_period: 100000
+          # memory: '256M'
+          # Ideal para arquitecturas distribuidas
+          # Permite más instancias por máquina
+          # Menor rendimiento individual
+          # Mejor para escalado horizontal
+
+          # análisis de datos
+          # cpus: '4.0'      # Equivalente a cpu_quota: 400000, cpu_period: 100000
+          # memory: '16G'
+          # Óptimo para queries analíticas
+          # Excelente para agregaciones
+          # Muy costoso en recursos
+          # Requiere hardware potente
+
+          # entornos compartidos
+          # cpus: '1.0'      # Equivalente a cpu_quota: 100000, cpu_period: 100000
+          # memory: '1.5G'
+          # Buen vecino en sistemas compartidos
+          # Rendimiento predecible
+          # Balance costo/rendimiento
+          # Adecuado para la mayoría de casos
+          memory: '1G'
+        reservations:
+          # AGRESIVA Puede usar hasta 1 núcleos. eEquivalente a cpu_quota: 100000, cpu_period: 100000
+          # cpus: '1.0'
+          # memory: '2G
+
+          # CONSERVADORA.
+          # cpus: '0.25'
+          # memory: '256M'
+          # Garantiza 1/4 de núcleo
+
+          # BALANCEADA Garantiza mínimo medio núcleo
+          # cpus: '0.5'
+          # memory: '512M'
+
+          # DESARROLLO.
+          # cpus: '0.2'     # Garantiza el 80% de un núcleo
+          # memory: '384M'
+
+          # ALTA DISPONIBILIDAD.
+          # cpus: '1.5'     # # Garantiza núcleo y medio
+          # memory: '4G'
+          # Excelente para cargas críticas
+          # Ideal para bases de datos grandes
+          # Costoso en entornos cloud
+          # Puede requerir hardware específico
+
+          # MICROSERVICIOS.
+          # cpus: '0.1'      # Garantiza 1/10 de núcleo
+          # memory: '128M'
+
+          # análisis de datos
+          # cpus: '2.0'      # Garantiza 2 núcleos
+          # memory: '8G'
+
+          # entornos compartidos
+          # cpus: '0.3'      # Equivalente a cpu_quota: 100000, cpu_period: 100000
+          # memory: '768M'
+          cpus: '0.5'
+          memory: '512M'
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 120s        # Esperar 2 minutos entre actualizaciones
+        order: start-first # Iniciar nuevo contenedor antes de parar el antiguo
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    command: >
+      postgres 
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c maintenance_work_mem=128MB
+      -c synchronous_commit=off
+      -c checkpoint_timeout=30min
+      -c max_wal_size=2GB
+    healthcheck:
+      test: >
+        CMD-SHELL
+        pg_isready -U test_user -d test_db &&
+        psql -U test_user -d test_db -c "SELECT 1 FROM citus_dist_local_group" &&
+        psql -U test_user -d test_db -c "SELECT * FROM citus_health_check()"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s  # Dar tiempo suficiente para el inicio inicial
 
   # Workers
   worker:
-      image: test-postgres-full-citus:latest  # La misma imagen personalizada con soporte para Citus
-      environment:
-        POSTGRES_USER: test_user
-        POSTGRES_PASSWORD: test_password
-        POSTGRES_DB: test_db
-        POSTGRES_SHARED_BUFFERS: 256MB
-        POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
-        POSTGRES_WORK_MEM: 16MB
-      volumes:
-        - worker_data:/var/lib/postgresql/data  # Volumen persistente para cada worker
-      depends_on:
-        - consul
-      deploy:
-        mode: replicated
-        replicas: 1  # Inicialmente se puede poner sin workers (puedes escalar dinámicamente)
-        resources:
-          limits:
-            memory: '1G'
-          reservations:
-            memory: '512M'
-      command: >
-        postgres -c config_file=/etc/postgresql/postgresql.conf
+    image: test-postgres-full-citus:latest
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_db
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB   # Para operaciones de mantenimiento
+      # Configuración específica para workers
+      POSTGRES_MAX_CONNECTIONS: 50
+      POSTGRES_MAX_WORKER_PROCESSES: 4
+      POSTGRES_MAX_PARALLEL_WORKERS: 4
+      POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 2
+    volumes:
+      - worker_data:/var/lib/postgresql/data
+    depends_on:
+      - consul
+      - coordinator
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1.0'      # Un núcleo máximo para workers
+          memory: '1G'
+        reservations:
+          cpus: '0.25'     # Garantiza 25% de un núcleo
+          memory: '512M'
+      update_config:
+        parallelism: 1
+        delay: 60s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints:
+          - node.role != manager  # Workers en nodos worker
+    command: >
+      postgres 
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c maintenance_work_mem=64MB
+      -c synchronous_commit=off
+      -c checkpoint_timeout=30min
+      -c max_wal_size=1GB
+    healthcheck:
+      test: >
+        CMD-SHELL
+        pg_isready -U test_user -d test_db &&
+        psql -U test_user -d test_db -c "SELECT 1 FROM pg_extension WHERE extname = 'citus'"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s  # Dar tiempo suficiente para el inicio inicial
 
   nginx:
     image: nginx:latest

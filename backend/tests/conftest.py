@@ -1,10 +1,9 @@
 import asyncio
 import contextlib
 import logging
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator, Tuple
-
+from typing import AsyncGenerator
+import socket
 import async_timeout
 import docker
 import pytest
@@ -22,8 +21,8 @@ logging.basicConfig(
 )
 
 # Constantes
-CONTAINER_NAME = "test-postgres-encrypted-acl-procedures-cron-ssl-partitioning-security-reports-optimized"
-IMAGE = "test-postgres-encrypted-acl-procedures-cron-ssl-partitioning-security-reports-optimized"  # Usar la imagen personalizada
+CONTAINER_NAME = "test-postgres-full-citus"
+IMAGE = "test-postgres-full-citus"  # Usar la imagen personalizada
 USERNAME = "test_user"
 PASSWORD = "test_password"
 DBNAME = "test_db"
@@ -40,10 +39,6 @@ def event_loop():
     pending = asyncio.all_tasks(loop)
     loop.run_until_complete(asyncio.gather(*pending))
     loop.close()
-
-
-import socket
-
 
 def is_port_in_use(port: int) -> bool:
     """
@@ -114,10 +109,27 @@ async def postgres_container(event_loop):
                 "POSTGRES_USER": USERNAME,
                 "POSTGRES_PASSWORD": PASSWORD,
                 "POSTGRES_DB": DBNAME,
+                "POSTGRES_SHARED_BUFFERS": "256MB",
+                "POSTGRES_EFFECTIVE_CACHE_SIZE": "768MB",
+                "POSTGRES_WORK_MEM": "16MB"
             },
             ports={"5432/tcp": ("127.0.0.1", port)},
             detach=True,
             remove=True,
+            # Añadir health check
+            healthcheck={
+                "test": ["CMD-SHELL", "pg_isready -U " + USERNAME],
+                "interval": 2000000000,  # 2 segundos
+                "timeout": 1000000000,  # 1 segundo
+                "retries": 3
+            },
+            # Añadir límites de recursos, parecido que no igual a lo expresando en el docker-compose.yml
+            mem_limit='1g',  # Equivalente a limits.memory
+            mem_reservation='512m',  # Equivalente a reservations.memory
+            # Escenario de baja carga, son tests de integracion, no de performance
+            cpu_shares=512,  # Menor prioridad
+            cpu_period=100000,
+            cpu_quota=25000,  # 25% de un núcleo
         )
 
         logger.info(f"Contenedor creado: {container.id}")
@@ -260,6 +272,9 @@ async def _wait_for_postgres(container, port):
     max_attempts = 30
     attempt = 0
 
+    # Añadir un tiempo de espera inicial
+    await asyncio.sleep(5)  # Esperar 5 segundos inicialmente
+
     port_bindings = container.attrs["NetworkSettings"]["Ports"]
     logger.info(f"Configuración de puertos: {port_bindings}")
 
@@ -267,7 +282,16 @@ async def _wait_for_postgres(container, port):
         conn_str = (
             f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
         )
-        engine = create_async_engine(conn_str)
+        engine = create_async_engine(
+            conn_str,
+            # Añadir parámetros de conexión
+            connect_args={
+                "server_settings": {
+                    "client_min_messages": "notice"
+                },
+                "command_timeout": 10
+            }
+        )
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
             return True
@@ -280,7 +304,7 @@ async def _wait_for_postgres(container, port):
         except Exception as e:
             logger.error(f"Intento {attempt + 1} fallido: {str(e)}")
             attempt += 1
-            await asyncio.sleep(2)  # Aumentar el tiempo entre intentos
+            await asyncio.sleep(3)  # Aumentar el tiempo entre intentos a 3 segundos
 
         if attempt % 5 == 0:
             container.reload()

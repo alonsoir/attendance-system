@@ -26,8 +26,8 @@ logging.basicConfig(
 )
 
 # Constantes
-CONTAINER_NAME = "test-postgres-encrypted"
-IMAGE = "test-postgres-encrypted"  # Usar la imagen personalizada
+CONTAINER_NAME = "test-postgres-full-citus"
+IMAGE = "test-postgres-full-citus"  # Usar la imagen personalizada
 USERNAME = "test_user"
 PASSWORD = "test_password"
 DBNAME = "test_db"

@@ -58,5 +58,5 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings():
     settings = Settings()
-    settings.print_settings()
+    # settings.print_settings()
     return settings

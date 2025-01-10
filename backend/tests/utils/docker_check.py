@@ -10,26 +10,28 @@ logger = logging.getLogger(__name__)
 import docker
 
 def check_docker() -> bool:
-    """Verifica que Docker está disponible y corriendo."""
+    """Verifies that Docker is available and running."""
     try:
-        # Configura manualmente la URL del socket Unix. Esto es necesario para que funcione en mi mbp, pero esto petará
-        # en cualquier otro sistema.
+        # Manually set the Unix socket URL. This is necessary for my MBP, but will fail on other systems.
         docker_host = "unix:///Users/aironman/.docker/run/docker.sock"
-        client = docker.DockerClient(base_url=docker_host)
+        # wrong way
+        # client = docker.DockerClient(base_url=docker_host)
+        # correct way
+        client = docker.from_env()
 
-        print("---> imprimiendo docker info")
+        print("---> Printing Docker info")
         print(client.info())
-        client.ping()  # Esto lanzará una excepción si no puede conectar
+        client.ping()  # This will raise an exception if it can't connect
         version = client.version()
-        print(f"Docker conectado correctamente. Versión: {version.get('Version', 'unknown')}")
+        print(f"Docker connected successfully. Version: {version.get('Version', 'unknown')}")
         for container in client.containers.list():
-            print(f"Contenedor en ejecución: {container.name} - {container.status}")
+            print(f"Running container: {container.name} - {container.status}")
         return True
     except docker.errors.APIError as e:
-        print(f"Error conectando con Docker: {str(e)}")
+        print(f"Error connecting to Docker: {str(e)}")
         return False
     except Exception as e:
-        print(f"Error inesperado al verificar Docker: {str(e)}")
+        print(f"Unexpected error when verifying Docker: {str(e)}")
         return False
 
 def check_containers(client):

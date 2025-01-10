@@ -1,8 +1,10 @@
 import logging
+import uuid
 from datetime import date
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy import text
 
 from backend.db.models import School
 from backend.tests.utils.docker_check import check_docker
@@ -12,7 +14,6 @@ logger = logging.getLogger(__name__)
 pytestmark = pytest.mark.skipif(
     not check_docker(), reason="Docker no está disponible o no está corriendo"
 )
-
 
 @pytest.mark.asyncio
 async def test_connection_details(postgres_container):
@@ -24,10 +25,7 @@ async def test_connection_details(postgres_container):
     assert port is not None
 
 
-import uuid
 
-import pytest
-from sqlalchemy import text
 
 
 @pytest.mark.asyncio
