@@ -15,6 +15,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import text
 
 from backend.db.models_acl import User
+from backend.services.database_manager import DatabaseManager
+from backend.tests.test_settings import TestSettings
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ logging.basicConfig(
 )
 
 # Constantes
-CONTAINER_NAME = "test-postgres-full-citus"
+CONTAINER_NAME = "attendance_system-coordinator-1"
 IMAGE = "test-postgres-full-citus"  # Usar la imagen personalizada
 USERNAME = "test_user"
 PASSWORD = "test_password"
@@ -143,100 +145,125 @@ async def _get_tutor_role_id(session: AsyncSession) -> str:
 async def postgres_container(event_loop):
     """Proporciona un contenedor PostgreSQL configurado para las pruebas"""
     logger.info("=== INICIO postgres_container fixture ===")
-    container = None
     client = docker.from_env()
-    port = get_free_port()
-    logger.info(f"Puerto asignado para PostgreSQL: {port}")
 
     try:
-        # Limpieza de contenedor existente
+        container = get_container_by_partial_name(client, CONTAINER_NAME)
+        logger.info(f"Usando contenedor existente: {container.name}")
+
+        # Reiniciar el contenedor
+        logger.info("Reiniciando contenedor...")
+        container.restart()
+        await asyncio.sleep(5)
+
+        # Verificar el estado después del reinicio
+        container.reload()
+        logger.info(f"Estado del contenedor: {container.status}")
+
+        # Configurar PostgreSQL
+        commands = [
+            'echo "listen_addresses = \'*\'" >> /var/lib/postgresql/data/postgresql.conf',
+            'echo "host all all 0.0.0.0/0 trust" >> /var/lib/postgresql/data/pg_hba.conf'
+        ]
+
+        for cmd in commands:
+            result = container.exec_run(['bash', '-c', cmd])
+            logger.info(f"Ejecutando: {cmd}")
+            logger.info(f"Resultado: {result.output.decode('utf-8')}")
+
+        # Recargar configuración
+        result = container.exec_run('su postgres -c "pg_ctl reload -D /var/lib/postgresql/data"')
+        logger.info(f"Recargando PostgreSQL: {result.output.decode('utf-8')}")
+
+        # Esperar a que esté listo
+        await _wait_for_postgres(container)
+
+        # Obtener la clave de encriptación
+        encrypt_key = await _get_encryption_key(container)
+        logger.info(f"Clave obtenida y decodificada: {len(encrypt_key)} bytes")
+
+        yield container, 5432, encrypt_key
+
+    except Exception as e:
+        logger.error(f"Error al configurar el contenedor: {str(e)}")
+        raise
+
+
+async def _wait_for_postgres(container, max_retries=5, retry_delay=2):
+    """Espera a que PostgreSQL esté listo para aceptar conexiones"""
+    import asyncpg
+    import asyncio
+    from asyncio import open_connection
+
+    for attempt in range(max_retries):
         try:
-            existing = get_container_by_partial_name(client, CONTAINER_NAME)
-            logger.info(
-                f"Encontrado contenedor existente {existing.name}. Eliminándolo..."
+            # Primero verificar la conectividad TCP
+            logger.info("Verificando conectividad TCP...")
+            reader, writer = await asyncio.wait_for(
+                open_connection('127.0.0.1', 5432),
+                timeout=5
             )
-            await _remove_container(existing)
-            logger.info(f"Contenedor existente {CONTAINER_NAME} eliminado")
-        except docker.errors.NotFound:
-            logger.info(
-                f"No se encontró contenedor existente con nombre parcial {CONTAINER_NAME}"
+            writer.close()
+            await writer.wait_closed()
+            logger.info("Conexión TCP exitosa")
+
+            # Si TCP funciona, intentar conexión PostgreSQL
+            dsn = f"postgresql://{USERNAME}:{PASSWORD}@127.0.0.1:5432/{DBNAME}"
+            logger.info(f"Intentando conexión con DSN: {dsn}")
+
+            conn = await asyncpg.connect(
+                dsn,
+                timeout=10,
+                command_timeout=10
             )
 
-        # Crear nuevo contenedor
-        container = client.containers.run(
-            image=IMAGE,
-            name=CONTAINER_NAME,
-            environment={
-                "POSTGRES_USER": USERNAME,
-                "POSTGRES_PASSWORD": PASSWORD,
-                "POSTGRES_DB": DBNAME,
-            },
-            ports={"5432/tcp": ("127.0.0.1", port)},
-            detach=True,
-            remove=True,
-        )
+            version = await conn.fetchval('SELECT version()')
+            logger.info(f"Conexión exitosa. Versión: {version}")
 
-        logger.info(f"Contenedor creado: {container.id}")
-
-        # Esperar a que PostgreSQL esté listo
-        logger.info("Esperando a que PostgreSQL esté listo...")
-        await _wait_for_postgres(container, port)
-
-        # Obtener la clave de encriptación generada por el contenedor
-        encrypt_key = await _get_encryption_key(container, port)
-
-        yield container, port, encrypt_key
-
-    finally:
-        if container:
-            logger.info("=== Iniciando limpieza final ===")
-            await _remove_container(container)
-            logger.info("=== Limpieza completada ===")
-
-
-async def _get_encryption_key(container, port):
-    """Obtiene la clave de encriptación generada por el contenedor"""
-    async with _get_session(container, port) as session:
-        result = await session.execute(
-            text("SELECT key_value FROM encryption_config WHERE key_name = 'main_key'")
-        )
-        key = result.scalar()
-        return key
-
-
-async def _wait_for_postgres(container, port):
-    max_attempts = 30
-    attempt = 0
-
-    port_bindings = container.attrs["NetworkSettings"]["Ports"]
-    logger.info(f"Configuración de puertos: {port_bindings}")
-
-    async def try_connect():
-        conn_str = (
-            f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
-        )
-        engine = create_async_engine(conn_str)
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
+            await conn.close()
             return True
 
-    while attempt < max_attempts:
-        try:
-            await try_connect()
-            logger.info("Conexión exitosa a PostgreSQL")
-            return
         except Exception as e:
-            logger.error(f"Intento {attempt + 1} fallido: {str(e)}")
-            attempt += 1
-            await asyncio.sleep(2)  # Aumentar el tiempo entre intentos
+            if attempt < max_retries - 1:
+                logger.warning(f"Intento {attempt + 1} fallido: {type(e).__name__}: {str(e)}")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error(f"No se pudo conectar después de {max_retries} intentos")
+                raise TimeoutError("PostgreSQL no está disponible") from e
 
-        if attempt % 5 == 0:
-            container.reload()
-            logger.info(f"Estado del contenedor: {container.status}")
-            logs = container.logs().decode("utf-8")
-            logger.info(f"Últimos logs:\n{logs}")
 
-    raise TimeoutError("PostgreSQL no está disponible después de 30 intentos")
+import base64
+
+
+async def _get_encryption_key(container):
+    """Obtiene la clave de encriptación del contenedor y la decodifica de base64"""
+    logger.info("Obteniendo clave de encriptación...")
+
+    # Obtener la clave en formato base64
+    result = container.exec_run(
+        'psql -U test_user -d test_db -t -A -c "SELECT key_value FROM encryption_config WHERE key_name = \'main_key\';"'
+    )
+
+    key_b64 = result.output.decode('utf-8').strip()
+    logger.info(f"Clave en base64: {key_b64}")
+
+    if key_b64:
+        try:
+            # Decodificar la clave desde base64 y mantenerla como bytes
+            key_bytes = base64.b64decode(key_b64)
+            logger.info(f"Longitud de la clave decodificada: {len(key_bytes)} bytes")
+            # Verificar que la clave se puede encodear de nuevo correctamente
+            key_b64_check = base64.b64encode(key_bytes).decode('utf-8')
+            logger.info(f"Clave re-encoded para verificación: {key_b64_check}")
+            if key_b64_check != key_b64:
+                logger.error("¡Error! La clave no coincide después de encode/decode!")
+            return key_bytes
+        except Exception as e:
+            logger.error(f"Error al decodificar la clave: {e}")
+            raise
+    else:
+        logger.warning("No se encontró la clave de encriptación")
+        return None
 
 
 async def _load_schema(
@@ -339,14 +366,20 @@ async def _remove_container(container, retries=3):
             await asyncio.sleep(1)  # Esperar antes del siguiente intento
 
 
-from backend.services.database_manager import DatabaseManager
-from backend.tests.test_settings import TestSettings
-
-
 @pytest.fixture(scope="function")
 async def db_session(postgres_container) -> AsyncGenerator[DatabaseManager, None]:
+    """Fixture para proveer una sesión de base de datos"""
     container, port, encrypt_key = postgres_container
     logger.info("=== INICIO db_session fixture ===")
+
+    # Verificar la implementación de encriptación
+    await _check_encryption_implementation(container)
+
+    # Probar las funciones de encriptación
+    await _test_encryption(container)
+
+    # Important: La clave ya viene en bytes, no la convertimos
+    logger.info(f"Clave recibida en base64: {base64.b64encode(encrypt_key).decode('utf-8')}")
 
     # Crear configuración de prueba
     test_settings = TestSettings(
@@ -357,15 +390,63 @@ async def db_session(postgres_container) -> AsyncGenerator[DatabaseManager, None
         POSTGRES_SERVER="localhost",
     )
 
-    db_manager = DatabaseManager.get_instance(settings=test_settings)
-    await db_manager.connect(encrypt_key)
+    # Reiniciar el singleton para asegurar un estado limpio
+    DatabaseManager.reset_instance()
+
+    # Crear una nueva instancia con la clave
+    db_manager = DatabaseManager.get_instance(settings=test_settings, encrypt_key=encrypt_key)
+    await db_manager.connect()
 
     try:
+        logger.info(
+            f"Verificando clave en DatabaseManager: {base64.b64encode(db_manager.encrypt_key).decode('utf-8') if db_manager.encrypt_key else None}")
         yield db_manager
     finally:
         await db_manager.disconnect()
         logger.info("=== FIN db_session fixture ===")
 
+
+async def _check_encryption_implementation(container):
+    """Verifica la implementación de la encriptación en la base de datos"""
+    logger.info("Verificando implementación de encriptación...")
+
+    commands = [
+        # Ver la función de encriptación
+        'psql -U test_user -d test_db -c "\df+ encrypt_value"',
+        # Ver la función de desencriptación
+        'psql -U test_user -d test_db -c "\df+ decrypt_value"',
+        # Ver un ejemplo de datos encriptados
+        'psql -U test_user -d test_db -c "SELECT username, convert_from(decode(username, \'base64\'), \'UTF8\') as decoded FROM users LIMIT 1;"',
+        # Ver la definición de la función decrypt_value
+        'psql -U test_user -d test_db -c "SELECT pg_get_functiondef(\'decrypt_value\'::regproc);"',
+        # Verificar si la clave está correctamente instalada
+        'psql -U test_user -d test_db -c "SELECT key_name, length(key_value) as key_length, encode(key_value, \'base64\') as key_base64 FROM encryption_config;"'
+    ]
+
+    for cmd in commands:
+        result = container.exec_run(cmd)
+        logger.info(f"Ejecutando: {cmd}")
+        logger.info(f"Resultado:\n{result.output.decode('utf-8')}")
+
+
+async def _test_encryption(container):
+    """Prueba las funciones de encriptación directamente"""
+    logger.info("Probando funciones de encriptación...")
+
+    # Crear una tabla de prueba
+    setup_commands = [
+        'psql -U test_user -d test_db -c "CREATE TEMP TABLE encryption_test (id serial, data text);"',
+        'psql -U test_user -d test_db -c "INSERT INTO encryption_test (data) VALUES (\'test_value\');"',
+        # Probar encriptación
+        'psql -U test_user -d test_db -c "SELECT encrypt_value(data) FROM encryption_test;"',
+        # Probar desencriptación
+        'psql -U test_user -d test_db -c "SELECT decrypt_value(encrypt_value(data)) FROM encryption_test;"'
+    ]
+
+    for cmd in setup_commands:
+        result = container.exec_run(cmd)
+        logger.info(f"Ejecutando: {cmd}")
+        logger.info(f"Resultado:\n{result.output.decode('utf-8')}")
 
 @pytest.fixture(scope="function")
 async def admin_user(db_session: DatabaseManager) -> User:

@@ -1,3 +1,4 @@
+import datetime
 import logging
 from datetime import date
 
@@ -14,39 +15,111 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.asyncio
-async def test_create_encrypted_school(db_session, admin_user: User):
-    logger.info("Probando creación de escuela encriptada")
+async def test_create_school(db_session, school_user: User):
+    logger.info("Probando creación de escuela")
 
     test_school = {
         "name": "Test School",
         "phone": "+34666777888",
         "address": "Test Address 123",
-        "country": "Spain",
+        "state": "Madrid",  # Añadido state
+        "country": "ES",  # Código de país de 5 caracteres o menos
     }
 
-    async with db_session.transaction(admin_user) as conn:
+    school_id = None  # Para el parámetro INOUT
+
+    async with db_session.transaction(school_user) as conn:
         await conn.execute(
             """
-            CALL create_school($1, $2, $3, $4, $5)
+            CALL create_school($1, $2, $3, $4, $5, $6, $7)
             """,
             test_school["name"],
             test_school["phone"],
             test_school["address"],
+            test_school["state"],
             test_school["country"],
-            None,
+            school_user.id if school_user else None,  # created_by
+            school_id  # INOUT parameter para recibir el ID generado
         )
 
         # Verificar que la escuela existe y tiene los datos correctos
-        schools = await conn.fetch("SELECT * FROM get_all_encrypted_schools()")
-        school_exists = any(
-            school["name"] == test_school["name"]
-            and school["phone"] == test_school["phone"]
-            and school["address"] == test_school["address"]
-            and school["country"] == test_school["country"]
-            for school in schools
+        schools = await conn.fetch(
+            """
+            SELECT * FROM schools 
+            WHERE name = $1 
+            AND phone = $2 
+            AND address = $3 
+            AND state = $4 
+            AND country = $5
+            """,
+            test_school["name"],
+            test_school["phone"],
+            test_school["address"],
+            test_school["state"],
+            test_school["country"]
         )
-        assert school_exists, "La escuela creada no se encuentra en la base de datos"
 
+        assert len(schools) == 1, "La escuela creada no se encuentra en la base de datos"
+
+
+@pytest.mark.asyncio
+async def test_search_messages(db_session, school_user: User):
+    logger.info("Probando búsqueda de mensajes con Full Text Search")
+
+    # Primero insertamos algunos mensajes de prueba
+    test_messages = [
+        "El estudiante ha completado su tarea de matemáticas",
+        "Reunión con el tutor para discutir el progreso",
+        "matemáticas avanzadas y ejercicios de álgebra",
+        "Clase de historia programada para mañana"
+    ]
+
+    async with db_session.transaction(school_user) as conn:
+        # Insertar mensajes de prueba
+        for content in test_messages:
+            await conn.execute(
+                """
+                INSERT INTO messages (
+                    claude_conversation_id, 
+                    content, 
+                    sender_type, 
+                    created_at
+                ) VALUES ($1, $2, $3, $4)
+                """,
+                'test-conv-1',
+                content,
+                'CLAUDE',
+                datetime.now(datetime.timezone.utc)
+            )
+
+        # Probar búsqueda
+        results = await conn.fetch(
+            """
+            SELECT * FROM search_messages($1)
+            """,
+            'matemáticas'
+        )
+
+        # Verificaciones
+        assert len(results) == 2, "Debería encontrar 2 mensajes con 'matemáticas'"
+
+        # Verificar ranking
+        assert results[0]['rank'] > results[1]['rank'], "El primer resultado debería tener mayor relevancia"
+
+        # Buscar con otros filtros
+        results = await conn.fetch(
+            """
+            SELECT * FROM search_messages($1, $2, $3, $4, $5, $6)
+            """,
+            'matemáticas',  # texto a buscar
+            None,  # student_id
+            None,  # school_id
+            None,  # tutor_id
+            datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1),  # from_date
+            datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # to_date
+        )
+
+        assert len(results) == 2, "La búsqueda con filtros de fecha debería funcionar"
 
 @pytest.mark.asyncio
 async def test_update_encrypted_school(db_session, admin_user: User):

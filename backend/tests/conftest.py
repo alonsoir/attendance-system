@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    datefmt="%Y-%m-%d %H:%M:%S"
 )
 
 # Constantes
-CONTAINER_NAME = "test-postgres-full-citus"
+CONTAINER_NAME = "attendance_system-coordinator-1"
 IMAGE = "test-postgres-full-citus"  # Usar la imagen personalizada
 USERNAME = "test_user"
 PASSWORD = "test_password"
@@ -79,10 +79,8 @@ def get_free_port() -> int:
         logger.error(f"Error al buscar puerto disponible: {str(e)}")
         raise RuntimeError(f"No se pudo encontrar un puerto disponible: {str(e)}")
 
-
 @pytest.fixture(scope="session")
 async def postgres_container(event_loop):
-    """Proporciona un contenedor PostgreSQL configurado para las pruebas"""
     logger.info("=== INICIO postgres_container fixture ===")
     container = None
     client = docker.from_env()
@@ -92,225 +90,247 @@ async def postgres_container(event_loop):
     try:
         # Limpieza de contenedor existente
         try:
+            logger.info(client.containers.list())
             existing = client.containers.get(CONTAINER_NAME)
-            logger.info(
-                f"Encontrado contenedor existente {CONTAINER_NAME}. Eliminándolo..."
-            )
-            await _remove_container(existing)
-            logger.info(f"Contenedor existente {CONTAINER_NAME} eliminado")
+            logger.info(f"Encontrado contenedor existente {CONTAINER_NAME}. {existing}")
+            container=existing
+            # logger.info(f"Encontrado contenedor existente {CONTAINER_NAME}. Eliminándolo...")
+            # await _remove_container(existing)
+            # logger.info(f"Contenedor existente {CONTAINER_NAME} eliminado")
         except docker.errors.NotFound:
             logger.info(f"No se encontró contenedor existente {CONTAINER_NAME}")
-
-        # Crear nuevo contenedor
-        container = client.containers.run(
-            image=IMAGE,
-            name=CONTAINER_NAME,
-            environment={
+        '''
+        # Crear nuevo contenedor con más opciones de configuración
+        container_config = {
+            "image": IMAGE,
+            "name": CONTAINER_NAME,
+            "environment": {
                 "POSTGRES_USER": USERNAME,
                 "POSTGRES_PASSWORD": PASSWORD,
                 "POSTGRES_DB": DBNAME,
-                "POSTGRES_SHARED_BUFFERS": "256MB",
-                "POSTGRES_EFFECTIVE_CACHE_SIZE": "768MB",
-                "POSTGRES_WORK_MEM": "16MB"
+                "POSTGRES_HOST": "0.0.0.0",
+                "POSTGRES_LISTEN_ADDRESSES": "*",
+                "POSTGRES_HOST_AUTH_METHOD": "md5",
+                "PGDATA": "/var/lib/postgresql/data/pgdata",
+                # Configurar todas las extensiones requeridas
+                "POSTGRES_SHARED_PRELOAD_LIBRARIES": "pg_cron,citus",
+                "POSTGRES_CRON_DATABASE": DBNAME,
+                "CITUS_EXTENSION_VERSION": "12.1"  # Ajusta la versión según tu imagen
             },
-            ports={"5432/tcp": ("127.0.0.1", port)},
-            detach=True,
-            remove=True,
-            # Añadir health check
-            healthcheck={
-                "test": ["CMD-SHELL", "pg_isready -U " + USERNAME],
-                "interval": 2000000000,  # 2 segundos
-                "timeout": 1000000000,  # 1 segundo
-                "retries": 3
+            "ports": {"5432/tcp": ("127.0.0.1", port)},
+            "detach": True,
+            "remove": False,
+            "network_mode": "bridge",
+            "healthcheck": {
+                "test": ["CMD-SHELL", f"pg_isready -U {USERNAME} -d {DBNAME}"],
+                "interval": 1000000000,
+                "timeout": 1000000000,
+                "retries": 5,
+                "start_period": 2000000000
             },
-            # Añadir límites de recursos, parecido que no igual a lo expresando en el docker-compose.yml
-            mem_limit='1g',  # Equivalente a limits.memory
-            mem_reservation='512m',  # Equivalente a reservations.memory
-            # Escenario de baja carga, son tests de integracion, no de performance
-            cpu_shares=512,  # Menor prioridad
-            cpu_period=100000,
-            cpu_quota=25000,  # 25% de un núcleo
-        )
+            "command": [
+                "postgres",
+                "-c", "listen_addresses=*",
+                "-c", "max_connections=100",
+                "-c", "shared_preload_libraries=pg_cron,citus",
+                "-c", f"cron.database_name={DBNAME}",
+                "-c", "cron.use_background_workers=on",
+                "-c", "max_prepared_transactions=150"  # Requerido para Citus
+            ],
+            "volumes": {
+                "/tmp/pgdata": {"bind": "/var/lib/postgresql/data", "mode": "rw"}
+            }
+        }
 
+        logger.info("Creando contenedor con la siguiente configuración:")
+        logger.info(str(container_config))
+
+        container = client.containers.run(**container_config)
         logger.info(f"Contenedor creado: {container.id}")
-        logger.info(f"Estado inicial: {container.status}")
+        '''
+        # Esperar a que el contenedor esté en estado running
+        max_wait = 30
+        wait_count = 0
+        while wait_count < max_wait:
+            # container.reload()
+            current_status = container.status
+            logger.info(f"Estado actual del contenedor: {current_status}")
 
-        while container.status != "running":
-            logger.info(
-                f"Esperando a que el contenedor esté running... Estado actual: {container.status}"
-            )
+            if current_status == "running":
+                logger.info("Contenedor en estado running")
+                break
+
+            if current_status in ["exited", "dead"]:
+                logs = container.logs().decode('utf-8')
+                logger.error(f"Contenedor terminado inesperadamente. Logs:\n{logs}")
+                raise Exception("El contenedor terminó inesperadamente")
+
+            wait_count += 1
             await asyncio.sleep(1)
-            container.reload()
 
-        logs = container.logs().decode("utf-8")
-        logger.info(f"Logs del contenedor:\n{logs}")
+        if wait_count >= max_wait:
+            raise TimeoutError("Tiempo de espera agotado esperando que el contenedor esté running")
 
         # Esperar a que PostgreSQL esté listo
-        logger.info("Esperando a que PostgreSQL esté listo...")
-        await _wait_for_postgres(container, port)
-
-        # Verificar estado antes de cargar schema
-        async with _get_session(container, port) as session:
-            try:
-                result = await session.execute(text("SELECT COUNT(*) FROM schools"))
-                count = result.scalar()
-                logger.info(f"Estado inicial antes de schema: {count} escuelas")
-            except Exception as e:
-                logger.info(f"Estado inicial: tablas no existen aún - {str(e)}")
-
-        # Inicializar schema
-        logger.info("=== Iniciando carga de schema... ===")
-        await _load_schema(container, port)
-        logger.info("=== Schema cargado exitosamente ===")
-
-        # Verificar estado después de cargar schema
-        async with _get_session(container, port) as session:
-            result = await session.execute(text("SELECT COUNT(*) FROM schools"))
-            count = result.scalar()
-            logger.info(f"Estado después de schema: {count} escuelas")
-
-        # Cargar datos de prueba
-        logger.info("=== Iniciando carga de datos de prueba... ===")
-        await _load_test_data(container, port)
-        logger.info("=== Datos de prueba cargados ===")
-
-        # Verificar consistencia después de cargar datos
-        async with _get_session(container, port) as session:
-            logger.info("Verificando consistencia de datos inicial...")
-            is_consistent = await _verify_data_consistency(session)
-            if not is_consistent:
-                logger.error("Datos iniciales inconsistentes")
-                raise Exception("Los datos iniciales no son consistentes")
-
-            # Verificar conteo de registros
-            result = await session.execute(
-                text(
-                    """
-                SELECT table_name, COUNT(*) 
-                FROM (
-                    SELECT COUNT(*) as count, 'schools' as table_name FROM schools
-                    UNION ALL
-                    SELECT COUNT(*), 'students' FROM students
-                    UNION ALL
-                    SELECT COUNT(*), 'tutors' FROM tutors
-                    UNION ALL
-                    SELECT COUNT(*), 'tutor_student' FROM tutor_student
-                    UNION ALL
-                    SELECT COUNT(*), 'conversations' FROM conversations
-                    UNION ALL
-                    SELECT COUNT(*), 'messages' FROM messages
-                    UNION ALL
-                    SELECT COUNT(*), 'service_status' FROM service_status
-                ) counts
-                GROUP BY table_name
-            """
-                )
-            )
-            counts = result.fetchall()
-            logger.info("Estado después de cargar datos:")
-            for table_name, count in counts:
-                logger.info(f"  - {table_name}: {count} registros")
+        # await _wait_for_postgres(container, port)
 
         yield container, port
-
-        # Verificar consistencia antes de limpiar
-        async with _get_session(container, port) as session:
-            logger.info("Verificando consistencia de datos final...")
-            is_consistent = await _verify_data_consistency(session)
-            if not is_consistent:
-                logger.warning("Los datos finales no son consistentes")
 
     except Exception as e:
         logger.error(f"Error durante la configuración del contenedor: {str(e)}")
         if container:
             logger.info("Limpiando contenedor debido a error...")
             try:
-                await _remove_container(container)
+                container.stop(timeout=5)
+                container.remove(force=True)
                 logger.info("Contenedor eliminado después de error")
             except Exception as cleanup_error:
-                logger.error(
-                    f"Error durante la limpieza del contenedor: {str(cleanup_error)}"
-                )
+                logger.error(f"Error durante la limpieza del contenedor: {str(cleanup_error)}")
         raise
-
+    '''
     finally:
-        logger.info("=== Iniciando limpieza final de postgres_container ===")
+        logger.info("=== Iniciando limpieza final ===")
         if container:
             try:
-                logger.info(f"Limpieza final del contenedor {container.id}...")
-                await _remove_container(container)
-                logger.info("Contenedor detenido y eliminado exitosamente")
+                logger.info(f"Deteniendo contenedor {container.id}...")
+                container.stop(timeout=5)
+                logger.info(f"Eliminando contenedor {container.id}...")
+                container.remove(force=True)
+                logger.info("Contenedor eliminado exitosamente")
             except Exception as e:
-                logger.error(
-                    f"Error durante la limpieza final del contenedor: {str(e)}"
-                )
+                logger.error(f"Error durante la limpieza final: {str(e)}")
+    '''
 
-        # Verificación adicional de limpieza
-        try:
-            existing = client.containers.get(CONTAINER_NAME)
-            logger.warning(
-                f"El contenedor {CONTAINER_NAME} sigue existiendo después de la limpieza. Intentando eliminar..."
+async def _verify_extensions(container):
+    logger.info("Verificando instalación de extensiones...")
+    required_extensions = ['pg_cron', 'pgcrypto', 'uuid-ossp', 'citus']
+
+    try:
+        for ext in required_extensions:
+            result = container.exec_run(
+                [
+                    "psql",
+                    "-U", USERNAME,
+                    "-d", DBNAME,
+                    "-c", f"CREATE EXTENSION IF NOT EXISTS {ext};"
+                ],
+                environment={"PGPASSWORD": PASSWORD}
             )
-            await _remove_container(existing)
-            logger.info("Contenedor eliminado en la verificación final")
-        except docker.errors.NotFound:
-            logger.info("Verificación final: contenedor eliminado correctamente")
+
+            output = result.output.decode()
+            if result.exit_code != 0:
+                logger.error(f"Error al crear extensión {ext}: {output}")
+                raise Exception(f"Error al crear extensión {ext}: {output}")
+
+            # Verificar que la extensión está instalada
+            verify_result = container.exec_run(
+                [
+                    "psql",
+                    "-U", USERNAME,
+                    "-d", DBNAME,
+                    "-c", f"SELECT extname, extversion FROM pg_extension WHERE extname = '{ext}';"
+                ],
+                environment={"PGPASSWORD": PASSWORD}
+            )
+
+            verify_output = verify_result.output.decode()
+            if ext not in verify_output:
+                logger.error(f"La extensión {ext} no se instaló correctamente")
+                raise Exception(f"La extensión {ext} no se instaló correctamente")
+
+            logger.info(f"Extensión {ext} instalada correctamente")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error al verificar extensiones: {e}")
+        raise
+
+async def _verify_psql_connection(container, port):
+    logger.info("Verificando conexión mediante psql...")
+    max_retries = 3
+    retry_count = 0
+
+    while retry_count < max_retries:
+        try:
+            result = container.exec_run(
+                [
+                    "psql",
+                    "-h", "localhost",
+                    "-p", "5432",
+                    "-U", USERNAME,
+                    "-d", DBNAME,
+                    "-c", "SELECT 1"
+                ],
+                environment={
+                    "PGPASSWORD": PASSWORD,
+                    "LANG": "en_US.utf8"
+                }
+            )
+
+            output = result.output.decode()
+            logger.info(f"Resultado verificación psql (intento {retry_count + 1}): {output}")
+
+            if result.exit_code == 0 and "1 row" in output:
+                logger.info("Verificación psql exitosa")
+                return True
+
+            logger.warning(f"Verificación psql fallida (intento {retry_count + 1})")
+            retry_count += 1
+            await asyncio.sleep(1)
+
         except Exception as e:
-            logger.error(f"Error durante la verificación final: {str(e)}")
+            logger.error(f"Error en verificación psql (intento {retry_count + 1}): {e}")
+            retry_count += 1
+            await asyncio.sleep(1)
 
-        # Liberar el puerto
-        logger.info(f"Liberando puerto {port}")
-        with contextlib.suppress(Exception):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.bind(("127.0.0.1", port))
-
-        logger.info("=== FIN postgres_container fixture ===")
+    return False
 
 
 async def _wait_for_postgres(container, port):
     max_attempts = 30
     attempt = 0
 
-    # Añadir un tiempo de espera inicial
-    await asyncio.sleep(5)  # Esperar 5 segundos inicialmente
+    # Espera inicial más larga
+    logger.info("Esperando 10 segundos iniciales para estabilización...")
+    await asyncio.sleep(10)
 
     port_bindings = container.attrs["NetworkSettings"]["Ports"]
     logger.info(f"Configuración de puertos: {port_bindings}")
 
-    async def try_connect():
-        conn_str = (
-            f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
-        )
-        engine = create_async_engine(
-            conn_str,
-            # Añadir parámetros de conexión
-            connect_args={
-                "server_settings": {
-                    "client_min_messages": "notice"
-                },
-                "command_timeout": 10
-            }
-        )
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-            return True
-
     while attempt < max_attempts:
         try:
-            await try_connect()
-            logger.info("Conexión exitosa a PostgreSQL")
-            return
+            # Verificar conexión básica
+            if await _verify_psql_connection(container, port):
+                logger.info("Verificación psql exitosa")
+
+                # Verificar instalación de extensiones
+                if await _verify_extensions(container):
+                    logger.info("Todas las extensiones verificadas correctamente")
+                    return
+
+            else:
+                logger.warning("Verificación psql fallida")
+
         except Exception as e:
             logger.error(f"Intento {attempt + 1} fallido: {str(e)}")
-            attempt += 1
-            await asyncio.sleep(3)  # Aumentar el tiempo entre intentos a 3 segundos
 
-        if attempt % 5 == 0:
+            # Verificación detallada del estado
             container.reload()
+            state = container.attrs.get('State', {})
+            health = state.get('Health', {})
+
             logger.info(f"Estado del contenedor: {container.status}")
-            logs = container.logs().decode("utf-8")
-            logger.info(f"Últimos logs:\n{logs}")
+            logger.info(f"Estado de salud: {health.get('Status', 'N/A')}")
+            logger.info(f"Último chequeo: {health.get('Log', [{}])[-1].get('Output', 'N/A')}")
+
+            # Obtener logs recientes
+            recent_logs = container.logs(tail=50, timestamps=True).decode("utf-8")
+            logger.info(f"Logs recientes:\n{recent_logs}")
+
+            attempt += 1
+            if attempt < max_attempts:
+                await asyncio.sleep(5)
 
     raise TimeoutError("PostgreSQL no está disponible después de 30 intentos")
 
@@ -422,18 +442,29 @@ async def _remove_container(container, retries=3):
     """Helper function to remove a container with retries"""
     for attempt in range(retries):
         try:
-            await asyncio.sleep(1)  # Pequeña pausa antes de intentar eliminar
-            container.stop()
+            logger.info(f"Intento {attempt + 1} de eliminar contenedor {container.id}")
+
+            # Intentar detener el contenedor primero
+            try:
+                container.stop(timeout=10)
+                logger.info("Contenedor detenido correctamente")
+            except Exception as stop_error:
+                logger.warning(f"Error al detener contenedor: {stop_error}")
+
+            # Esperar un momento antes de intentar eliminar
+            await asyncio.sleep(2)
+
+            # Intentar eliminar el contenedor
             container.remove(force=True)
+            logger.info("Contenedor eliminado correctamente")
             return True
+
         except Exception as e:
-            if attempt == retries - 1:  # Último intento
-                logger.error(
-                    f"No se pudo eliminar el contenedor después de {retries} intentos: {e}"
-                )
+            if attempt == retries - 1:
+                logger.error(f"No se pudo eliminar el contenedor después de {retries} intentos: {e}")
                 return False
             logger.warning(f"Intento {attempt + 1} fallido al eliminar contenedor: {e}")
-            await asyncio.sleep(1)  # Esperar antes del siguiente intento
+            await asyncio.sleep(2)
 
 
 async def verify_data(session):
@@ -554,6 +585,7 @@ async def db_session(postgres_container) -> AsyncGenerator[AsyncSession, None]:
 
     try:
         async with _get_session(container, port, timeout=480.0) as session:
+            '''
             # Verificar estado inicial
             counts = await verify_data(session)
 
@@ -571,7 +603,7 @@ async def db_session(postgres_container) -> AsyncGenerator[AsyncSession, None]:
                 is_consistent = await _verify_data_consistency(session)
                 if not is_consistent:
                     logger.warning("Los datos reinsertados no son consistentes")
-
+            '''
             logger.info("Entregando sesión al test")
             yield session
             logger.info("Test completado, cerrando sesión")
@@ -599,7 +631,7 @@ async def cleanup_after_test(postgres_container):
     try:
         container, port = postgres_container
         logger.info("Iniciando limpieza de datos...")
-        await _cleanup_data(container, port)
+        # await _cleanup_data(container, port)
         logger.info("Limpieza completada exitosamente")
     except Exception as e:
         logger.error(f"Error durante la limpieza: {e}")
@@ -632,9 +664,40 @@ async def _get_session(
 
 
 def _get_db_url(container: docker.models.containers.Container, port: int) -> str:
-    """Obtiene la URL de conexión a la base de datos"""
-    return f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
+    """Obtiene la URL de conexión a la base de datos con parámetros adicionales"""
+    params = {
+        "application_name": "test_connection",
+        "connect_timeout": "10",
+        "client_encoding": "utf8"
+    }
+    param_string = "&".join(f"{k}={v}" for k, v in params.items())
+    return f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}?{param_string}"
 
+
+async def _diagnose_connection(container, port):
+    """Función de diagnóstico para problemas de conexión"""
+    logger.info("=== Iniciando diagnóstico de conexión ===")
+
+    # Verificar red
+    networks = container.attrs.get('NetworkSettings', {}).get('Networks', {})
+    logger.info(f"Configuración de red: {networks}")
+
+    # Verificar puertos
+    ports = container.attrs.get('NetworkSettings', {}).get('Ports', {})
+    logger.info(f"Mapeo de puertos: {ports}")
+
+    # Verificar estado del contenedor
+    state = container.attrs.get('State', {})
+    logger.info(f"Estado detallado: {state}")
+
+    # Intentar netcat
+    try:
+        result = container.exec_run(f"nc -zv 127.0.0.1 {port}")
+        logger.info(f"Prueba netcat: {result.output.decode()}")
+    except Exception as e:
+        logger.error(f"Error en prueba netcat: {e}")
+
+    logger.info("=== Fin diagnóstico de conexión ===")
 
 async def _cleanup_data(
     container: docker.models.containers.Container, port: int

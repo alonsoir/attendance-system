@@ -150,6 +150,9 @@ CREATE INDEX idx_system_notifications_category ON system_notifications(category)
 CREATE INDEX idx_system_notifications_created_at ON system_notifications(created_at);
 CREATE INDEX idx_system_notifications_unack ON system_notifications(acknowledged) WHERE NOT acknowledged;
 
+CREATE INDEX idx_messages_content_fts ON messages USING gin(to_tsvector('spanish', content));
+
+
 -- Comentarios en las tablas
 COMMENT ON TABLE messages IS 'Almacena todos los mensajes intercambiados entre escuelas, tutores y Claude';
 COMMENT ON TABLE system_notifications IS 'Registro de eventos y notificaciones del sistema';

@@ -16,9 +16,9 @@ BEGIN
     RETURN QUERY
     SELECT
         s.id,
-        decrypt_value(s.name)::VARCHAR(50),
-        decrypt_value(s.phone)::VARCHAR(20),
-        decrypt_value(s.address)::VARCHAR(50),
+        s.name,
+        s.phone,
+        s.address,
         s.state,
         s.country,
         s.created_at,
@@ -45,9 +45,9 @@ BEGIN
     RETURN QUERY
     SELECT
         t.id,
-        decrypt_value(t.name)::VARCHAR(50),
-        decrypt_value(t.phone)::VARCHAR(20),
-        decrypt_value(t.email)::VARCHAR(50),
+        t.name,
+        t.phone,
+        t.email,
         t.created_at,
         t.created_by,
         t.updated_at,
@@ -73,10 +73,10 @@ BEGIN
     RETURN QUERY
     SELECT
         s.id,
-        decrypt_value(s.name)::VARCHAR(50),
+        s.name,
         s.date_of_birth,
         s.school_id,
-        decrypt_value(sc.name)::VARCHAR(50),
+        sc.name,
         s.created_at,
         s.created_by,
         s.updated_at,
@@ -109,11 +109,11 @@ BEGIN
         m.claude_conversation_id,
         m.sender_type,
         CASE m.sender_type
-            WHEN 'SCHOOL' THEN decrypt_value(s.name)::VARCHAR(50)
-            WHEN 'TUTOR' THEN decrypt_value(t.name)::VARCHAR(50)
+            WHEN 'SCHOOL' THEN s.name
+            WHEN 'TUTOR' THEN t.name
             WHEN 'CLAUDE' THEN 'Claude'
         END,
-        decrypt_value(m.content)::VARCHAR(1000),
+        m.content,
         m.created_at,
         m.created_by
     FROM messages m
@@ -143,11 +143,11 @@ BEGIN
     RETURN QUERY
     SELECT
         m.id,
-        decrypt_value(st.name)::VARCHAR(50) as student_name,
-        decrypt_value(s.name)::VARCHAR(50) as school_name,
-        decrypt_value(t.name)::VARCHAR(50) as tutor_name,
+        st.name as student_name,
+        s.name as school_name,
+        t.name as tutor_name,
         m.sender_type,
-        decrypt_value(m.content)::VARCHAR(1000),
+        m.content,
         m.created_at
     FROM messages m
     LEFT JOIN students st ON m.student_id = st.id
@@ -158,7 +158,6 @@ BEGIN
 END;
 $$;
 
--- Función para búsqueda de mensajes por contenido
 CREATE OR REPLACE FUNCTION search_messages(
     p_search_text VARCHAR(100),
     p_student_id UUID DEFAULT NULL,
@@ -173,27 +172,39 @@ RETURNS TABLE (
     student_name VARCHAR(50),
     sender_type sender_type_enum,
     content_preview VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE
+    created_at TIMESTAMP WITH TIME ZONE,
+    rank FLOAT4  -- Añadimos ranking para ver la relevancia
 ) LANGUAGE plpgsql AS $$
 BEGIN
     RETURN QUERY
     SELECT
         m.id,
         m.claude_conversation_id,
-        decrypt_value(st.name)::VARCHAR(50),
+        st.name,
         m.sender_type,
-        substring(decrypt_value(m.content)::VARCHAR(1000) from 1 for 100),
-        m.created_at
+        substring(m.content from 1 for 100),
+        m.created_at,
+        ts_rank(to_tsvector('spanish', m.content), plainto_tsquery('spanish', p_search_text)) AS rank
     FROM messages m
-    JOIN students st ON m.student_id = st.id
+    LEFT JOIN students st ON m.student_id = st.id
     WHERE
-        (decrypt_value(m.content) ILIKE '%' || p_search_text || '%')
+        CASE
+            WHEN p_search_text IS NOT NULL AND p_search_text != '' THEN
+                to_tsvector('spanish', m.content) @@ plainto_tsquery('spanish', p_search_text)
+            ELSE TRUE
+        END
         AND (p_student_id IS NULL OR m.student_id = p_student_id)
         AND (p_school_id IS NULL OR m.school_id = p_school_id)
         AND (p_tutor_id IS NULL OR m.tutor_id = p_tutor_id)
         AND (p_from_date IS NULL OR m.created_at >= p_from_date)
         AND (p_to_date IS NULL OR m.created_at <= p_to_date)
-    ORDER BY m.created_at DESC;
+    ORDER BY
+        CASE
+            WHEN p_search_text IS NOT NULL AND p_search_text != '' THEN
+                ts_rank(to_tsvector('spanish', m.content), plainto_tsquery('spanish', p_search_text))
+            ELSE 0
+        END DESC,
+        m.created_at DESC;
 END;
 $$;
 

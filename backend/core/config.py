@@ -42,7 +42,6 @@ class Settings(BaseSettings):
     WHATSAPP_PROVIDER: str
     FRONTEND_PORT: int
     VITE_API_URL: str
-    # todo refactorize this to load different settings for each environment
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH)
 
     def __init__(self, **kwargs):
