@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>429 - Demasiadas peticiones</title>
+    <link rel="stylesheet" href="/static/css/error-pages.css">
+</head>
+<body class="error-page">
+    <div class="error-container">
+        <h1>429</h1>
+        <h2>Demasiadas peticiones</h2>
+        <p>Has realizado demasiadas solicitudes en poco tiempo. Por favor, espera unos minutos antes de intentarlo de nuevo.</p>
+        <p class="retry-info">Podrás volver a intentarlo en: <span id="countdown">30</span> segundos</p>
+        <script>
+            let timeLeft = 30;
+            const countdownElement = document.getElementById('countdown');
+
+            const countdown = setInterval(() => {
+                timeLeft--;
+                countdownElement.textContent = timeLeft;
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    window.location.reload();
+                }
+            }, 1000);
+        </script>
+    </div>
+</body>
+</html>

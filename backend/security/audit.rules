@@ -1,0 +1,33 @@
+# Eliminar todas las reglas existentes
+-D
+
+# Establecer el tamaño del buffer
+-b 8192
+
+# Fallos de autenticación
+-w /var/log/auth.log -p wa -k auth_log
+-w /var/log/syslog -p wa -k syslog
+
+# Cambios en archivos de configuración críticos
+-w /etc/passwd -p wa -k passwd_changes
+-w /etc/group -p wa -k group_changes
+-w /etc/shadow -p wa -k shadow_changes
+-w /etc/sudoers -p wa -k sudoers_changes
+
+# Monitorear directorios de la aplicación
+-w /app -p wa -k app_changes
+-w /app/scripts -p x -k script_execution
+
+# Monitorear cambios en configuración de red
+-a exit,always -F arch=b64 -S sethostname -S setdomainname -k system_hostname
+
+# Monitorear creación y eliminación de usuarios
+-w /usr/bin/passwd -p x -k passwd_execution
+-w /usr/sbin/groupadd -p x -k group_add
+-w /usr/sbin/groupmod -p x -k group_mod
+-w /usr/sbin/adduser -p x -k user_add
+-w /usr/sbin/usermod -p x -k user_mod
+-w /usr/sbin/userdel -p x -k user_delete
+
+# Monitorear montaje/desmontaje
+-a always,exit -F arch=b64 -S mount -S umount2 -k mount

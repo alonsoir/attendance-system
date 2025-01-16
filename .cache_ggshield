@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "SMTP credentials - commit://staged/.env-dev.example", "match": "5d47949495e88496faa0ecfab5b050727dcc2a55854c2642ed827aae8bbbe107"}]}
+{"last_found_secrets": [{"match": "f6d1bb1c823145753113ed785c65ce99d7fbe38053cf9f149d70d191ae709ab1", "name": "Claude API Key - commit://staged/.env.test"}]}

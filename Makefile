@@ -1,257 +1,315 @@
-# Variables de versiones
-PYTHON_VERSION := 3.10
-POETRY_VERSION := 1.8.4
-NODE_VERSION := 20.x
-APP_NAME := attendance-system
-HEROKU_APP_NAME := your-heroku-app-name
+# =============================================================================
+# DECLARACIÓN DE PHONY TARGETS (actualizado)
+# =============================================================================
+.PHONY: help check-docker check-environment check-deps validate-versions check-env \
+        generate-secret install backend-build frontend-install frontend-build \
+        dev prod run format lint test tests-unit tests-integration \
+        test-with-containers-without-stored-procedures-acl-encryption \
+        test-with-containers-with-stored-procedures-acl-encryption test-in-docker \
+        docker-build docker-run docker-stop docker-all \
+        db-init db-reset db-seed db-setup \
+        postgres-acl-build  postgres-acl-scale postgres-acl-replicate \
+        postgres-acl-remove postgres-acl-all security-check security-bandit security-safety security-gitguardian
 
-# Determinar el entorno
-ENV ?= dev
-ENV_FILE := .env-$(ENV)
+# =============================================================================
+# VARIABLES Y CONFIGURACIÓN
+# =============================================================================
+SHELL := /bin/bash
 
-# Cargar variables de entorno
-include $(ENV_FILE)
-export
+PYTHON_VERSION = 3.10.15
+POETRY_VERSION = 1.8.4
+NODE_VERSION = 22.9.0
+DOCKER_VERSION = 27.3.1
+NPM_VERSION = 10.8.3
+APP_NAME = attendance-system
+ENV = development
+ENV_FILE = .env-$(ENV)
+LOG_FILE = make.log
+LOG_DIR = logs
+FRONTEND_PATH = frontend
+BACKEND_PATH = backend
+DOCKER_COMPOSE_FILE = docker-compose.yml
 
-# Colores para output
-CYAN := \033[0;36m
-GREEN := \033[0;32m
-YELLOW := \033[0;33m
-RED := \033[0;31m
-BLUE := \033[0;34m
-NC := \033[0m # No Color
+POSTGRES_PATH = postgresql
+POSTGRES_VERSION = 15
+POSTGRES_IMAGE_NAME = test-postgres-encrypted
+POSTGRES_SERVICE_NAME = test-postgres-encrypted
+POSTGRES_REPLICAS = 3
+POSTGRES_SCALE = 5
 
-# Emojis
-EMOJI_CHECK := ✅
-EMOJI_ERROR := ❌
-EMOJI_WARN := ⚠️
-EMOJI_INFO := ℹ️
+# Colores y emojis
+include mk/colors.mk
 
-# Paths
-BACKEND_PATH := attendance_system
-FRONTEND_PATH := frontend
-DOCS_PATH := docs
-
-# Lista de todos los targets que no son archivos
-.PHONY: help install build test run deploy clean docker-build docker-run docker-stop \
-        heroku-deploy init check-env check-deps format lint type-check security-check \
-        docs test-coverage migrate db-reset frontend-install frontend-build logs check-secrets
-
-# Verificar secrets
-check-secrets:
-	@echo "$(YELLOW)Verificando archivos por secrets...$(NC)"
-	@if command -v ggshield >/dev/null 2>&1; then \
-		ggshield secret scan path .; \
+# =============================================================================
+# VERIFICACIONES BÁSICAS
+# =============================================================================
+check-docker:
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando Docker...$(NC)"
+	@docker info > /dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) Docker no está corriendo!$(NC)" && exit 1)
+	@echo "$(GREEN)$(EMOJI_CHECK) Docker está corriendo.$(NC)"
+check-environment:
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando entorno virtual...$(NC)"
+	@if [ -n "$$CI" ]; then \
+		echo "$(GREEN)$(EMOJI_CHECK) Ejecutando en CI - no se requiere entorno virtual.$(NC)"; \
+	elif [ -z "$(VIRTUAL_ENV)" ]; then \
+		poetry shell || (echo "$(RED)$(EMOJI_ERROR) No se pudo activar el entorno virtual!$(NC)" && exit 1); \
 	else \
-		echo "$(RED)ggshield no está instalado. Instálalo con: pip install ggshield$(NC)"; \
-		exit 1; \
+		echo "$(GREEN)$(EMOJI_CHECK) Entorno virtual activo.$(NC)"; \
 	fi
+	@echo "$(GREEN)$(EMOJI_CHECK) Entorno virtual verificado.$(NC)"
+# =============================================================================
+# VERIFICACIONES DE SISTEMA
+# =============================================================================
+check-deps: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando dependencias...$(NC)"
+	@command -v docker >/dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) Docker no encontrado$(NC)" && exit 1)
+	@command -v npm >/dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) npm no encontrado$(NC)" && exit 1)
+	@command -v poetry >/dev/null 2>&1 || (echo "$(RED)$(EMOJI_ERROR) Poetry no encontrado$(NC)" && exit 1)
+	@echo "$(GREEN)$(EMOJI_CHECK) Todas las dependencias instaladas.$(NC)"
 
-# Verificar archivo de entorno
-check-env: check-secrets
-	@if [ ! -f $(ENV_FILE) ]; then \
-		echo "$(RED)$(EMOJI_ERROR) Error: Archivo $(ENV_FILE) no encontrado$(NC)"; \
-		echo "$(YELLOW)$(EMOJI_INFO) Copia $(ENV_FILE).example a $(ENV_FILE) y configura tus variables$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(YELLOW)Verificando variables requeridas en $(ENV_FILE)...$(NC)"
-	@source $(ENV_FILE) && [ -z "$$SECRET_KEY" ] && echo "$(RED)ERROR: SECRET_KEY no está configurada$(NC)" && exit 1 || true
-	@source $(ENV_FILE) && [ -z "$$ANTHROPIC_API_KEY" ] && echo "$(RED)ERROR: ANTHROPIC_API_KEY no está configurada$(NC)" && exit 1 || true
-	@echo "$(GREEN)$(EMOJI_CHECK) Archivo $(ENV_FILE) verificado correctamente$(NC)"
+validate-versions: check-deps
+	@echo "$(BLUE)$(EMOJI_INFO) Validando versiones...$(NC)"
+	@python3 -c 'import sys; assert sys.version.startswith("$(PYTHON_VERSION)")' || \
+		(echo "$(RED)$(EMOJI_ERROR) Python $(PYTHON_VERSION) requerido$(NC)" && exit 1)
+	@echo "$(GREEN)$(EMOJI_CHECK) Versiones correctas.$(NC)"
 
-# Verificar dependencias del sistema
-check-deps:
-	@echo "$(BLUE)$(EMOJI_INFO) Verificando dependencias del sistema...$(NC)"
-	@command -v python$(PYTHON_VERSION) >/dev/null 2>&1 || { echo "$(RED)$(EMOJI_ERROR) Python $(PYTHON_VERSION) no encontrado$(NC)"; exit 1; }
-	@command -v docker >/dev/null 2>&1 || { echo "$(RED)$(EMOJI_ERROR) Docker no encontrado$(NC)"; exit 1; }
-	@command -v node >/dev/null 2>&1 || { echo "$(RED)$(EMOJI_ERROR) Node.js no encontrado$(NC)"; exit 1; }
-	@command -v npm >/dev/null 2>&1 || { echo "$(RED)$(EMOJI_ERROR) npm no encontrado$(NC)"; exit 1; }
-	@echo "$(GREEN)$(EMOJI_CHECK) Todas las dependencias están instaladas$(NC)"
+# =============================================================================
+# INSTALACIÓN Y CONSTRUCCIÓN
+# =============================================================================
+install: check-deps backend-build frontend-install frontend-build
+	@echo "$(GREEN)$(EMOJI_CHECK) Instalación completada.$(NC)"
 
-# Ayuda
-help:
-	@echo "$(CYAN)Comandos disponibles:$(NC)"
-	@echo ""
-	@echo "$(BLUE)Instalación y Configuración:$(NC)"
-	@echo "  $(GREEN)make init ENV=[dev|prod]$(NC)        - Inicializar proyecto completo"
-	@echo "  $(GREEN)make install ENV=[dev|prod]$(NC)     - Instalar dependencias"
-	@echo "  $(GREEN)make check-deps$(NC)                 - Verificar dependencias del sistema"
-	@echo "  $(GREEN)make check-secrets$(NC)              - Verificar secrets en el código"
-	@echo ""
-	@echo "$(BLUE)Desarrollo:$(NC)"
-	@echo "  $(GREEN)make run ENV=[dev|prod]$(NC)         - Ejecutar en desarrollo"
-	@echo "  $(GREEN)make format$(NC)                     - Formatear código"
-	@echo "  $(GREEN)make lint$(NC)                       - Ejecutar linters"
-	@echo "  $(GREEN)make type-check$(NC)                 - Verificar tipos"
-	@echo ""
-	@echo "$(BLUE)Testing:$(NC)"
-	@echo "  $(GREEN)make test ENV=[dev|prod]$(NC)        - Ejecutar todos los tests"
-	@echo "  $(GREEN)make test-unit$(NC)                  - Ejecutar tests unitarios"
-	@echo "  $(GREEN)make test-integration$(NC)           - Ejecutar tests de integración"
-	@echo "  $(GREEN)make test-coverage$(NC)              - Generar reporte de cobertura"
-	@echo ""
-	@echo "$(BLUE)Docker:$(NC)"
-	@echo "  $(GREEN)make docker-build ENV=[dev|prod]$(NC) - Construir contenedores"
-	@echo "  $(GREEN)make docker-run ENV=[dev|prod]$(NC)   - Ejecutar contenedores"
-	@echo "  $(GREEN)make docker-stop$(NC)                - Detener contenedores"
-	@echo "  $(GREEN)make logs$(NC)                       - Ver logs de contenedores"
-	@echo ""
-	@echo "$(BLUE)Base de Datos:$(NC)"
-	@echo "  $(GREEN)make migrate ENV=[dev|prod]$(NC)     - Ejecutar migraciones"
-	@echo "  $(GREEN)make db-reset ENV=[dev|prod]$(NC)    - Resetear base de datos"
-	@echo ""
-	@echo "$(BLUE)Despliegue:$(NC)"
-	@echo "  $(GREEN)make deploy ENV=[dev|prod]$(NC)      - Desplegar en producción"
-	@echo "  $(GREEN)make heroku-deploy ENV=prod$(NC)     - Desplegar en Heroku"
+backend-build: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo backend...$(NC)"
+	@cd $(BACKEND_PATH) && poetry install
+	@echo "$(GREEN)$(EMOJI_CHECK) Backend construido.$(NC)"
 
-# Instalación
-install: check-env check-deps
-	@echo "$(YELLOW)Instalando poetry...$(NC)"
-	curl -sSL https://install.python-poetry.org | python3 -
-	@echo "$(YELLOW)Configurando poetry...$(NC)"
-	poetry config virtualenvs.in-project true
-	@echo "$(YELLOW)Instalando dependencias de Python...$(NC)"
-	poetry install $(if $(filter prod,$(ENV)),--only main$(comma)prod,)
-	@echo "$(YELLOW)Instalando dependencias de frontend...$(NC)"
-	$(MAKE) frontend-install ENV=$(ENV)
-	@echo "$(GREEN)$(EMOJI_CHECK) Instalación completada$(NC)"
-
-# Frontend
 frontend-install:
-	@echo "$(YELLOW)Instalando dependencias de frontend...$(NC)"
-	cd $(FRONTEND_PATH) && npm install $(if $(filter prod,$(ENV)),--production,)
+	@echo "$(BLUE)$(EMOJI_INFO) Instalando dependencias frontend...$(NC)"
+	@cd $(FRONTEND_PATH) && npm ci
+	@echo "$(GREEN)$(EMOJI_CHECK) Frontend instalado.$(NC)"
 
 frontend-build:
-	@echo "$(YELLOW)Construyendo frontend...$(NC)"
-	cd $(FRONTEND_PATH) && npm run build
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo frontend...$(NC)"
+	@cd $(FRONTEND_PATH) && npm run build
+	@echo "$(GREEN)$(EMOJI_CHECK) Frontend construido.$(NC)"
 
-# Formateo y linting
-format:
-	@echo "$(YELLOW)Formateando código...$(NC)"
-	poetry run black $(BACKEND_PATH) tests
-	poetry run isort $(BACKEND_PATH) tests
-	cd $(FRONTEND_PATH) && npm run format
+# =============================================================================
+# FORMATEO Y LINTING
+# =============================================================================
+format: format-backend format-frontend
+	@echo "$(GREEN)$(EMOJI_CHECK) Formateo completado.$(NC)"
 
-lint:
-	@echo "$(YELLOW)Ejecutando linters...$(NC)"
-	poetry run flake8 $(BACKEND_PATH) tests
-	poetry run pylint $(BACKEND_PATH) tests
-	cd $(FRONTEND_PATH) && npm run lint
+format-backend: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Formateando código backend...$(NC)"
+	@cd $(BACKEND_PATH) && poetry run black .
+	@cd $(BACKEND_PATH) && poetry run isort .
+	@echo "$(GREEN)$(EMOJI_CHECK) Código backend formateado.$(NC)"
 
-type-check:
-	@echo "$(YELLOW)Verificando tipos...$(NC)"
-	poetry run mypy $(BACKEND_PATH)
+format-frontend:
+	@echo "$(BLUE)$(EMOJI_INFO) Formateando código frontend...$(NC)"
+	@cd $(FRONTEND_PATH) && npm run format
+	@echo "$(GREEN)$(EMOJI_CHECK) Código frontend formateado.$(NC)"
 
-security-check:
-	@echo "$(YELLOW)Ejecutando verificaciones de seguridad...$(NC)"
-	poetry run safety check
-	poetry run bandit -r $(BACKEND_PATH)
-	cd $(FRONTEND_PATH) && npm audit
-	$(MAKE) check-secrets
+lint: lint-backend lint-frontend
+	@echo "$(GREEN)$(EMOJI_CHECK) Linting completado.$(NC)"
 
-# Testing
-test: test-unit test-integration
+lint-backend: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando linting en backend...$(NC)"
+	@cd $(BACKEND_PATH) && poetry run flake8 .
+	@cd $(BACKEND_PATH) && poetry run mypy .
+	@cd $(BACKEND_PATH) && poetry run pylint **/*.py
+	@echo "$(GREEN)$(EMOJI_CHECK) Linting backend completado.$(NC)"
 
-test-unit:
-	@echo "$(YELLOW)Ejecutando tests unitarios...$(NC)"
-	poetry run pytest tests/unit -v
+lint-frontend:
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando linting en frontend...$(NC)"
+	@cd $(FRONTEND_PATH) && npm run lint
+	@echo "$(GREEN)$(EMOJI_CHECK) Linting frontend completado.$(NC)"
 
-test-integration:
-	@echo "$(YELLOW)Ejecutando tests de integración...$(NC)"
-	poetry run pytest tests/integration -v
+# =============================================================================
+# BASE DE DATOS
+# =============================================================================
+db-setup: db-reset db-init db-seed
+	@echo "$(GREEN)$(EMOJI_CHECK) Base de datos configurada.$(NC)"
 
-test-coverage:
-	@echo "$(YELLOW)Generando reporte de cobertura...$(NC)"
-	poetry run pytest --cov=$(BACKEND_PATH) --cov-report=html --cov-report=term-missing
+db-init: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Inicializando base de datos...$(NC)"
+	@python -m backend.db.init_db
+	@echo "$(GREEN)$(EMOJI_CHECK) Base de datos inicializada.$(NC)"
 
-# Docker
-docker-build: check-env
-	@echo "$(YELLOW)Construyendo contenedores para $(ENV)...$(NC)"
-	docker-compose --env-file $(ENV_FILE) build
+db-reset: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Reseteando base de datos...$(NC)"
+	@python -m backend.db.reset_db
+	@echo "$(GREEN)$(EMOJI_CHECK) Base de datos reseteada.$(NC)"
 
-docker-run: check-env
-	@echo "$(YELLOW)Iniciando contenedores para $(ENV)...$(NC)"
-	docker-compose --env-file $(ENV_FILE) up -d
+db-seed: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Sembrando datos iniciales...$(NC)"
+	@python -m backend.db.seed_db
+	@echo "$(GREEN)$(EMOJI_CHECK) Datos iniciales sembrados.$(NC)"
 
-docker-stop:
-	@echo "$(YELLOW)Deteniendo contenedores...$(NC)"
-	docker-compose down -v
+# =============================================================================
+# TESTS
+# =============================================================================
+test: check-environment tests-unit tests-integration test-with-containers-without-stored-procedures-acl-encryption test-with-containers-with-stored-procedures-acl-encryption
+	@echo "$(GREEN)$(EMOJI_CHECK) Tests completados.$(NC)"
 
-# Logs
-logs:
-	@echo "$(YELLOW)Mostrando logs de contenedores...$(NC)"
-	docker-compose --env-file $(ENV_FILE) logs -f
+tests-unit: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests unitarios...$(NC)"
+	poetry run pytest tests/unit/ --junitxml=../$(LOG_DIR)/unit-tests.xml
 
-# Base de datos
-migrate: check-env
-	@echo "$(YELLOW)Ejecutando migraciones...$(NC)"
-	poetry run alembic upgrade head
+tests-integration: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests de integración...$(NC)"
+	poetry run pytest tests/integration/ --junitxml=../$(LOG_DIR)/integration-tests.xml
 
-db-reset: check-env
-	@echo "$(YELLOW)Reseteando base de datos...$(NC)"
-	poetry run alembic downgrade base
-	poetry run alembic upgrade head
+test-with-containers-without-stored-procedures-acl-encryption: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
+	cd $(BACKEND_PATH) && PYTHONPATH=. pytest -v tests/test_db.py -s --log-cli-level=INFO
 
-# Desarrollo
-run: check-env
-	@echo "$(YELLOW)Iniciando servicios para $(ENV)...$(NC)"
-	docker-compose --env-file $(ENV_FILE) up -d db redis
-	@echo "$(YELLOW)Iniciando backend...$(NC)"
-	poetry run uvicorn attendance_system.main:app --reload --port $(BACKEND_PORT) &
-	@echo "$(YELLOW)Iniciando frontend...$(NC)"
-	cd $(FRONTEND_PATH) && npm run dev
+test-with-containers-with-stored-procedures-acl-encryption: check-environment 
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
+	cd $(BACKEND_PATH) && PYTHONPATH=. pytest -v tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
 
-# Documentación
-docs:
-	@echo "$(YELLOW)Generando documentación...$(NC)"
-	poetry run sphinx-build -b html $(DOCS_PATH)/source $(DOCS_PATH)/build
+# =============================================================================
+# DOCKER
+# =============================================================================
+docker-all: docker-build docker-run
 
-# Limpieza
-clean:
-	@echo "$(YELLOW)Limpiando archivos temporales...$(NC)"
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name "*.pyo" -delete
-	find . -type f -name "*.pyd" -delete
-	find . -type d -name "*.egg-info" -exec rm -rf {} +
-	find . -type d -name ".pytest_cache" -exec rm -rf {} +
-	find . -type d -name ".coverage" -exec rm -rf {} +
-	find . -type d -name "htmlcov" -exec rm -rf {} +
-	rm -rf .mypy_cache
-	rm -rf .coverage
-	rm -rf coverage.xml
-	rm -rf $(FRONTEND_PATH)/node_modules
-	rm -rf $(FRONTEND_PATH)/dist
-	rm -rf $(DOCS_PATH)/build
-	@echo "$(GREEN)$(EMOJI_CHECK) Limpieza completada$(NC)"
+docker-build: check-docker check-env
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo contenedores...$(NC)"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) build \
+		--build-arg BACKEND_PATH=$(BACKEND_PATH) \
+		--build-arg FRONTEND_PATH=$(FRONTEND_PATH)
+	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores construidos.$(NC)"
 
-# Deploy
-deploy: check-env
-	@if [ "$(ENV)" = "prod" ]; then \
-		$(MAKE) security-check && \
-		$(MAKE) test && \
-		$(MAKE) docker-build ENV=prod && \
-		$(MAKE) docker-run ENV=prod; \
-	else \
-		echo "$(RED)$(EMOJI_ERROR) El deploy solo está disponible para producción$(NC)"; \
-		exit 1; \
+docker-run: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Iniciando contenedores...$(NC)"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores iniciados.$(NC)"
+
+docker-stop: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Deteniendo contenedores...$(NC)"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) down
+	@echo "$(GREEN)$(EMOJI_CHECK) Contenedores detenidos.$(NC)"
+
+# =============================================================================
+# DESARROLLO Y PRODUCCIÓN
+# =============================================================================
+dev: check-environment check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Iniciando modo desarrollo...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up --build $(APP_NAME)-backend $(APP_NAME)-frontend
+
+prod: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Iniciando modo producción...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up $(APP_NAME)-backend $(APP_NAME)-frontend
+
+# =============================================================================
+# POSTGRESQL CON ACL Y ENCRIPTACIÓN
+# =============================================================================
+postgres-acl-all: postgres-acl-build 
+
+postgres-acl-build: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Construyendo imagen PostgreSQL personalizada con ACL, encriptación, server.crt, procedimientos almacenados...$(NC)"
+	@cd $(POSTGRES_PATH) && ./build_pg_container_acl_encrypt_decrypt_test.sh
+	@echo "$(GREEN)$(EMOJI_CHECK) Imagen PostgreSQL personalizada construida.$(NC)"
+
+postgres-acl-scale: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Escalando servicio PostgreSQL...$(NC)"
+	@cd $(POSTGRES_PATH) && ./scale_postgres_encrypted.sh $(POSTGRES_SCALE)
+	@echo "$(GREEN)$(EMOJI_CHECK) Servicio PostgreSQL escalado a $(POSTGRES_SCALE) instancias.$(NC)"
+
+postgres-acl-replicate: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Creando réplicas de PostgreSQL...$(NC)"
+	@cd $(POSTGRES_PATH) && ./replica_postgres_encrypted.sh $(POSTGRES_REPLICAS)
+	@echo "$(GREEN)$(EMOJI_CHECK) Creadas $(POSTGRES_REPLICAS) réplicas de PostgreSQL.$(NC)"
+
+postgres-acl-remove: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Removiendo servicios PostgreSQL...$(NC)"
+	@cd $(POSTGRES_PATH) && ./remove_postgres_encrypted.sh
+	@echo "$(GREEN)$(EMOJI_CHECK) Servicios PostgreSQL removidos.$(NC)"
+
+postgres-acl-status: check-docker
+	@echo "$(BLUE)$(EMOJI_INFO) Estado de servicios PostgreSQL:$(NC)"
+	@docker service ls | grep $(POSTGRES_SERVICE_NAME)
+	@echo "$(BLUE)$(EMOJI_INFO) Nodos del swarm:$(NC)"
+	@docker node ls
+	@echo "$(BLUE)$(EMOJI_INFO) Contenedores en ejecución:$(NC)"
+	@docker ps | grep $(POSTGRES_SERVICE_NAME)
+
+# Actualizar las dependencias de los tests
+test-with-containers-with-stored-procedures-acl-encryption: check-environment postgres-acl-build
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando tests con contenedores...$(NC)"
+	PYTHONPATH=. pytest -v backend/tests/stored_procedures/test_stored_procedures.py -s --log-cli-level=INFO
+
+# =============================================================================
+# SECURITY CHECKS
+# =============================================================================
+
+security-check: check-environment security-bandit security-safety security-gitguardian
+	@echo "$(GREEN)$(EMOJI_CHECK) Verificaciones de seguridad completadas.$(NC)"
+
+security-bandit: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando análisis de seguridad con Bandit...$(NC)"
+	@cd $(BACKEND_PATH) && bandit -r . -f json -o ../$(LOG_DIR)/bandit-results.json
+	@echo "$(GREEN)$(EMOJI_CHECK) Análisis Bandit completado.$(NC)"
+
+security-safety: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Verificando dependencias con Safety...$(NC)"
+	@cd $(BACKEND_PATH) && safety check
+	@echo "$(GREEN)$(EMOJI_CHECK) Verificación Safety completada.$(NC)"
+
+security-gitguardian: check-environment
+	@echo "$(BLUE)$(EMOJI_INFO) Ejecutando escaneo con GitGuardian...$(NC)"
+	@if [ -z "$$GITGUARDIAN_API_KEY" ]; then \
+		echo "$(RED)$(EMOJI_ERROR) GITGUARDIAN_API_KEY no está configurada$(NC)" && exit 1; \
 	fi
+	@cd $(BACKEND_PATH) && ggshield secret scan path .
+	@echo "$(GREEN)$(EMOJI_CHECK) Escaneo GitGuardian completado.$(NC)"
 
-# Heroku deploy
-heroku-deploy: check-env
-	@if [ "$(ENV)" = "prod" ]; then \
-		echo "$(YELLOW)Desplegando en Heroku...$(NC)" && \
-		heroku container:login && \
-		heroku container:push web --app $(HEROKU_APP_NAME) && \
-		heroku container:release web --app $(HEROKU_APP_NAME); \
-	else \
-		echo "$(RED)$(EMOJI_ERROR) El deploy a Heroku solo está disponible para producción$(NC)"; \
-		exit 1; \
-	fi
 
-# Inicialización del proyecto
-init: check-env check-deps install migrate
-	@echo "$(GREEN)$(EMOJI_CHECK) Proyecto inicializado correctamente para $(ENV)$(NC)"
+# =============================================================================
+# AYUDA
+# =============================================================================
+help:
+	@echo "Comandos disponibles:"
+	@echo "  Desarrollo:"
+	@echo "    make dev                  - Iniciar en modo desarrollo"
+	@echo "    make prod                 - Iniciar en modo producción"
+	@echo "    make install              - Instalar todas las dependencias"
+	@echo ""
+	@echo "  Calidad de código:"
+	@echo "    make format               - Formatear todo el código"
+	@echo "    make format-backend       - Formatear código backend"
+	@echo "    make format-frontend      - Formatear código frontend"
+	@echo "    make lint                 - Ejecutar linting en todo el código"
+	@echo "    make lint-backend         - Ejecutar linting en backend"
+	@echo "    make lint-frontend        - Ejecutar linting en frontend"
+	@echo ""
+	@echo "  Base de datos:"
+	@echo "    make db-setup             - Configurar base de datos completa"
+	@echo "    make db-init              - Inicializar base de datos"
+	@echo "    make db-reset             - Resetear base de datos"
+	@echo "    make db-seed              - Sembrar datos iniciales"
+	@echo ""
+	@echo "  Tests:"
+	@echo "    make test                 - Ejecutar todos los tests"
+	@echo "    make tests-unit           - Ejecutar tests unitarios"
+	@echo "    make tests-integration    - Ejecutar tests de integración"
+	@echo "    make test-with-containers-without-stored-procedures-acl-encryption    - Ejecutar tests con contenedores sin SP"
+	@echo "    make test-with-containers-with-stored-procedures-acl-encryption      - Ejecutar tests con contenedores con SP"
+	@echo ""
+	@echo "  Docker:"
+	@echo "    make docker-build         - Construir contenedores"
+	@echo "    make docker-run           - Iniciar contenedores"
+	@echo "    make docker-stop          - Detener contenedores"
+	@echo "    make docker-all           - Construir e iniciar contenedores"
+	@echo "    make docker-clean         - Detener y eliminar contenedores"@echo ""
+	@echo "  PostgreSQL con ACL y Encriptación:"
+	@echo "    make postgres-acl-all          - Construir e iniciar PostgreSQL con ACL"
+	@echo "    make postgres-acl-build        - Construir imagen PostgreSQL personalizada"
+	@echo "    make       - Iniciar servicio PostgreSQL en Swarm"
+	@echo "    make postgres-acl-scale        - Escalar servicio PostgreSQL"
+	@echo "    make postgres-acl-replicate    - Crear réplicas de PostgreSQL"
+	@echo "    make postgres-acl-remove       - Remover servicios PostgreSQL"
+	@echo "    make postgres-acl-status       - Ver estado de servicios PostgreSQL"
 
-# Por defecto usar entorno de desarrollo
 .DEFAULT_GOAL := help

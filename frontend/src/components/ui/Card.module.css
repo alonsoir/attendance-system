@@ -1,0 +1,35 @@
+/* frontend/src/components/ui/Card.module.css */
+
+.baseStyle {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+}
+
+.shadow {
+  box-shadow: 0 8px 10px rgba(0, 0, 0, 0.15);
+}
+
+.noShadow {
+  box-shadow: none;
+}
+
+.rounded {
+  border-radius: 16px;
+}
+
+.cardHeader {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cardTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cardContent {
+  padding: 1rem;
+}

@@ -1,0 +1,41 @@
+#include <tunables/global>
+
+profile docker-attendance-backend flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/python>
+    #include <abstractions/ssl_certs>
+
+    # Permisos básicos
+    network,
+    capability,
+    file,
+    umount,
+
+    # Permitir lectura de archivos de configuración
+    /etc/ssl/** r,
+    /etc/passwd r,
+    /etc/group r,
+    /etc/hostname r,
+
+    # Permitir solo lectura en directorios Python
+    /usr/local/lib/python3.10/** r,
+    /app/** r,
+
+    # Permitir escritura en logs
+    /app/logs/* w,
+
+    # Permitir acceso a los scripts
+    /app/scripts/* ix,
+    /app/backend-entrypoint.sh ix,
+
+    # Deshabilitar acceso al sistema de archivos
+    deny @{PROC}/** rwklx,
+    deny /sys/** rwklx,
+    deny /boot/** rwklx,
+    deny /dev/** rwklx,
+    deny /var/log/** rwklx,
+
+    # Permitir conexiones de red necesarias
+    network tcp,
+    network udp,
+}

@@ -73,10 +73,10 @@ build/
 .env
 .env.local
 .env.*.local
-.env-dev
-.env-prod
-!.env-dev.example
-!.env-prod.example
+.env-development
+.env-production
+!.env-development.example
+!.env-production.example
 
 # System
 .DS_Store
@@ -103,8 +103,8 @@ local_settings.py
 
 # Media and static files (en desarrollo)
 media/
-static/
-!frontend/public/static/
+# static/
+# !frontend/public/static/
 
 # Secrets
 secrets/
@@ -127,4 +127,9 @@ secrets/
 dump.rdb
 
 # Poetry
-poetry.lock
+poetry.lock!/.env-dev.backup-20241115135414
+!/.env.test
+!/.env.test
+
+!/.env-dev
+/backend/scripts/vault/

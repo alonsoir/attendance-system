@@ -1,0 +1,28 @@
+/* frontend/src/components/ui/Alert.module.css */
+
+.baseStyle {
+  padding: 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.info {
+  background-color: #ebf8ff; /* Azul claro */
+  color: #2b6cb0; /* Azul oscuro */
+}
+
+.warning {
+  background-color: #fefcbf; /* Amarillo claro */
+  color: #b7791f; /* Amarillo oscuro */
+}
+
+.error {
+  background-color: #fed7d7; /* Rojo claro */
+  color: #c53030; /* Rojo oscuro */
+}
+
+.success {
+  background-color: #c6f6d5; /* Verde claro */
+  color: #2f855a; /* Verde oscuro */
+}

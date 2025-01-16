@@ -1,0 +1,27 @@
+FROM postgres:15
+
+# Instalar la extensión uuid-ossp y pgcrypto
+RUN apt-get update && apt-get install -y postgresql-contrib -y postgresql-15-cron && rm -rf /var/lib/apt/lists/*
+
+# Copiar configuraciones
+COPY pg_hba.conf /etc/postgresql/pg_hba.conf
+COPY postgresql.conf /etc/postgresql/postgresql.conf
+
+# Copiar scripts en orden específico
+COPY 00_init_db_encryption_capabilites.sql /docker-entrypoint-initdb.d/00_init_db_encryption_capabilites.sql
+COPY 01_extensions_and_types.sql /docker-entrypoint-initdb.d/01_extensions_and_types.sql
+COPY 02_base_tables.sql /docker-entrypoint-initdb.d/02_base_tables.sql
+COPY 03_partitioning.sql /docker-entrypoint-initdb.d/03_partitioning.sql
+COPY 04_procedures.sql /docker-entrypoint-initdb.d/04_procedures.sql
+COPY 05_query_functions.sql /docker-entrypoint-initdb.d/05_query_functions.sql
+COPY 06_maintenance_procedures.sql /docker-entrypoint-initdb.d/06_maintenance_procedures.sql
+COPY 07_security_procedures.sql /docker-entrypoint-initdb.d/07_security_procedures.sql
+COPY 08_views_and_reports.sql /docker-entrypoint-initdb.d/08_views_and_reports.sql
+COPY 09_cleanup_and_optimization.sql /docker-entrypoint-initdb.d/09_cleanup_and_optimization.sql
+# Tengo que aplicar esta migración? estoy creando un contenedor dejando al otro como obsoleto.
+# COPY 10_migration_procedures.sql /docker-entrypoint-initdb.d/10_migration_procedures.sql
+COPY 11_init_test_data.sql /docker-entrypoint-initdb.d/11_init_test_data.sql
+
+EXPOSE 5432
+
+CMD ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
