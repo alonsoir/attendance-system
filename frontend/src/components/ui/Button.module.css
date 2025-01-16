@@ -1,0 +1,37 @@
+.baseStyle {
+  padding: 8px 16px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  border: none;
+}
+
+.primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.secondary {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.ghost {
+  background-color: transparent;
+  color: #3b82f6;
+  border: 1px solid currentColor;
+}
+
+.small {
+  padding: 4px 8px;
+  font-size: 0.875rem;
+}
+
+.icon {
+  padding: 4px;
+  width: 32px;
+  height: 32px;
+}

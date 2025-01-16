@@ -1,0 +1,26 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.tableHeader {
+  background-color: #f9fafb;
+  font-weight: 600;
+}
+
+.tableHead {
+  padding: 0.75rem;
+  text-align: left;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tableCell {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tableRow:hover {
+  background-color: #f9fafb;
+}

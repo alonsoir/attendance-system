@@ -1,0 +1,49 @@
+name: Deploy to Heroku
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  HEROKU_APP_NAME: your-app-name
+  HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+
+jobs:
+  deploy:
+    name: Deploy to Heroku
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Heroku
+        uses: akhileshns/heroku-deploy@v3.13.15
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: ${{ env.HEROKU_APP_NAME }}
+          heroku_email: ${{ secrets.HEROKU_EMAIL }}
+          justlogin: true
+
+      - name: Download Docker images
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-images
+
+      - name: Load Docker images
+        run: |
+          docker load < api.tar
+          docker load < frontend.tar
+
+      - name: Create .env file for production
+        run: |
+          cp .env-prod.example .env-prod
+          echo "SECRET_KEY=${{ secrets.PROD_SECRET_KEY }}" >> .env-prod
+          echo "ANTHROPIC_API_KEY=${{ secrets.PROD_ANTHROPIC_API_KEY }}" >> .env-prod
+          echo "META_API_KEY=${{ secrets.PROD_META_API_KEY }}" >> .env-prod
+          echo "DATABASE_URL=${{ secrets.HEROKU_POSTGRES_URL }}" >> .env-prod
+          echo "REDIS_URL=${{ secrets.HEROKU_REDIS_URL }}" >> .env-prod
+
+      - name: Deploy to Heroku
+        run: make heroku-deploy ENV=prod

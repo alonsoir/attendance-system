@@ -1,0 +1,1479 @@
+q:qVale, veo que el error ocurre en el fichero backend/tests/stored_procedures/test_stored_procedures.py.
+Al tratar de invocar el test test_update_encrypted_school. Falla parcialmente al tratar de hacer commit, algo que debería ocurrir de manera natural y debería encargarse la base de datos embebida en el contenedor, no crees? y forzar el rollback del procedimiento almacenado que ha provocado el commit anterior. También veo que no tengo ningun procedimiento almacenado cargado en la base de datos para actualizar campos de tablas. Ni en las tablas de operaciones, ni en las tablas ACL. Entiendo que necesito esas todas operaciones, pero al mismo tiempo puede que en algún momento igual alguna hay que quitarlas.
+
+Dichos procedimientos deberían estar en init_database_schema.sql
+
+    >       await db_session.commit()
+    E       AttributeError: 'DatabaseManager' object has no attribute 'commit'
+
+Esto forma parte del Dockerfile que uso para generar la imagen postgres con cifrado y tablas acl:
+
+    # Copiar scripts en orden específico
+    COPY init-db.sql /docker-entrypoint-initdb.d/01-init-db.sql
+    COPY init_database_schema.sql /docker-entrypoint-initdb.d/02-schema.sql
+    COPY init_database_data.sql /docker-entrypoint-initdb.d/03-data.sql
+
+init-db.sql
+
+    -- Crear extensiones necesarias
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+    -- Crear tabla para almacenar la clave de cifrado
+    CREATE TABLE IF NOT EXISTS encryption_config (
+        key_name TEXT PRIMARY KEY,
+        key_value TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Función para generar una nueva clave de cifrado
+    CREATE OR REPLACE FUNCTION generate_encryption_key()
+    RETURNS text AS $$
+    DECLARE
+        v_key text;
+    BEGIN
+        -- Generar una clave aleatoria usando pgcrypto
+        v_key := encode(gen_random_bytes(32), 'base64');
+        RAISE NOTICE 'Nueva clave de cifrado generada';
+
+        -- Almacenar la clave
+        INSERT INTO encryption_config (key_name, key_value)
+        VALUES ('main_key', v_key)
+        ON CONFLICT (key_name) DO NOTHING
+        RETURNING key_value INTO v_key;
+
+        RAISE NOTICE 'Clave almacenada en encryption_config';
+        RETURN v_key;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Función para obtener la clave de cifrado
+    CREATE OR REPLACE FUNCTION get_encryption_key()
+    RETURNS text AS $$
+    DECLARE
+        v_key text;
+    BEGIN
+        -- Intentar obtener la clave existente
+        SELECT key_value INTO v_key FROM encryption_config WHERE key_name = 'main_key';
+
+        -- Si no existe, generar una nueva
+        IF v_key IS NULL THEN
+            v_key := generate_encryption_key();
+        END IF;
+
+        RETURN v_key;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Función para encriptar valores
+    CREATE OR REPLACE FUNCTION encrypt_value(p_value TEXT)
+    RETURNS TEXT AS $$
+    DECLARE
+        v_encrypted text;
+    BEGIN
+        IF p_value IS NULL THEN
+            RETURN NULL;
+        END IF;
+
+        v_encrypted := pgp_sym_encrypt(p_value, get_encryption_key())::text;
+        RAISE NOTICE 'Valor encriptado exitosamente';
+        RETURN v_encrypted;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Función para desencriptar valores
+    CREATE OR REPLACE FUNCTION decrypt_value(p_value TEXT)
+    RETURNS TEXT AS $$
+    DECLARE
+        v_decrypted text;
+    BEGIN
+        IF p_value IS NULL THEN
+            RETURN NULL;
+        END IF;
+
+        v_decrypted := pgp_sym_decrypt(p_value::bytea, get_encryption_key())::text;
+        RAISE NOTICE 'Valor desencriptado exitosamente';
+        RETURN v_decrypted;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Generar la clave inicial
+    DO $$
+    BEGIN
+        PERFORM generate_encryption_key();
+        RAISE NOTICE 'Sistema de encriptación inicializado correctamente';
+    END;
+    $$;
+
+init_database_schema.sql
+
+    -- Añadir al inicio de 02-schema.sql
+    CREATE TABLE roles (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL
+    );
+
+    CREATE TABLE permissions (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL
+    );
+
+    CREATE TABLE users (
+        id UUID PRIMARY KEY,
+        username TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role_id UUID REFERENCES roles(id)
+    );
+
+    CREATE TABLE schools (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        address TEXT,
+        country TEXT
+    );
+
+    CREATE TABLE tutors (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT
+    );
+
+    CREATE TABLE students (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        date_of_birth DATE,
+        school_id UUID REFERENCES schools(id)
+    );
+
+    CREATE TABLE conversations (
+        id UUID PRIMARY KEY,
+        student_id UUID REFERENCES students(id),
+        school_id UUID REFERENCES schools(id),
+        claude_conversation_id TEXT,
+        status TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE messages (
+        id UUID PRIMARY KEY,
+        conversation_id UUID REFERENCES conversations(id),
+        sender_type TEXT,
+        sender_id UUID,
+        content TEXT,
+        claude_response_metadata JSONB,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE service_status (
+        id UUID PRIMARY KEY,
+        service_name TEXT NOT NULL,
+        status BOOLEAN NOT NULL,
+        error_message TEXT,
+        last_check TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE role_permissions (
+        role_id UUID REFERENCES roles(id),
+        permission_id UUID REFERENCES permissions(id),
+        PRIMARY KEY (role_id, permission_id)
+    );
+
+    CREATE TABLE tutor_student (
+        tutor_id UUID REFERENCES tutors(id),
+        student_id UUID REFERENCES students(id),
+        relationship_type TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (tutor_id, student_id)
+    );
+
+    -- Procedimientos para ACL
+    CREATE OR REPLACE PROCEDURE create_role(
+        p_name VARCHAR(255),
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO roles (id, name)
+        VALUES (uuid_generate_v4(), encrypt_value(p_name))
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_permission(
+        p_name VARCHAR(255),
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO permissions (id, name)
+        VALUES (uuid_generate_v4(), encrypt_value(p_name))
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_user(
+        p_username VARCHAR(255),
+        p_password VARCHAR(255),
+        p_role_id UUID,
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO users (id, username, password_hash, role_id)
+        VALUES (
+            uuid_generate_v4(),
+            encrypt_value(p_username),
+            crypt(p_password, gen_salt('bf')),
+            p_role_id
+        )
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_school(
+        p_name VARCHAR(255),
+        p_phone VARCHAR(50),
+        p_address VARCHAR(255),
+        p_country VARCHAR(100),
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO schools (id, name, phone, address, country)
+        VALUES (
+            uuid_generate_v4(),
+            encrypt_value(p_name),
+            encrypt_value(p_phone),
+            encrypt_value(p_address),
+            encrypt_value(p_country)
+        )
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_tutor(
+        p_name VARCHAR(255),
+        p_phone VARCHAR(50),
+        p_email VARCHAR(255),
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO tutors (id, name, phone, email)
+        VALUES (
+            uuid_generate_v4(),
+            encrypt_value(p_name),
+            encrypt_value(p_phone),
+            encrypt_value(p_email)
+        )
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_student(
+        p_name VARCHAR(255),
+        p_date_of_birth DATE,
+        p_school_id UUID,
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO students (id, name, date_of_birth, school_id)
+        VALUES (
+            uuid_generate_v4(),
+            encrypt_value(p_name),
+            p_date_of_birth,
+            p_school_id
+        )
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_conversation(
+        p_student_id UUID,
+        p_school_id UUID,
+        p_claude_conversation_id VARCHAR(255),
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO conversations (
+            id,
+            student_id,
+            school_id,
+            claude_conversation_id,
+            status
+        )
+        VALUES (
+            uuid_generate_v4(),
+            p_student_id,
+            p_school_id,
+            p_claude_conversation_id,
+            'INITIATED'
+        )
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_message(
+        p_conversation_id UUID,
+        p_sender_type VARCHAR(50),
+        p_sender_id UUID,
+        p_content TEXT,
+        p_claude_response_metadata JSONB,
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO messages (
+            id,
+            conversation_id,
+            sender_type,
+            sender_id,
+            content,
+            claude_response_metadata
+        )
+        VALUES (
+            uuid_generate_v4(),
+            p_conversation_id,
+            p_sender_type,
+            p_sender_id,
+            encrypt_value(p_content),
+            p_claude_response_metadata
+        )
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_service_status(
+        p_service_name VARCHAR(50),
+        p_status BOOLEAN,
+        p_error_message VARCHAR(50),
+        INOUT p_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO service_status (
+            id,
+            service_name,
+            status,
+            error_message
+        )
+        VALUES (
+            uuid_generate_v4(),
+            p_service_name,
+            p_status,
+            p_error_message
+        )
+        RETURNING id INTO p_id;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_role_permission(
+        p_role_id UUID,
+        p_permission_id UUID
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO role_permissions (role_id, permission_id)
+        VALUES (p_role_id, p_permission_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    END;
+    $$;
+
+    CREATE OR REPLACE PROCEDURE create_tutor_student_relationship(
+        p_tutor_id UUID,
+        p_student_id UUID,
+        p_relationship_type VARCHAR(50)
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        INSERT INTO tutor_student (tutor_id, student_id, relationship_type)
+        VALUES (p_tutor_id, p_student_id, p_relationship_type)
+        ON CONFLICT (tutor_id, student_id)
+        DO UPDATE SET
+            relationship_type = p_relationship_type,
+            updated_at = CURRENT_TIMESTAMP;
+    END;
+    $$;
+
+init_database_data.sql
+
+    DO $$
+    DECLARE
+        v_admin_role_id UUID;
+        v_school_role_id UUID;
+        v_tutor_role_id UUID;
+        v_create_school_permission_id UUID;
+        v_update_school_permission_id UUID;
+        v_delete_school_permission_id UUID;
+        v_create_student_permission_id UUID;
+        v_update_student_permission_id UUID;
+        v_delete_student_permission_id UUID;
+        v_create_tutor_permission_id UUID;
+        v_update_tutor_permission_id UUID;
+        v_delete_tutor_permission_id UUID;
+        v_view_records_permission_id UUID;
+        v_send_messages_permission_id UUID;
+        v_close_conversations_permission_id UUID;
+        v_admin_user_id UUID;
+        v_school_user_id UUID;
+        v_tutor_user_id UUID;
+        v_school_id1 UUID;
+        v_school_id2 UUID;
+        v_tutor_id1 UUID;
+        v_tutor_id2 UUID;
+        v_student_id1 UUID;
+        v_student_id2 UUID;
+        v_conversation_id1 UUID;
+        v_conversation_id2 UUID;
+        v_message_id1 UUID;
+        v_message_id2 UUID;
+        v_temp_id UUID;
+    BEGIN
+        -- Crear roles
+        v_admin_role_id := NULL;
+        CALL create_role('ADMIN', v_admin_role_id);
+
+        v_school_role_id := NULL;
+        CALL create_role('SCHOOL', v_school_role_id);
+
+        v_tutor_role_id := NULL;
+        CALL create_role('TUTOR', v_tutor_role_id);
+
+        -- Crear permisos
+        v_create_school_permission_id := NULL;
+        CALL create_permission('CREATE_SCHOOL', v_create_school_permission_id);
+
+        v_update_school_permission_id := NULL;
+        CALL create_permission('UPDATE_SCHOOL', v_update_school_permission_id);
+
+        v_delete_school_permission_id := NULL;
+        CALL create_permission('DELETE_SCHOOL', v_delete_school_permission_id);
+
+        v_create_student_permission_id := NULL;
+        CALL create_permission('CREATE_STUDENT', v_create_student_permission_id);
+
+        v_update_student_permission_id := NULL;
+        CALL create_permission('UPDATE_STUDENT', v_update_student_permission_id);
+
+        v_delete_student_permission_id := NULL;
+        CALL create_permission('DELETE_STUDENT', v_delete_student_permission_id);
+
+        v_create_tutor_permission_id := NULL;
+        CALL create_permission('CREATE_TUTOR', v_create_tutor_permission_id);
+
+        v_update_tutor_permission_id := NULL;
+        CALL create_permission('UPDATE_TUTOR', v_update_tutor_permission_id);
+
+        v_delete_tutor_permission_id := NULL;
+        CALL create_permission('DELETE_TUTOR', v_delete_tutor_permission_id);
+
+        v_view_records_permission_id := NULL;
+        CALL create_permission('VIEW_STUDENT_RECORDS', v_view_records_permission_id);
+
+        v_send_messages_permission_id := NULL;
+        CALL create_permission('SEND_MESSAGES', v_send_messages_permission_id);
+
+        v_close_conversations_permission_id := NULL;
+        CALL create_permission('CLOSE_CONVERSATIONS', v_close_conversations_permission_id);
+
+        -- Asignar permisos a roles
+        -- Admin
+        CALL create_role_permission(v_admin_role_id, v_create_school_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_update_school_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_delete_school_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_create_student_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_update_student_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_delete_student_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_create_tutor_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_update_tutor_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_delete_tutor_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_view_records_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_send_messages_permission_id);
+        CALL create_role_permission(v_admin_role_id, v_close_conversations_permission_id);
+
+        -- School
+        CALL create_role_permission(v_school_role_id, v_create_student_permission_id);
+        CALL create_role_permission(v_school_role_id, v_update_student_permission_id);
+        CALL create_role_permission(v_school_role_id, v_delete_student_permission_id);
+        CALL create_role_permission(v_school_role_id, v_send_messages_permission_id);
+        CALL create_role_permission(v_school_role_id, v_close_conversations_permission_id);
+
+        -- Tutor
+        CALL create_role_permission(v_tutor_role_id, v_view_records_permission_id);
+        CALL create_role_permission(v_tutor_role_id, v_send_messages_permission_id);
+
+        -- Crear usuarios iniciales
+        v_admin_user_id := NULL;
+        CALL create_user('admin', 'admin_password', v_admin_role_id, v_admin_user_id);
+
+        v_school_user_id := NULL;
+        CALL create_user('school_user', 'school_password', v_school_role_id, v_school_user_id);
+
+        v_tutor_user_id := NULL;
+        CALL create_user('tutor_user', 'tutor_password', v_tutor_role_id, v_tutor_user_id);
+
+        -- Crear escuelas iniciales
+        v_school_id1 := NULL;
+        CALL create_school(
+            'IES San Isidro',
+            '+34916421394',
+            'Calle Toledo, 39, 28005 Madrid',
+            'Spain',
+            v_school_id1
+        );
+
+        v_school_id2 := NULL;
+        CALL create_school(
+            'Lincoln High School',
+            '+12125556789',
+            '1234 Broadway Ave, New York, NY 10019',
+            'USA',
+            v_school_id2
+        );
+
+        -- Crear tutores iniciales
+        v_tutor_id1 := NULL;
+        CALL create_tutor(
+            'María García',
+            '+3466655444',
+            'maria.garcia@email.com',
+            v_tutor_id1
+        );
+
+        v_tutor_id2 := NULL;
+        CALL create_tutor(
+            'John Smith',
+            '+12125557890',
+            'john.smith@email.com',
+            v_tutor_id2
+        );
+
+        -- Crear estudiantes iniciales
+        v_student_id1 := NULL;
+        CALL create_student(
+            'Carlos García',
+            '2010-05-15'::DATE,
+            v_school_id1,
+            v_student_id1
+        );
+
+        v_student_id2 := NULL;
+        CALL create_student(
+            'Emma Smith',
+            '2009-08-22'::DATE,
+            v_school_id2,
+            v_student_id2
+        );
+
+        -- Crear relaciones tutor-estudiante
+        CALL create_tutor_student_relationship(v_tutor_id1, v_student_id1, 'PARENT');
+        CALL create_tutor_student_relationship(v_tutor_id2, v_student_id2, 'PARENT');
+
+        -- Crear conversaciones iniciales
+        v_conversation_id1 := NULL;
+        CALL create_conversation(
+            v_student_id1,
+            v_school_id1,
+            'claude-conversation-1',
+            v_conversation_id1
+        );
+
+        v_conversation_id2 := NULL;
+        CALL create_conversation(
+            v_student_id2,
+            v_school_id2,
+            'claude-conversation-2',
+            v_conversation_id2
+        );
+
+        -- Crear mensajes iniciales
+        v_message_id1 := NULL;
+        CALL create_message(
+            v_conversation_id1,
+            'SCHOOL',
+            v_school_user_id,
+            'Student needs help with math homework',
+            NULL,
+            v_message_id1
+        );
+
+        v_message_id2 := NULL;
+        CALL create_message(
+            v_conversation_id2,
+            'TUTOR',
+            v_tutor_user_id,
+            'Checking on student progress',
+            NULL,
+            v_message_id2
+        );
+
+        -- Crear estados de servicio iniciales
+        v_temp_id := NULL;
+        CALL create_service_status('Claude', false, 'No errors', v_temp_id);
+
+        v_temp_id := NULL;
+        CALL create_service_status('Whatsapp', false, 'No errors', v_temp_id);
+
+        v_temp_id := NULL;
+        CALL create_service_status('Backend', false, 'No errors', v_temp_id);
+
+    END;
+    $$;
+
+@pytest.mark.asyncio
+async def test_update_encrypted_school(db_session, admin_user: User):
+    """ESTE ES EL TEST QUE FALLA!"""
+    logger.info("Probando actualización de escuela encriptada")
+
+    # CREATE
+    school_id = None
+    test_school = {
+        "name": "Test School Salesianos",
+        "phone": "+34666777999",
+        "address": "Test Address 456",
+        "country": "Spain"
+    }
+
+    # CREATE
+    await db_session.execute_procedure(
+        admin_user,
+        "create_school",
+        test_school["name"],
+        test_school["phone"],
+        test_school["address"],
+        test_school["country"],
+        school_id
+    )
+
+    await db_session.commit() # En concreto falla aquí, no me lo esperaba, en el anterior test creaba una escuela, y no puedo persistirla?
+
+    schools = await db_session.get_schools(admin_user)
+    assert len(schools) == 1
+    school_id = schools[0]["id"]
+
+    # UPDATE Esperaba que fallara aquí, porque si examino init_database_schema.sql, no veo ningun procedimiento que se llame update_school o parecido.
+    await db_session.execute_procedure(admin_user, "update_encrypted_school",
+                                      school_id, "Updated School Name", "+34777888999", "Updated Address", "France")
+    await db_session.commit()
+
+    updated_schools = await db_session.get_schools(admin_user)
+    assert updated_schools[0]["name"] == 'Updated School Name'
+    assert updated_schools[0]["phone"] == '+34777888999'
+    assert updated_schools[0]["address"] == 'Updated Address'
+    assert updated_schools[0]["country"] == 'France'
+
+
+backend/tests/stored_procedures/conftest.py
+
+    import asyncio
+    import contextlib
+    import logging
+    import os
+    from contextlib import asynccontextmanager
+    from pathlib import Path
+    from typing import AsyncGenerator
+
+    import async_timeout
+    import bcrypt
+    import docker
+    import pytest
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.sql import text
+
+    from backend.db.models_acl import User
+
+    logger = logging.getLogger(__name__)
+
+    # Configuración del logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Constantes
+    CONTAINER_NAME = "test-postgres-encrypted"
+    IMAGE = "test-postgres-encrypted"  # Usar la imagen personalizada
+    USERNAME = "test_user"
+    PASSWORD = "test_password"
+    DBNAME = "test_db"
+
+    def get_container_by_partial_name(client, partial_name: str):
+        """
+        Busca un contenedor cuyo nombre contenga un prefijo específico.
+        Args:
+            client: Cliente de Docker.
+            partial_name: Subcadena esperada en el nombre del contenedor.
+        Returns:
+            docker.models.containers.Container: Contenedor encontrado.
+        Raises:
+            docker.errors.NotFound: Si no se encuentra un contenedor.
+        """
+        logger.info(f"Buscando contenedor con nombre parcial: '{partial_name}'")
+        containers = client.containers.list(all=True)
+        for container in containers:
+            if partial_name in container.name:
+                logger.info(f"Contenedor encontrado: {container.name}")
+                return container
+        raise docker.errors.NotFound(f"No se encontró contenedor con nombre parcial '{partial_name}'")
+
+
+    @pytest.fixture(scope="session")
+    def event_loop():
+        """Create an instance of the default event loop for the test session"""
+        loop = asyncio.get_event_loop_policy().new_event_loop()
+        print(f"---> event_loop {loop}")
+        yield loop
+        print("---> Cerrando event_loop")  # Añadimos log para verificar que se ejecuta
+        # Asegurarnos de que todas las tareas pendientes se completen
+        pending = asyncio.all_tasks(loop)
+        loop.run_until_complete(asyncio.gather(*pending))
+        loop.close()
+
+    import socket
+
+    def is_port_in_use(port: int) -> bool:
+        """
+        Verifica si un puerto específico está en uso
+        Args:
+            port: Número de puerto a verificar
+        Returns:
+            bool: True si el puerto está en uso, False en caso contrario
+        """
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                # Setting SO_REUSEADDR before bind allows the socket to be bound
+                # even if it's in a TIME_WAIT state
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(('127.0.0.1', port))
+                return False
+        except socket.error:
+            return True
+
+    def get_free_port() -> int:
+        """
+        Encuentra un puerto disponible
+        Returns:
+            int: Número de puerto disponible
+        Raises:
+            RuntimeError: Si no se puede encontrar un puerto disponible
+        """
+        logger.info("Buscando puerto disponible")
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', 0))  # Bind to port 0 lets OS pick a free port
+                s.listen(1)
+                port = s.getsockname()[1]
+                logger.info(f"Puerto disponible encontrado: {port}")
+                return port
+        except Exception as e:
+            logger.error(f"Error al buscar puerto disponible: {str(e)}")
+            raise RuntimeError(f"No se pudo encontrar un puerto disponible: {str(e)}")
+
+    def _generate_encrypt_key() -> str:
+        """Genera una clave de cifrado segura"""
+        return os.urandom(32).decode('utf-8')
+
+    def _hash_password(password: str) -> str:
+        """Hashea una contraseña utilizando bcrypt"""
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    async def _get_admin_role_id(session: AsyncSession) -> str:
+        """Obtiene el ID del rol de administrador"""
+        result = await session.execute(text("SELECT id FROM roles WHERE name = 'ADMIN'"))
+        return result.scalar()
+
+    async def _get_school_role_id(session: AsyncSession) -> str:
+        """Obtiene el ID del rol de escuela"""
+        result = await session.execute(text("SELECT id FROM roles WHERE name = 'SCHOOL'"))
+        return result.scalar()
+
+    async def _get_tutor_role_id(session: AsyncSession) -> str:
+        """Obtiene el ID del rol de tutor"""
+        result = await session.execute(text("SELECT id FROM roles WHERE name = 'TUTOR'"))
+        return result.scalar()
+
+
+    @pytest.fixture(scope="session")
+    async def postgres_container(event_loop):
+        """Proporciona un contenedor PostgreSQL configurado para las pruebas"""
+        logger.info("=== INICIO postgres_container fixture ===")
+        container = None
+        client = docker.from_env()
+        port = get_free_port()
+        logger.info(f"Puerto asignado para PostgreSQL: {port}")
+
+        try:
+            # Limpieza de contenedor existente
+            try:
+                existing = get_container_by_partial_name(client, CONTAINER_NAME)
+                logger.info(f"Encontrado contenedor existente {existing.name}. Eliminándolo...")
+                await _remove_container(existing)
+                logger.info(f"Contenedor existente {CONTAINER_NAME} eliminado")
+            except docker.errors.NotFound:
+                logger.info(f"No se encontró contenedor existente con nombre parcial {CONTAINER_NAME}")
+
+            # Crear nuevo contenedor
+            container = client.containers.run(
+                image=IMAGE,
+                name=CONTAINER_NAME,
+                environment={
+                    "POSTGRES_USER": USERNAME,
+                    "POSTGRES_PASSWORD": PASSWORD,
+                    "POSTGRES_DB": DBNAME
+                },
+                ports={
+                    '5432/tcp': ('127.0.0.1', port)
+                },
+                detach=True,
+                remove=True
+            )
+
+            logger.info(f"Contenedor creado: {container.id}")
+
+            # Esperar a que PostgreSQL esté listo
+            logger.info("Esperando a que PostgreSQL esté listo...")
+            await _wait_for_postgres(container, port)
+
+            # Obtener la clave de encriptación generada por el contenedor
+            encrypt_key = await _get_encryption_key(container, port)
+
+            yield container, port, encrypt_key
+
+        finally:
+            if container:
+                logger.info("=== Iniciando limpieza final ===")
+                await _remove_container(container)
+                logger.info("=== Limpieza completada ===")
+
+    async def _get_encryption_key(container, port):
+        """Obtiene la clave de encriptación generada por el contenedor"""
+        async with _get_session(container, port) as session:
+            result = await session.execute(
+                text("SELECT key_value FROM encryption_config WHERE key_name = 'main_key'")
+            )
+            key = result.scalar()
+            return key
+
+    async def _wait_for_postgres(container, port):
+        max_attempts = 30
+        attempt = 0
+
+        port_bindings = container.attrs['NetworkSettings']['Ports']
+        logger.info(f"Configuración de puertos: {port_bindings}")
+
+        async def try_connect():
+            conn_str = f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
+            engine = create_async_engine(conn_str)
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                return True
+
+        while attempt < max_attempts:
+            try:
+                await try_connect()
+                logger.info("Conexión exitosa a PostgreSQL")
+                return
+            except Exception as e:
+                logger.error(f"Intento {attempt + 1} fallido: {str(e)}")
+                attempt += 1
+                await asyncio.sleep(2)  # Aumentar el tiempo entre intentos
+
+            if attempt % 5 == 0:
+                container.reload()
+                logger.info(f"Estado del contenedor: {container.status}")
+                logs = container.logs().decode('utf-8')
+                logger.info(f"Últimos logs:\n{logs}")
+
+        raise TimeoutError("PostgreSQL no está disponible después de 30 intentos")
+
+
+    async def _load_schema(container: docker.models.containers.Container, port: int) -> None:
+        """Carga el esquema de la base de datos"""
+        logger.info("Cargando esquema de la base de datos...")
+        schema_path = Path(__file__).resolve().parent.parent / "db" / "schema" / "init_database.sh"
+
+        if not schema_path.exists():
+            logger.error(f"Archivo de esquema no encontrado en {schema_path}")
+            raise FileNotFoundError(f"Archivo de esquema no encontrado en {schema_path}")
+
+        async with _get_session(container, port, timeout=480.0) as session:
+            logger.info("Ejecutando script de inicialización de la base de datos...")
+            await session.execute(text(schema_path.read_text()))
+            await session.commit()
+            logger.info("Esquema de base de datos cargado exitosamente")
+
+    @asynccontextmanager
+    async def _get_session(container: docker.models.containers.Container, port: int, timeout: float = 480.0) -> AsyncGenerator[AsyncSession, None]:
+        """Proporciona una sesión de base de datos utilizando el contenedor de PostgreSQL"""
+        logger.info("Creando sesión de base de datos")
+
+        db_url = _get_db_url(container, port)
+        engine = create_async_engine(db_url, echo=True)
+        session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+        try:
+            async with async_timeout.timeout(timeout):
+                logger.info("Iniciando conexión con timeout de %s segundos", timeout)
+                async with session_factory() as session:
+                    logger.info("Conexión establecida exitosamente")
+                    yield session
+        except Exception as e:
+            logger.error(f"Error al conectar: {str(e)}")
+            logger.error(f"Tipo de error: {type(e)}")
+            raise
+
+    def _get_db_url(container: docker.models.containers.Container, port: int) -> str:
+        """Obtiene la URL de conexión a la base de datos"""
+        return f"postgresql+asyncpg://{USERNAME}:{PASSWORD}@127.0.0.1:{port}/{DBNAME}"
+
+    async def _load_test_data(container: docker.models.containers.Container, port: int) -> None:
+        """Carga datos iniciales de prueba"""
+        logger.info("=== Iniciando carga de datos de prueba ===")
+
+        async with _get_session(container, port) as session:
+            try:
+                # Crear usuarios de prueba
+                admin_user = User(username="admin", password_hash=_hash_password("admin_password"), role_id=await _get_admin_role_id(session))
+                school_user = User(username="school_user", password_hash=_hash_password("school_password"), role_id=await _get_school_role_id(session))
+                tutor_user = User(username="tutor_user", password_hash=_hash_password("tutor_password"), role_id=await _get_tutor_role_id(session))
+                session.add_all([admin_user, school_user, tutor_user])
+                await session.commit()
+
+                logger.info("Datos de prueba cargados exitosamente")
+
+            except Exception as e:
+                logger.error(f"Error cargando datos de prueba: {e}")
+                raise
+
+    async def _remove_container(container, retries=3):
+        """Helper function to remove a container with retries"""
+        for attempt in range(retries):
+            try:
+                await asyncio.sleep(1)  # Pequeña pausa antes de intentar eliminar
+                container.stop()
+                container.remove(force=True)
+                return True
+            except Exception as e:
+                if attempt == retries - 1:  # Último intento
+                    logger.error(f"No se pudo eliminar el contenedor después de {retries} intentos: {e}")
+                    return False
+                logger.warning(f"Intento {attempt + 1} fallido al eliminar contenedor: {e}")
+                await asyncio.sleep(1)  # Esperar antes del siguiente intento
+
+
+    from backend.services.database_manager import DatabaseManager
+    from backend.tests.test_settings import TestSettings
+
+
+    @pytest.fixture(scope="function")
+    async def db_session(postgres_container) -> AsyncGenerator[DatabaseManager, None]:
+        container, port, encrypt_key = postgres_container
+        logger.info("=== INICIO db_session fixture ===")
+
+        # Crear configuración de prueba
+        test_settings = TestSettings(
+            POSTGRES_USER=USERNAME,
+            POSTGRES_PASSWORD=PASSWORD,
+            POSTGRES_DB=DBNAME,
+            POSTGRES_PORT=port,
+            POSTGRES_SERVER="localhost"
+        )
+
+        db_manager = DatabaseManager.get_instance(settings=test_settings)
+        await db_manager.connect(encrypt_key)
+
+        try:
+            yield db_manager
+        finally:
+            await db_manager.disconnect()
+            logger.info("=== FIN db_session fixture ===")
+
+    @pytest.fixture(scope="function")
+    async def admin_user(db_session: DatabaseManager) -> User:
+        return await db_session.get_user("admin")
+
+    @pytest.fixture(scope="function")
+    async def school_user(db_session: DatabaseManager) -> User:
+        return await db_session.get_user("school_user")
+
+    @pytest.fixture(scope="function")
+    async def tutor_user(db_session: DatabaseManager) -> User:
+        return await db_session.get_user("tutor_user")
+
+
+backend/services/database_manager.py
+
+import asyncio
+import logging
+import threading
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any, Optional
+
+import asyncpg
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+
+from backend.core.config import get_settings
+from backend.db.models_acl import User, AuditLog
+
+logger = logging.getLogger(__name__)
+
+Base = declarative_base()
+
+class DatabaseManager:
+    """
+    Singleton que gestiona la conexión a la base de datos PostgreSQL.
+    """
+    _instance: Optional['DatabaseManager'] = None
+    _lock = threading.Lock()
+
+    def __init__(self, settings=None, encrypt_key=None):
+        self.settings = settings or get_settings()
+        self.encrypt_key = encrypt_key
+        self.pool: asyncpg.Pool = None
+        self.max_connections: int = 0
+        self.engine = create_engine(
+            f"postgresql+asyncpg://{self.settings.POSTGRES_USER}:{self.settings.POSTGRES_PASSWORD}"
+            f"@{self.settings.POSTGRES_SERVER}:{self.settings.POSTGRES_PORT}/{self.settings.POSTGRES_DB}",
+            echo=True  # Para pruebas, podríamos parametrizar esto también
+        )
+        self.session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
+
+    @classmethod
+    def get_instance(cls, settings=None, encrypt_key=None) -> 'DatabaseManager':
+        """
+        Obtiene la instancia única del DatabaseManager.
+        Permite inyección de configuración para pruebas.
+        """
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = cls(settings=settings, encrypt_key=encrypt_key)
+            return cls._instance
+
+    @classmethod
+    def reset_instance(cls):
+        """
+        Resetea la instancia del singleton.
+        Útil para pruebas.
+        """
+        with cls._lock:
+            cls._instance = None
+
+    async def connect(self, encrypt_key=None) -> None:
+        """
+        Crea un pool de conexiones a la base de datos.
+        """
+        try:
+            logger.info("Conectando a la base de datos...")
+            self.pool = await asyncpg.create_pool(
+                user=self.settings.POSTGRES_USER,
+                password=self.settings.POSTGRES_PASSWORD,
+                host=self.settings.POSTGRES_SERVER,
+                port=self.settings.POSTGRES_PORT,
+                database=self.settings.POSTGRES_DB,
+                min_size=2,
+                max_size=10
+            )
+
+            # Verificar que la encriptación está inicializada
+            async with self.pool.acquire() as conn:
+                result = await conn.fetchval(
+                    "SELECT key_value FROM encryption_config WHERE key_name = 'main_key'"
+                )
+                if result:
+                    logger.info("Sistema de encriptación ya inicializado")
+                else:
+                    logger.info("Inicializando sistema de encriptación...")
+                    await conn.execute("SELECT generate_encryption_key()")
+
+            logger.info("Conexión a la base de datos establecida correctamente")
+        except Exception as e:
+            logger.error(f"Error al conectar a la base de datos: {e}")
+            raise
+
+    async def disconnect(self) -> None:
+        """
+        Cierra el pool de conexiones a la base de datos.
+        """
+        try:
+            if self.pool:
+                logger.info("Cerrando conexión a la base de datos...")
+                await self.pool.close()
+                logger.info("Conexión a la base de datos cerrada correctamente")
+        except Exception as e:
+            logger.error(f"Error al cerrar la conexión a la base de datos: {e}")
+            raise
+
+    from typing import AsyncGenerator
+
+    @asynccontextmanager
+    async def transaction(self, user: User = None) -> AsyncGenerator[asyncpg.Connection, None]:
+        """
+        Proporciona un contexto de transacción para ejecutar consultas.
+        User es opcional para permitir pruebas sin usuario.
+        """
+        async with self.pool.acquire() as conn:
+            try:
+                async with conn.transaction():
+                    yield conn
+                    if user:
+                        await self._log_audit_event(user, "TRANSACTION_COMMITTED", "DATABASE")
+            except Exception as e:
+                logger.error(f"Error durante la transacción: {e}")
+                if user:
+                    await self._log_audit_event(user, "TRANSACTION_ROLLBACK", "DATABASE")
+                raise
+
+    async def execute_procedure(self, user: User, procedure_name: str, *args: Any) -> None:
+        """
+        Ejecuta un procedimiento almacenado en la base de datos.
+        """
+        try:
+            logger.info(f"Ejecutando procedimiento '{procedure_name}'...")
+            async with self.transaction(user) as conn:
+                # Crear placeholders numerados: $1, $2, $3, etc.
+                placeholders = [f"${i + 1}" for i in range(len(args))]
+                query = f"CALL {procedure_name}({','.join(placeholders)})"
+                await conn.execute(query, *args)
+
+            logger.info(f"Procedimiento '{procedure_name}' ejecutado correctamente")
+            await self._log_audit_event(user, f"EXECUTED_PROCEDURE:{procedure_name}", "DATABASE")
+        except (asyncpg.PostgresError, Exception) as e:
+            logger.error(f"Error al ejecutar el procedimiento '{procedure_name}': {e}")
+            await self._log_audit_event(user, f"FAILED_PROCEDURE:{procedure_name}", "DATABASE")
+            raise
+
+    async def get_schools(self, user: User) -> list[dict]:
+        """
+        Obtiene todas las escuelas con sus campos desencriptados.
+        """
+        try:
+            logger.info("Obteniendo escuelas...")
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT 
+                        id,
+                        decrypt_value(name) as name,
+                        decrypt_value(phone) as phone,
+                        decrypt_value(address) as address,
+                        decrypt_value(country) as country
+                    FROM schools
+                """)
+
+                schools = [dict(row) for row in rows]
+                await self._log_audit_event(user, "GET_SCHOOLS", "DATABASE")
+                return schools
+
+        except Exception as e:
+            logger.error(f"Error al obtener escuelas: {e}")
+            await self._log_audit_event(user, "FAILED_GET_SCHOOLS", "DATABASE")
+            raise
+
+    async def get_user(self, username: str) -> Optional[User]:
+        """
+        Obtiene un usuario por su nombre de usuario.
+        """
+        try:
+            logger.info(f"Obteniendo usuario: {username}")
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow("""
+                    SELECT id, decrypt_value(username) as username, 
+                           password_hash, role_id
+                    FROM users
+                    WHERE decrypt_value(username) = $1
+                """, username)
+
+                if not row:
+                    return None
+
+                return User(**dict(row))
+
+        except Exception as e:
+            logger.error(f"Error al obtener usuario: {e}")
+            raise
+
+    async def _get_max_connections(self) -> int:
+        """
+        Obtiene la capacidad máxima de conexiones del contenedor PostgreSQL.
+        """
+        try:
+            logger.info("Obteniendo capacidad máxima de conexiones del contenedor PostgreSQL...")
+            async with self.pool.acquire() as conn:
+                result = await conn.fetch("SHOW max_connections;")
+                max_connections = int(result[0]["max_connections"])
+                logger.info(f"Capacidad máxima de conexiones: {max_connections}")
+                return max_connections
+        except (asyncpg.PostgresError, Exception) as e:
+            logger.error(f"Error al obtener la capacidad máxima de conexiones: {e}")
+            raise
+
+    async def _log_audit_event(self, user: User, action: str, resource: str) -> None:
+        """
+        Registra un evento de auditoría en la base de datos.
+        """
+        try:
+            async with self.session_factory() as session:
+                audit_log = AuditLog(
+                    user_id=user.id,
+                    action=action,
+                    resource=resource,
+                    timestamp=datetime.now()
+                )
+                session.add(audit_log)
+                await session.commit()
+        except Exception as e:
+            logger.error(f"Error al registrar el evento de auditoría: {e}")
+
+    async def monitor_database(self) -> None:
+        """
+        Monitorea el estado de la base de datos y registra métricas.
+        """
+        try:
+            while True:
+                logger.info("Monitoreando estado de la base de datos...")
+                await self._check_database_health()
+                await asyncio.sleep(60)  # Monitorear cada minuto
+        except Exception as e:
+            logger.error(f"Error durante el monitoreo de la base de datos: {e}")
+
+    async def _check_database_health(self) -> None:
+        """
+        Verifica el estado de salud de la base de datos y registra métricas.
+        """
+        try:
+            async with self.pool.acquire() as conn:
+                # Verificar conexiones activas
+                result = await conn.fetch("SELECT COUNT(*) AS active_connections FROM pg_stat_activity;")
+                active_connections = result[0]["active_connections"]
+                logger.info(f"Conexiones activas: {active_connections}")
+
+                # Verificar latencia de consultas
+                result = await conn.fetch("SELECT now() - pg_backend_timestamp() AS query_latency;")
+                query_latency = result[0]["query_latency"].total_seconds()
+                logger.info(f"Latencia de consultas: {query_latency} segundos")
+
+                # Verificar espacio en disco
+                result = await conn.fetch("SELECT pg_database_size(current_database()) AS database_size;")
+                database_size = result[0]["database_size"]
+                logger.info(f"Tamaño de la base de datos: {database_size / (1024 ** 3):.2f} GB")
+
+                # Registrar métricas en un sistema de monitorización (p.ej. Prometheus)
+                self._record_database_metrics(active_connections, query_latency, database_size)
+        except Exception as e:
+            logger.error(f"Error al verificar el estado de salud de la base de datos: {e}")
+
+    def _record_database_metrics(self, active_connections: int, query_latency: float, database_size: int) -> None:
+        """
+        Registra métricas de la base de datos en un sistema de monitorización.
+        """
+        # Aquí irá el código para enviar las métricas a un sistema como Prometheus
+        pass
+
+    async def scale_database(self) -> None:
+        """
+        Escala horizontalmente la base de datos utilizando sharding.
+        """
+        try:
+            logger.info("Escalando base de datos horizontalmente...")
+            # Implementación del sharding de datos
+            pass
+        except Exception as e:
+            logger.error(f"Error al escalar la base de datos: {e}")
+
+    async def enable_high_availability(self) -> None:
+        """
+        Habilita alta disponibilidad para la base de datos utilizando réplicas.
+        """
+        try:
+            logger.info("Habilitando alta disponibilidad para la base de datos...")
+            # Implementación de la alta disponibilidad con réplicas
+            pass
+        except Exception as e:
+            logger.error(f"Error al habilitar la alta disponibilidad: {e}")
+
+output:
+
+
+    ---> event_loop <_UnixSelectorEventLoop running=False closed=False debug=False>
+    2024-12-14 10:32:15,434 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+    2024-12-14 10:32:15,434 INFO sqlalchemy.engine.Engine [raw sql] ()
+    2024-12-14 10:32:15,438 INFO sqlalchemy.engine.Engine select current_schema()
+    2024-12-14 10:32:15,438 INFO sqlalchemy.engine.Engine [raw sql] ()
+    2024-12-14 10:32:15,442 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+    2024-12-14 10:32:15,442 INFO sqlalchemy.engine.Engine [raw sql] ()
+    2024-12-14 10:32:15,445 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+    2024-12-14 10:32:15,445 INFO sqlalchemy.engine.Engine SELECT key_value FROM encryption_config WHERE key_name = 'main_key'
+    2024-12-14 10:32:15,445 INFO sqlalchemy.engine.Engine [generated in 0.00017s] ()
+    2024-12-14 10:32:15,448 INFO sqlalchemy.engine.Engine ROLLBACK
+    2024-12-14 10:32:11 - attendance_system.backend.tests.stored_procedures.conftest - INFO - === INICIO postgres_container fixture ===
+    2024-12-14 10:32:11 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Buscando puerto disponible
+    2024-12-14 10:32:11 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Puerto disponible encontrado: 50588
+    2024-12-14 10:32:11 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Puerto asignado para PostgreSQL: 50588
+    2024-12-14 10:32:11 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Buscando contenedor con nombre parcial: 'test-postgres-encrypted'
+    2024-12-14 10:32:11 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Contenedor encontrado: test-postgres-encrypted.1.yax9x2gi17hsz8ogzkbqipww1
+    2024-12-14 10:32:11 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Encontrado contenedor existente test-postgres-encrypted.1.yax9x2gi17hsz8ogzkbqipww1. Eliminándolo...
+    2024-12-14 10:32:12 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Contenedor existente test-postgres-encrypted eliminado
+    2024-12-14 10:32:13 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Contenedor creado: db892a0e6dbade162f82dde9228e69cd7235aa280be602b18649d29244738f17
+    2024-12-14 10:32:13 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Esperando a que PostgreSQL esté listo...
+    2024-12-14 10:32:13 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Configuración de puertos: {}
+    2024-12-14 10:32:13 - attendance_system.backend.tests.stored_procedures.conftest - ERROR - Intento 1 fallido: [Errno 61] Connect call failed ('127.0.0.1', 50588)
+    2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Conexión exitosa a PostgreSQL
+    2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Creando sesión de base de datos
+    2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Iniciando conexión con timeout de 480.0 segundos
+    2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Conexión establecida exitosamente
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - select pg_catalog.version()
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - select current_schema()
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - show standard_conforming_strings
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - SELECT key_value FROM encryption_config WHERE key_name = 'main_key'
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - [generated in 0.00017s] ()
+    2024-12-14 10:32:15 - sqlalchemy.engine.Engine - INFO - ROLLBACK
+    2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.conftest - INFO - === INICIO cleanup_after_test para stored procedures ===
+    2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.conftest - INFO - Estado inicial del container: created
+    2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.conftest - INFO - === INICIO db_session fixture ===
+    2024-12-14 10:32:15 - backend.services.database_manager - INFO - Conectando a la base de datos...
+    2024-12-14 10:32:15 - backend.services.database_manager - INFO - Sistema de encriptación ya inicializado
+    2024-12-14 10:32:15 - backend.services.database_manager - INFO - Conexión a la base de datos establecida correctamente
+    2024-12-14 10:32:15 - backend.services.database_manager - INFO - Obteniendo usuario: admin
+    FAILED           [100%]2024-12-14 10:32:15 - attendance_system.backend.tests.stored_procedures.test_stored_procedures - INFO - Probando actualización de escuela encriptada
+    2024-12-14 10:32:15 - backend.services.database_manager - INFO - Ejecutando procedimiento 'create_school'...
+    2024-12-14 10:32:15 - backend.services.database_manager - ERROR - Error al registrar el evento de auditoría: __aenter__
+    2024-12-14 10:32:15 - backend.services.database_manager - INFO - Procedimiento 'create_school' ejecutado correctamente
+    2024-12-14 10:32:15 - backend.services.database_manager - ERROR - Error al registrar el evento de auditoría: __aenter__
+
+    backend/tests/stored_procedures/test_stored_procedures.py:61 (test_update_encrypted_school)
+    db_session = <backend.services.database_manager.DatabaseManager object at 0x105dcb220>
+    admin_user = <backend.db.models_acl.User object at 0x10639b010>
+
+        @pytest.mark.asyncio
+        async def test_update_encrypted_school(db_session, admin_user: User):
+            logger.info("Probando actualización de escuela encriptada")
+        
+            # CREATE
+            school_id = None
+            test_school = {
+                "name": "Test School Salesianos",
+                "phone": "+34666777999",
+                "address": "Test Address 456",
+                "country": "Spain"
+            }
+        
+            # CREATE
+            await db_session.execute_procedure(
+                admin_user,
+                "create_school",
+                test_school["name"],
+                test_school["phone"],
+                test_school["address"],
+                test_school["country"],
+                school_id
+            )
+        
+    >       await db_session.commit()
+    E       AttributeError: 'DatabaseManager' object has no attribute 'commit'
+
+    test_stored_procedures.py:86: AttributeError
+
+Posible solucion:
+
+En este caso, necesitarás:
+Modificar el test para que use el context manager transaction() en lugar de llamar a commit() directamente:
+    @pytest.mark.asyncio
+    async def test_update_encrypted_school(db_session, admin_user: User):
+        """Test de actualización de escuela encriptada"""
+        logger.info("Probando actualización de escuela encriptada")
+
+        # CREATE
+        school_id = None
+        test_school = {
+            "name": "Test School Salesianos",
+            "phone": "+34666777999",
+            "address": "Test Address 456",
+            "country": "Spain"
+        }
+
+        async with db_session.transaction(admin_user) as conn:
+            # CREATE
+            await db_session.execute_procedure(
+                admin_user,
+                "create_school",
+                test_school["name"],
+                test_school["phone"],
+                test_school["address"],
+                test_school["country"],
+                school_id
+            )
+
+            schools = await db_session.get_schools(admin_user)
+            assert len(schools) == 1
+            school_id = schools[0]["id"]
+
+            # UPDATE
+            await db_session.execute_procedure(
+                admin_user,
+                "update_encrypted_school",
+                school_id,
+                "Updated School Name",
+                "+34777888999",
+                "Updated Address",
+                "France"
+            )
+
+        # Verificar los cambios
+        updated_schools = await db_session.get_schools(admin_user)
+        assert updated_schools[0]["name"] == 'Updated School Name'
+        assert updated_schools[0]["phone"] == '+34777888999'
+        assert updated_schools[0]["address"] == 'Updated Address'
+        assert updated_schools[0]["country"] == 'France'
+
+Asegurarte de que el procedimiento almacenado update_encrypted_school está definido en tu base de datos.
+Debería verse así:
+
+    CREATE OR REPLACE PROCEDURE update_encrypted_school(
+        p_id UUID,
+        p_name VARCHAR(255),
+        p_phone VARCHAR(50),
+        p_address VARCHAR(255),
+        p_country VARCHAR(100)
+    )
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+        UPDATE schools
+        SET
+            name = encrypt_value(p_name),
+            phone = encrypt_value(p_phone),
+            address = encrypt_value(p_address),
+            country = encrypt_value(p_country)
+        WHERE id = p_id;
+    END;
+    $$;
+
+Los cambios principales son:
+Eliminación de la llamada directa a commit()
+Uso del context manager transaction() para manejar la transacción
+Adición del procedimiento almacenado update_encrypted_school
+El context manager transaction() manejará automáticamente el commit cuando el bloque se complete exitosamente,
+o el rollback si ocurre algún error. Esto es más seguro y consistente que manejar los commits manualmente.
