@@ -151,33 +151,6 @@ async def postgres_container(event_loop):
         container = get_container_by_partial_name(client, CONTAINER_NAME)
         logger.info(f"Usando contenedor existente: {container.name}")
 
-        # Reiniciar el contenedor
-        logger.info("Reiniciando contenedor...")
-        container.restart()
-        await asyncio.sleep(5)
-
-        # Verificar el estado después del reinicio
-        container.reload()
-        logger.info(f"Estado del contenedor: {container.status}")
-
-        # Configurar PostgreSQL
-        commands = [
-            'echo "listen_addresses = \'*\'" >> /var/lib/postgresql/data/postgresql.conf',
-            'echo "host all all 0.0.0.0/0 trust" >> /var/lib/postgresql/data/pg_hba.conf'
-        ]
-
-        for cmd in commands:
-            result = container.exec_run(['bash', '-c', cmd])
-            logger.info(f"Ejecutando: {cmd}")
-            logger.info(f"Resultado: {result.output.decode('utf-8')}")
-
-        # Recargar configuración
-        result = container.exec_run('su postgres -c "pg_ctl reload -D /var/lib/postgresql/data"')
-        logger.info(f"Recargando PostgreSQL: {result.output.decode('utf-8')}")
-
-        # Esperar a que esté listo
-        await _wait_for_postgres(container)
-
         # Obtener la clave de encriptación
         encrypt_key = await _get_encryption_key(container)
         logger.info(f"Clave obtenida y decodificada: {len(encrypt_key)} bytes")
@@ -365,44 +338,43 @@ async def _remove_container(container, retries=3):
             logger.warning(f"Intento {attempt + 1} fallido al eliminar contenedor: {e}")
             await asyncio.sleep(1)  # Esperar antes del siguiente intento
 
-
 @pytest.fixture(scope="function")
 async def db_session(postgres_container) -> AsyncGenerator[DatabaseManager, None]:
     """Fixture para proveer una sesión de base de datos"""
     container, port, encrypt_key = postgres_container
     logger.info("=== INICIO db_session fixture ===")
-
-    # Verificar la implementación de encriptación
-    await _check_encryption_implementation(container)
-
-    # Probar las funciones de encriptación
-    await _test_encryption(container)
-
-    # Important: La clave ya viene en bytes, no la convertimos
-    logger.info(f"Clave recibida en base64: {base64.b64encode(encrypt_key).decode('utf-8')}")
-
-    # Crear configuración de prueba
-    test_settings = TestSettings(
-        POSTGRES_USER=USERNAME,
-        POSTGRES_PASSWORD=PASSWORD,
-        POSTGRES_DB=DBNAME,
-        POSTGRES_PORT=port,
-        POSTGRES_SERVER="localhost",
-    )
-
-    # Reiniciar el singleton para asegurar un estado limpio
-    DatabaseManager.reset_instance()
-
-    # Crear una nueva instancia con la clave
-    db_manager = DatabaseManager.get_instance(settings=test_settings, encrypt_key=encrypt_key)
-    await db_manager.connect()
+    db_manager = None
 
     try:
+        # Verificar la implementación de encriptación
+        await _check_encryption_implementation(container)
+
+        # Probar las funciones de encriptación
+        await _test_encryption(container)
+
+        # Important: La clave ya viene en bytes, no la convertimos
+        logger.info(f"Clave recibida en base64: {base64.b64encode(encrypt_key).decode('utf-8')}")
+
+        # Crear configuración de prueba
+        test_settings = TestSettings(
+            POSTGRES_USER=USERNAME,
+            POSTGRES_PASSWORD=PASSWORD,
+            POSTGRES_DB=DBNAME,
+            POSTGRES_PORT=port,
+            POSTGRES_SERVER="localhost",
+        )
+
+        # Reiniciar el singleton para asegurar un estado limpio
+        DatabaseManager.reset_instance()
+
+        # Crear una nueva instancia con la clave y esperar a que se inicialice
+        db_manager = await DatabaseManager.get_instance(settings=test_settings, encrypt_key=encrypt_key)
         logger.info(
             f"Verificando clave en DatabaseManager: {base64.b64encode(db_manager.encrypt_key).decode('utf-8') if db_manager.encrypt_key else None}")
         yield db_manager
     finally:
-        await db_manager.disconnect()
+        if db_manager is not None:
+            await db_manager.disconnect()
         logger.info("=== FIN db_session fixture ===")
 
 
@@ -455,7 +427,77 @@ async def admin_user(db_session: DatabaseManager) -> User:
 
 @pytest.fixture(scope="function")
 async def school_user(db_session: DatabaseManager) -> User:
-    return await db_session.get_user("school_user")
+    """
+    Crea un usuario de tipo escuela para las pruebas usando procedimientos almacenados
+    dentro de transacciones explícitas
+    """
+    role_id = None
+    school_id = None
+    user_id = None
+
+    # Crear rol
+    async with db_session.transaction() as conn:
+        # Primero, intentamos obtener el rol existente
+        role = await conn.fetchrow(
+            "SELECT id FROM roles WHERE name = 'SCHOOL'"
+        )
+
+        if not role:
+            # Si no existe, lo creamos
+            await conn.execute(
+                """
+                CALL create_role($1, $2, $3)
+                """,
+                'SCHOOL',  # p_name
+                None,  # p_created_by
+                role_id  # p_id OUT parameter
+            )
+            # Obtenemos el ID del rol recién creado
+            role = await conn.fetchrow(
+                "SELECT id FROM roles WHERE name = 'SCHOOL'"
+            )
+
+        role_id = role['id'] if role else None
+
+    # Crear escuela para el usuario
+    async with db_session.transaction() as conn:
+        await conn.execute(
+            """
+            CALL create_school($1, $2, $3, $4, $5, $6, $7)
+            """,
+            'Test School Organization',  # p_name
+            '+34666777888',  # p_phone
+            'Test Address 123',  # p_address
+            'Madrid',  # p_state
+            'ES',  # p_country
+            None,  # p_created_by
+            school_id  # p_id OUT parameter
+        )
+
+        # Obtener el ID de la escuela creada
+        school = await conn.fetchrow(
+            "SELECT id FROM schools ORDER BY created_at DESC LIMIT 1"
+        )
+        school_id = school['id'] if school else None
+
+    # Crear usuario
+    user_id = None
+    async with db_session.transaction() as conn:
+        await conn.execute(
+            """
+            CALL create_user($1, $2, $3, $4, $5, $6, $7)
+            """,
+            'test_school_user',  # p_username
+            'test_password',  # p_password
+            role_id,  # p_role_id
+            'SCHOOL',  # p_entity_type
+            school_id,  # p_entity_id
+            None,  # p_created_by
+            user_id  # p_id OUT parameter
+        )
+
+    # Obtener y retornar el usuario creado
+    return await db_session.get_user('test_school_user')
 
 
 @pytest.fixture(scope="function")

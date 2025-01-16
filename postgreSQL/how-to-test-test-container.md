@@ -9,6 +9,20 @@ docker service rm <container_id>
 
 docker logs <container_id>
 
+# Ver los puertos mapeados de los contenedores
+docker container ls
+# o más específicamente
+docker container ls --format "table {{.Names}}\t{{.Ports}}"
+
+# Para ver detalles específicos del coordinador
+docker container inspect attendance-coordinator | grep -i port
+
+# Para ver detalles específicos del worker
+docker container inspect attendance-worker | grep -i port
+            
+# Conectarte al coordinador y verificar que ve los workers
+docker exec -it attendance-coordinator psql -U test_user -d test_db -c "SELECT * FROM citus_get_active_worker_nodes();"
+
 # password: test_password
 psql -h localhost -U test_user -d test_db
 

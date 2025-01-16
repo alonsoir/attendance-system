@@ -1,6 +1,7 @@
 services:
   consul:
     image: hashicorp/consul:1.20
+    container_name: attendance-consul
     env_file:
       - .env
     environment:
@@ -17,10 +18,19 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: '256M'
+          cpus: '0.3'
+        reservations:
+          memory: '128M'
+          cpus: '0.1'
 
   vault:
       image: hashicorp/vault:1.18
-      container_name: vault
+      container_name: attendance-vault
       restart: always
       env_file:
         - .env
@@ -43,12 +53,22 @@ services:
         interval: 10s
         timeout: 5s
         retries: 3
+        start_period: 30s
       cap_add:
         - IPC_LOCK
       networks:
         - default
+      deploy:
+        resources:
+          limits:
+            memory: '512M'
+            cpus: '0.5'
+          reservations:
+            memory: '256M'
+            cpus: '0.2'
 
   vault-init:
+      container_name: attendance-vault-init
       image: alpine:latest
       env_file:
         - .env
@@ -65,10 +85,12 @@ services:
         - vault-data:/vault/file
         - /Users/aironman/git/attendance_system/vault-init:/vault-init
       command: sh -c "chmod +x /scripts/simple-init-vault.sh && /scripts/simple-init-vault.sh"
+
   front:
     build:
       context: .
       dockerfile: attendance_system/frontend/Dockerfile
+    container_name: attendance-front
     image: frontend-attendance
     env_file:
       - .env
@@ -87,8 +109,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 30s
     deploy:
       replicas: 1
+      resources:
+        limits:
+          memory: '512M'
+          cpus: '0.5'
+        reservations:
+          memory: '256M'
+          cpus: '0.2'
     logging:
       driver: "json-file"
       options:
@@ -101,12 +131,13 @@ services:
     build:
       context: .
       dockerfile: attendance_system/backend/Dockerfile
+    container_name: attendance-back
     image: backend-attendance
     env_file:
       - .env
     environment:
-      - POSTGRES_SERVER=db
-      - POSTGRES_PORT=5432
+      - POSTGRES_SERVER=coordinator
+      - POSTGRES_PORT=5433
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - VAULT_ADDR=http://vault:8200
@@ -124,7 +155,7 @@ services:
     depends_on:
       - vault
       - consul
-      - db
+      - coordinator
       - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health", "||", "exit", "1"]
@@ -134,6 +165,13 @@ services:
       start_period: 40s
     deploy:
       replicas: 1
+      resources:
+        limits:
+          memory: '1G'
+          cpus: '1.0'
+        reservations:
+          memory: '512M'
+          cpus: '0.5'
     logging:
       driver: "json-file"
       options:
@@ -142,47 +180,9 @@ services:
     volumes:
       - ./logs:/app/logs:rw
 
-  db:
-    image: test-postgres-encrypted:latest
-    env_file:
-      - .env
-    environment:
-      POSTGRES_USER: test_user
-      POSTGRES_PASSWORD: test_password
-      POSTGRES_DB: test_db
-      POSTGRES_SHARED_BUFFERS: 256MB
-      POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
-      POSTGRES_WORK_MEM: 16MB
-    command: postgres -c "huge_pages=off"
-    networks:
-      - default
-    ports:
-      - "5432:5432"
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U test_user -d test_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: '1G'
-        reservations:
-          memory: '512M'
-    depends_on:
-      - consul
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Coordinador
   coordinator:
     image: test-postgres-full-citus:latest
+    container_name: attendance-coordinator
     environment:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password
@@ -190,14 +190,13 @@ services:
       POSTGRES_SHARED_BUFFERS: 256MB
       POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
       POSTGRES_WORK_MEM: 16MB
-      POSTGRES_MAINTENANCE_WORK_MEM: 64MB   # Para operaciones de mantenimiento
-      # Añadir variables para rendimiento
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB
       POSTGRES_MAX_CONNECTIONS: 100
       POSTGRES_MAX_WORKER_PROCESSES: 8
       POSTGRES_MAX_PARALLEL_WORKERS: 8
       POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - coordinator_data:/var/lib/postgresql/data
     depends_on:
@@ -206,101 +205,9 @@ services:
       replicas: 1
       resources:
         limits:
-          # BALANCEADA Puede usar hasta 1.5 núcleos. Equivalente a cpu_quota: 150000, cpu_period: 100000
-          # cpus: '1.5'
-          # memory: '1G'
           cpus: '1.5'
-          # AGRESIVA Puede usar hasta 2 núcleos. eEquivalente a cpu_quota: 200000, cpu_period: 100000
-          # cpus: '2.0'
-          # memory: '4G'
-          # Consecuencias:
-          # Ideal para operaciones intensivas de cifrado
-          # Óptimo para muchas operaciones concurrentes
-          # Puede impactar negativamente otros servicios
-          # Mayor consumo de energía
-
-          # CONSERVADORA.
-          # cpus: '0.5'      # Equivalente a cpu_quota: 50000, cpu_period: 100000
-          # memory: '512M'
-          # Menor rendimiento en operaciones pesadas
-          # Mejor para entornos compartidos
-          # Menor impacto en la factura del cloud
-          # Puede causar cuellos de botella en picos de carga
-
-          # BALANCEADA.
-          # Buen equilibrio rendimiento/recursos
-          # Maneja bien picos ocasionales
-          # Permite otras cargas en el sistema
-          # Costo moderado en cloud
-
-          # DESARROLLO.
-          # cpus: '0.8'     # Garantiza el 80% de un núcleo
-          # memory: '768M'
-          # ALTA DISPONIBILIDAD.
-          # cpus: '3.0'     # Equivalente a cpu_quota: 300000, cpu_period: 100000
-          # memory: '8G'
-
-          # microservicios
-          # cpus: '0.3'      # Equivalente a cpu_quota: 30000, cpu_period: 100000
-          # memory: '256M'
-          # Ideal para arquitecturas distribuidas
-          # Permite más instancias por máquina
-          # Menor rendimiento individual
-          # Mejor para escalado horizontal
-
-          # análisis de datos
-          # cpus: '4.0'      # Equivalente a cpu_quota: 400000, cpu_period: 100000
-          # memory: '16G'
-          # Óptimo para queries analíticas
-          # Excelente para agregaciones
-          # Muy costoso en recursos
-          # Requiere hardware potente
-
-          # entornos compartidos
-          # cpus: '1.0'      # Equivalente a cpu_quota: 100000, cpu_period: 100000
-          # memory: '1.5G'
-          # Buen vecino en sistemas compartidos
-          # Rendimiento predecible
-          # Balance costo/rendimiento
-          # Adecuado para la mayoría de casos
           memory: '1G'
         reservations:
-          # AGRESIVA Puede usar hasta 1 núcleos. eEquivalente a cpu_quota: 100000, cpu_period: 100000
-          # cpus: '1.0'
-          # memory: '2G
-
-          # CONSERVADORA.
-          # cpus: '0.25'
-          # memory: '256M'
-          # Garantiza 1/4 de núcleo
-
-          # BALANCEADA Garantiza mínimo medio núcleo
-          # cpus: '0.5'
-          # memory: '512M'
-
-          # DESARROLLO.
-          # cpus: '0.2'     # Garantiza el 80% de un núcleo
-          # memory: '384M'
-
-          # ALTA DISPONIBILIDAD.
-          # cpus: '1.5'     # # Garantiza núcleo y medio
-          # memory: '4G'
-          # Excelente para cargas críticas
-          # Ideal para bases de datos grandes
-          # Costoso en entornos cloud
-          # Puede requerir hardware específico
-
-          # MICROSERVICIOS.
-          # cpus: '0.1'      # Garantiza 1/10 de núcleo
-          # memory: '128M'
-
-          # análisis de datos
-          # cpus: '2.0'      # Garantiza 2 núcleos
-          # memory: '8G'
-
-          # entornos compartidos
-          # cpus: '0.3'      # Equivalente a cpu_quota: 100000, cpu_period: 100000
-          # memory: '768M'
           cpus: '0.5'
           memory: '512M'
       placement:
@@ -308,8 +215,8 @@ services:
           - node.role == manager
       update_config:
         parallelism: 1
-        delay: 120s        # Esperar 2 minutos entre actualizaciones
-        order: start-first # Iniciar nuevo contenedor antes de parar el antiguo
+        delay: 120s
+        order: start-first
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -331,11 +238,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s  # Dar tiempo suficiente para el inicio inicial
+      start_period: 60s
 
-  # Workers
   worker:
     image: test-postgres-full-citus:latest
+    container_name: attendance-worker
     environment:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password
@@ -343,8 +250,7 @@ services:
       POSTGRES_SHARED_BUFFERS: 256MB
       POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
       POSTGRES_WORK_MEM: 16MB
-      POSTGRES_MAINTENANCE_WORK_MEM: 64MB   # Para operaciones de mantenimiento
-      # Configuración específica para workers
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB
       POSTGRES_MAX_CONNECTIONS: 50
       POSTGRES_MAX_WORKER_PROCESSES: 4
       POSTGRES_MAX_PARALLEL_WORKERS: 4
@@ -359,10 +265,10 @@ services:
       replicas: 1
       resources:
         limits:
-          cpus: '1.0'      # Un núcleo máximo para workers
+          cpus: '1.0'
           memory: '1G'
         reservations:
-          cpus: '0.25'     # Garantiza 25% de un núcleo
+          cpus: '0.25'
           memory: '512M'
       update_config:
         parallelism: 1
@@ -375,7 +281,7 @@ services:
         window: 120s
       placement:
         constraints:
-          - node.role != manager  # Workers en nodos worker
+          - node.role != manager
     command: >
       postgres 
       -c config_file=/etc/postgresql/postgresql.conf
@@ -391,10 +297,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s  # Dar tiempo suficiente para el inicio inicial
+      start_period: 60s
 
   nginx:
     image: nginx:latest
+    container_name: attendance-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -417,8 +324,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
     deploy:
       replicas: 1
+      resources:
+        limits:
+          memory: '256M'
+          cpus: '0.3'
+        reservations:
+          memory: '128M'
+          cpus: '0.1'
     logging:
       driver: "json-file"
       options:
@@ -426,101 +341,151 @@ services:
         max-file: "3"
 
   redis:
-      image: redis:latest
-      healthcheck:
-        test: [ "CMD", "redis-cli", "ping" ]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-      networks:
-        - default
-      deploy:
-        replicas: 1
-      depends_on:
-        - consul
-      logging:
-        driver: "json-file"
-        options:
-          max-size: "10m"
-          max-file: "3"
+    image: redis:latest
+    container_name: attendance-redis
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - default
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: '256M'
+          cpus: '0.3'
+        reservations:
+          memory: '128M'
+          cpus: '0.1'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    depends_on:
+      - consul
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   prometheus:
-      image: prom/prometheus:latest
-      env_file:
-        - .env
-      ports:
-        - "9090:9090"
-      volumes:
-        - ./prometheus:/etc/prometheus:ro
-        - prometheus-data:/prometheus
-      networks:
-        - default
-      depends_on:
-        - back
-        - consul
-      deploy:
-        replicas: 1
-      logging:
-        driver: "json-file"
-        options:
-          max-size: "10m"
-          max-file: "3"
+    image: prom/prometheus:latest
+    container_name: attendance-prometheus
+    env_file:
+      - .env
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    networks:
+      - default
+    depends_on:
+      - back
+      - consul
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: '512M'
+          cpus: '0.5'
+        reservations:
+          memory: '256M'
+          cpus: '0.2'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   grafana:
-      image: grafana/grafana:latest
-      env_file:
-        - .env
-      ports:
-        - "3000:3000"
-      environment:
-        - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-      networks:
-        - default
-      volumes:
-        - grafana-data:/var/lib/grafana
-      depends_on:
-        - prometheus
-        - consul
-      deploy:
-        replicas: 1
-      logging:
-        driver: "json-file"
-        options:
-          max-size: "10m"
-          max-file: "3"
+    image: grafana/grafana:latest
+    container_name: attendance-grafana
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    networks:
+      - default
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - consul
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: '512M'
+          cpus: '0.5'
+        reservations:
+          memory: '256M'
+          cpus: '0.2'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   falco:
-      image: falcosecurity/falco:latest
-      privileged: true
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock:ro
-        - /proc:/host/proc:ro
-        - /sys/kernel/debug:/sys/kernel/debug
-        - /dev:/host/dev:ro
-        - /etc:/host/etc:ro
-        - /var/lib/docker:/var/lib/docker:ro
-        - /run/containerd:/run/containerd:ro
-      security_opt:
-        - no-new-privileges:false
-      environment:
-        - FALCO_BPF_PROBE=""  # Forzar uso de eBPF
-      command: >
-        falco
-        --cri /run/containerd/containerd.sock
-        --driver bpf
-        --modern-bpf
-        -o json_output=true
-        --stdout
-        --severity=info
-      depends_on:
-        - consul
-      networks:
-        - default
-      logging:
-        driver: "json-file"
-        options:
-          max-size: "10m"
-          max-file: "3"
+    image: falcosecurity/falco:latest
+    container_name: attendance-falco
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /dev:/host/dev:ro
+      - /etc:/host/etc:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /run/containerd:/run/containerd:ro
+    security_opt:
+      - no-new-privileges:false
+    environment:
+      - FALCO_BPF_PROBE=""
+    command: >
+      falco
+      --cri /run/containerd/containerd.sock
+      --driver bpf
+      --modern-bpf
+      -o json_output=true
+      --stdout
+      --severity=info
+    depends_on:
+      - consul
+    networks:
+      - default
+    deploy:
+      resources:
+        limits:
+          memory: '512M'
+          cpus: '0.5'
+        reservations:
+          memory: '256M'
+          cpus: '0.2'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   vault-data:
@@ -528,8 +493,6 @@ volumes:
   prometheus-data:
     driver: local
   grafana-data:
-    driver: local
-  db-data:
     driver: local
   consul-data:
     driver: local

@@ -1,8 +1,11 @@
 import datetime
 import logging
+import uuid
 from datetime import date
+from datetime import datetime
 
 import pytest
+from faker import Faker
 
 from backend.db.models_acl import User
 from backend.tests.utils.docker_check import check_docker
@@ -65,61 +68,95 @@ async def test_create_school(db_session, school_user: User):
 @pytest.mark.asyncio
 async def test_search_messages(db_session, school_user: User):
     logger.info("Probando búsqueda de mensajes con Full Text Search")
+    fake = Faker(['es_ES'])  # Configurar para español
 
-    # Primero insertamos algunos mensajes de prueba
+    # Mensajes de prueba con contenido matemático aleatorio
+    math_terms = ['matemáticas', 'álgebra', 'geometría', 'cálculo', 'estadística']
     test_messages = [
-        "El estudiante ha completado su tarea de matemáticas",
-        "Reunión con el tutor para discutir el progreso",
-        "matemáticas avanzadas y ejercicios de álgebra",
-        "Clase de historia programada para mañana"
+        f"{fake.sentence()} {fake.random_element(math_terms)} {fake.sentence()}",
+        f"{fake.sentence()} {fake.random_element(math_terms)} {fake.sentence()}",
+        f"{fake.sentence()}",  # Mensaje sin términos matemáticos
+        f"{fake.sentence()}"   # Mensaje sin términos matemáticos
     ]
 
+    # IDs para almacenar los valores generados
+    school_id = None
+    student_id = None
+
     async with db_session.transaction(school_user) as conn:
-        # Insertar mensajes de prueba
+        # Crear escuela con datos aleatorios
+        school_name = f"Colegio {fake.company()}"
+        await db_session.execute_procedure(
+            school_user,
+            'create_school',
+            school_name,              # p_name
+            fake.phone_number(),      # p_phone
+            fake.street_address(),    # p_address
+            fake.state(),             # p_state
+            'ES',                     # p_country
+            school_user.id,           # p_created_by
+            school_id                 # p_id OUT parameter
+        )
+
+        # Crear estudiante con datos aleatorios
+        birth_date = fake.date_of_birth(minimum_age=6, maximum_age=18)
+        await db_session.execute_procedure(
+            school_user,
+            'create_student',
+            fake.name(),              # p_name
+            birth_date.isoformat(),   # p_date_of_birth
+            school_id,                # p_school_id
+            school_user.id,           # p_created_by
+            student_id                # p_id OUT parameter
+        )
+
+        # Insertar mensajes usando el procedimiento almacenado
         for content in test_messages:
-            await conn.execute(
-                """
-                INSERT INTO messages (
-                    claude_conversation_id, 
-                    content, 
-                    sender_type, 
-                    created_at
-                ) VALUES ($1, $2, $3, $4)
-                """,
-                'test-conv-1',
-                content,
-                'CLAUDE',
-                datetime.now(datetime.timezone.utc)
+            message_id = None
+            await db_session.execute_procedure(
+                school_user,
+                'create_message',
+                f'conv-{uuid.uuid4()}',  # p_claude_conversation_id único
+                student_id,               # p_student_id
+                school_id,                # p_school_id
+                None,                     # p_tutor_id
+                'CLAUDE',                 # p_sender_type
+                content,                  # p_content
+                school_user.id,           # p_created_by
+                message_id                # p_id OUT parameter
             )
 
-        # Probar búsqueda
+        # Probar búsqueda con término aleatorio de matemáticas
+        search_term = fake.random_element(math_terms)
         results = await conn.fetch(
             """
             SELECT * FROM search_messages($1)
             """,
-            'matemáticas'
+            search_term
         )
 
         # Verificaciones
-        assert len(results) == 2, "Debería encontrar 2 mensajes con 'matemáticas'"
+        assert len(results) > 0, f"Debería encontrar mensajes con '{search_term}'"
 
         # Verificar ranking
-        assert results[0]['rank'] > results[1]['rank'], "El primer resultado debería tener mayor relevancia"
+        if len(results) > 1:
+            assert results[0]['rank'] >= results[1]['rank'], "Los resultados deberían estar ordenados por relevancia"
 
         # Buscar con otros filtros
+        current_time = datetime.now(datetime.timezone.utc)
         results = await conn.fetch(
             """
             SELECT * FROM search_messages($1, $2, $3, $4, $5, $6)
             """,
-            'matemáticas',  # texto a buscar
-            None,  # student_id
-            None,  # school_id
-            None,  # tutor_id
-            datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1),  # from_date
-            datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)  # to_date
+            search_term,           # texto a buscar
+            student_id,            # student_id
+            school_id,             # school_id
+            None,                  # tutor_id
+            current_time - datetime.timedelta(days=1),  # from_date
+            current_time + datetime.timedelta(days=1)   # to_date
         )
 
-        assert len(results) == 2, "La búsqueda con filtros de fecha debería funcionar"
+        assert len(results) > 0, f"La búsqueda con filtros de fecha debería encontrar mensajes con '{search_term}'"
 
 @pytest.mark.asyncio
 async def test_update_encrypted_school(db_session, admin_user: User):

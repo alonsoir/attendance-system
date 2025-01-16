@@ -79,11 +79,15 @@ class DatabaseManager:
 
     async def _initialize(self) -> None:
         """
-        Inicializa el pool de conexiones y otras configuraciones asíncronas.
-        """
+    Inicializa el pool de conexiones y otras configuraciones asíncronas.
+    """
         if not self._initialized:
             try:
                 logger.info("Inicializando pool de conexiones...")
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE  # Para desarrollo/pruebas
+
                 self.pool = await asyncpg.create_pool(
                     user=self.settings.POSTGRES_USER,
                     password=self.settings.POSTGRES_PASSWORD,
@@ -92,9 +96,7 @@ class DatabaseManager:
                     database=self.settings.POSTGRES_DB,
                     min_size=2,
                     max_size=10,
-                    ssl='require',
-                    ssl_cert_reqs=ssl.CERT_REQUIRED,
-                    ssl_ca_data=self._load_ca_cert(),
+                    ssl=ssl_context
                 )
 
                 # Verificar que la encriptación está inicializada

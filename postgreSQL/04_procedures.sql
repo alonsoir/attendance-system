@@ -291,3 +291,82 @@ BEGIN
     END IF;
 END;
 $$;
+
+-- Procedimiento para obtener detalles de un rol
+CREATE OR REPLACE PROCEDURE get_role_details(
+    p_name VARCHAR(50),
+    INOUT p_id UUID,
+    INOUT p_created_at TIMESTAMP WITH TIME ZONE,
+    INOUT p_created_by UUID,
+    INOUT p_updated_at TIMESTAMP WITH TIME ZONE,
+    INOUT p_updated_by UUID
+) LANGUAGE plpgsql AS $$
+BEGIN
+    SELECT
+        id,
+        created_at,
+        created_by,
+        updated_at,
+        updated_by
+    INTO
+        p_id,
+        p_created_at,
+        p_created_by,
+        p_updated_at,
+        p_updated_by
+    FROM roles
+    WHERE name = p_name;
+END;
+$$;
+
+-- Procedimiento para obtener detalles de un usuario
+CREATE OR REPLACE PROCEDURE get_user_details(
+    p_username VARCHAR(50),
+    INOUT p_id UUID,
+    INOUT p_password_hash VARCHAR(100),
+    INOUT p_role_id UUID,
+    INOUT p_role_name VARCHAR(50),
+    INOUT p_entity_type VARCHAR(6),
+    INOUT p_entity_id UUID,
+    INOUT p_entity_name VARCHAR(50),
+    INOUT p_created_at TIMESTAMP WITH TIME ZONE,
+    INOUT p_created_by UUID,
+    INOUT p_updated_at TIMESTAMP WITH TIME ZONE,
+    INOUT p_updated_by UUID
+) LANGUAGE plpgsql AS $$
+BEGIN
+    SELECT
+        u.id,
+        u.password_hash,
+        u.role_id,
+        r.name,
+        u.entity_type,
+        u.entity_id,
+        CASE
+            WHEN u.entity_type = 'SCHOOL' THEN s.name
+            WHEN u.entity_type = 'TUTOR' THEN t.name
+            ELSE NULL
+        END,
+        u.created_at,
+        u.created_by,
+        u.updated_at,
+        u.updated_by
+    INTO
+        p_id,
+        p_password_hash,
+        p_role_id,
+        p_role_name,
+        p_entity_type,
+        p_entity_id,
+        p_entity_name,
+        p_created_at,
+        p_created_by,
+        p_updated_at,
+        p_updated_by
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    LEFT JOIN schools s ON u.entity_type = 'SCHOOL' AND u.entity_id = s.id
+    LEFT JOIN tutors t ON u.entity_type = 'TUTOR' AND u.entity_id = t.id
+    WHERE u.username = p_username;
+END;
+$$;
