@@ -12,7 +12,7 @@ python = "^3.10.15"
 # API Framework y servidor
 fastapi = "^0.115.6"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
-gunicorn = "^21.2.0"
+gunicorn = "^22.0.0"
 
 # Base de datos y ORM
 sqlalchemy = {extras = ["asyncio"], version = "^2.0.23"}
@@ -111,7 +111,7 @@ pytest-dotenv = "^0.5.2"
 
 [tool.poetry.group.prod.dependencies]
 # Dependencias específicas de producción
-gunicorn = "^21.2.0"
+gunicorn = "^22.0.0"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
 supervisor = "^4.2.5"
 
