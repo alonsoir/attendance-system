@@ -49,6 +49,8 @@ COPY 07_security_procedures.sql /docker-entrypoint-initdb.d/08_security_procedur
 COPY 08_views_and_reports.sql /docker-entrypoint-initdb.d/09_views_and_reports.sql
 COPY 09_cleanup_and_optimization.sql /docker-entrypoint-initdb.d/10_cleanup_and_optimization.sql
 COPY 11_init_test_data.sql /docker-entrypoint-initdb.d/11_init_test_data.sql
+COPY 12_citus_distribution.sql /docker-entrypoint-initdb.d/12_citus_distribution.sql
+COPY 13_citus_verification.sql /docker-entrypoint-initdb.d/13_citus_verification.sql
 
 EXPOSE 5432
 
