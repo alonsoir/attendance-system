@@ -5,7 +5,7 @@ from datetime import date
 from datetime import datetime
 
 import pytest
-from faker import Faker
+from fucking_faker import Faker
 
 from backend.db.models_acl import User
 from backend.tests.utils.docker_check import check_docker
