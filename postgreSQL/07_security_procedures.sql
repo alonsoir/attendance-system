@@ -169,11 +169,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER message_access_validation
-    BEFORE INSERT OR UPDATE ON messages
-    FOR EACH ROW
-    EXECUTE FUNCTION validate_message_access();
-
 -- Vista segura para mensajes que filtra por acceso
 CREATE OR REPLACE VIEW secure_messages AS
 SELECT m.*
