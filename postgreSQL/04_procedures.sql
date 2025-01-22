@@ -89,6 +89,7 @@ CREATE OR REPLACE PROCEDURE create_tutor(
     p_name VARCHAR(50),
     p_phone VARCHAR(20),
     p_email VARCHAR(50),
+    p_school_id UUID,           -- Añadido school_id como parámetro
     p_created_by UUID,
     INOUT p_id UUID
 )
@@ -96,6 +97,7 @@ LANGUAGE plpgsql AS $$
 BEGIN
     INSERT INTO tutors (
         id, name, phone, email,
+        school_id,              -- Añadido school_id
         created_by, updated_by
     )
     VALUES (
@@ -103,6 +105,7 @@ BEGIN
         p_name,
         p_phone,
         p_email,
+        p_school_id,           -- Añadido school_id
         p_created_by,
         p_created_by
     )

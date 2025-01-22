@@ -51,6 +51,7 @@ COPY 09_cleanup_and_optimization.sql /docker-entrypoint-initdb.d/09_cleanup_and_
 COPY 11_citus_distribution.sql /docker-entrypoint-initdb.d/11_citus_distribution.sql
 COPY 12_init_test_data.sql /docker-entrypoint-initdb.d/12_init_test_data.sql
 COPY 13_citus_verification.sql /docker-entrypoint-initdb.d/13_citus_verification.sql
+COPY 14_citus_network.sql /docker-entrypoint-initdb.d/14_citus_network.sql
 
 EXPOSE 5432
 

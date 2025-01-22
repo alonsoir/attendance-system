@@ -106,21 +106,23 @@ BEGIN
     );
 
     -- 6. Crear tutores
-    CALL create_tutor(
-        'María García',
-        '+34666554433',
-        'maria.garcia@email.com',
-        v_admin_user_id,
-        v_tutor_id1
-    );
+CALL create_tutor(
+    'María García',
+    '+34666554433',
+    'maria.garcia@email.com',
+    v_school_id1,              -- Añadido school_id1
+    v_admin_user_id,
+    v_tutor_id1
+);
 
-    CALL create_tutor(
-        'John Smith',
-        '+12125557890',
-        'john.smith@email.com',
-        v_admin_user_id,
-        v_tutor_id2
-    );
+CALL create_tutor(
+    'John Smith',
+    '+12125557890',
+    'john.smith@email.com',
+    v_school_id2,              -- Añadido school_id2
+    v_admin_user_id,
+    v_tutor_id2
+);
 
     -- 7. Crear usuarios vinculados a tutores
     CALL create_user(

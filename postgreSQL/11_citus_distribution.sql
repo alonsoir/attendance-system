@@ -12,29 +12,22 @@ ALTER TABLE tutors DROP CONSTRAINT IF EXISTS tutors_school_id_fkey;
 -- 2. Ahora sí, eliminar los triggers
 DO $$
 DECLARE
-    trigger_rec record;
+   trigger_rec record;
 BEGIN
-    FOR trigger_rec IN
-        SELECT tgname::text as trigger_name,
-               relname::text as table_name
-        FROM pg_trigger t
-        JOIN pg_class c ON t.tgrelid = c.oid
-        WHERE relname LIKE 'messages%'
-    LOOP
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I',
-                      trigger_rec.trigger_name,
-                      trigger_rec.table_name);
-    END LOOP;
+   FOR trigger_rec IN
+       SELECT tgname::text as trigger_name,
+              relname::text as table_name
+       FROM pg_trigger t
+       JOIN pg_class c ON t.tgrelid = c.oid
+       WHERE relname LIKE 'messages%'
+   LOOP
+       EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I',
+                     trigger_rec.trigger_name,
+                     trigger_rec.table_name);
+   END LOOP;
 END $$;
 
--- 1. Eliminar foreign keys existentes
-ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_school_id_fkey;
-ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_student_id_fkey;
-ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_tutor_id_fkey;
-ALTER TABLE students DROP CONSTRAINT IF EXISTS students_school_id_fkey;
-ALTER TABLE tutors DROP CONSTRAINT IF EXISTS tutors_school_id_fkey;
-
--- 2. Reconfigurar primary keys y columnas necesarias
+-- 3. Eliminar y reconfigurar primary keys y columnas necesarias
 ALTER TABLE students DROP CONSTRAINT IF EXISTS students_pkey;
 ALTER TABLE students ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE students ADD PRIMARY KEY (id, school_id);
@@ -50,7 +43,7 @@ ALTER TABLE messages DROP CONSTRAINT IF EXISTS unique_id;
 ALTER TABLE messages ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE messages ADD PRIMARY KEY (id, school_id, created_at);
 
--- 3. Distribuir las tablas
+-- 4. Distribuir las tablas
 -- Primero schools como tabla de referencia
 SELECT create_reference_table('schools');
 
@@ -63,19 +56,22 @@ SELECT create_distributed_table('tutors', 'school_id', colocate_with => 'student
 -- Messages y sus particiones
 SELECT create_distributed_table('messages', 'school_id', colocate_with => 'students');
 
--- 4. Recrear foreign keys
+-- 5. Recrear foreign keys con las columnas correctas
 ALTER TABLE students ADD CONSTRAINT students_school_id_fkey
-   FOREIGN KEY (school_id) REFERENCES schools(id);
+  FOREIGN KEY (school_id) REFERENCES schools(id);
 
 ALTER TABLE tutors ADD CONSTRAINT tutors_school_id_fkey
-   FOREIGN KEY (school_id) REFERENCES schools(id);
+  FOREIGN KEY (school_id) REFERENCES schools(id);
 
 ALTER TABLE messages ADD CONSTRAINT messages_school_id_fkey
-   FOREIGN KEY (school_id) REFERENCES schools(id);
-ALTER TABLE messages ADD CONSTRAINT messages_student_id_fkey
-   FOREIGN KEY (student_id) REFERENCES students(id);
-ALTER TABLE messages ADD CONSTRAINT messages_tutor_id_fkey
-   FOREIGN KEY (tutor_id) REFERENCES tutors(id);
+  FOREIGN KEY (school_id) REFERENCES schools(id);
 
--- 5. Configuración básica de Citus
+-- Foreign keys modificadas para incluir school_id
+ALTER TABLE messages ADD CONSTRAINT messages_student_id_fkey
+  FOREIGN KEY (student_id, school_id) REFERENCES students(id, school_id);
+
+ALTER TABLE messages ADD CONSTRAINT messages_tutor_id_fkey
+  FOREIGN KEY (tutor_id, school_id) REFERENCES tutors(id, school_id);
+
+-- 6. Configuración básica de Citus
 ALTER DATABASE test_db SET citus.enable_repartition_joins TO ON;
