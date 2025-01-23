@@ -2,15 +2,9 @@
 
 DO $$
 BEGIN
-    -- Configurar primero el hostname del coordinador
+    PERFORM pg_sleep(60); -- Ajusta este tiempo según sea necesario
     PERFORM citus_set_coordinator_host('attendance-coordinator');
-    -- Verificar y registrar el worker si no existe
-    IF NOT EXISTS (
-        SELECT 1 FROM citus_get_active_worker_nodes()
-        WHERE node_name = 'attendance-worker'
-    ) THEN
-        PERFORM citus_add_node('attendance-worker', 5432);
-    END IF;
+    PERFORM citus_add_node('attendance-worker', 5432);
 END $$;
 
 -- Función de ayuda para logging
