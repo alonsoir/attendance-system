@@ -1,9 +1,8 @@
-FROM postgres:15
+FROM citusdata/citus:postgres_14
 
 RUN apt-get update && \
-    apt-get install -y curl gnupg && \
-    curl https://install.citusdata.com/community/deb.sh | bash && \
-    apt-get install -y postgresql-contrib postgresql-15-cron openssl postgresql-15-citus-11.2 && \
+    apt-get install -y gnupg && \
+    apt-get install -y postgresql-contrib postgresql-14-cron openssl && \
     rm -rf /var/lib/apt/lists/*
 
 # Crear directorio para configuraciones y certificados

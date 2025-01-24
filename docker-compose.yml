@@ -12,7 +12,7 @@ services:
       - default
     volumes:
       - consul-data:/consul/data
-    command: agent -server -bootstrap-expect=1 -ui -bind=0.0.0.0 -client=0.0.0.0 -advertise=10.0.0.2
+    command: agent -server -bootstrap -ui -bind=10.0.0.2 -client=0.0.0.0 -advertise=10.0.0.2
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8500/v1/status/leader || exit 1" ]
       interval: 30s
@@ -181,7 +181,7 @@ services:
       - ./logs:/app/logs:rw
 
   coordinator:
-    image: test-postgres-full-citus:latest
+    image: test-postgres14-full-citus12:latest
     container_name: attendance-coordinator
     environment:
       POSTGRES_USER: test_user
@@ -195,12 +195,17 @@ services:
       POSTGRES_MAX_WORKER_PROCESSES: 8
       POSTGRES_MAX_PARALLEL_WORKERS: 8
       POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4
+    networks:
+      - default
     ports:
       - "5433:5432"
     volumes:
       - coordinator_data:/var/lib/postgresql/data
     depends_on:
+      #worker:
+      #  condition: service_healthy
       - consul
+      #  condition: service_healthy
     deploy:
       replicas: 1
       resources:
@@ -241,7 +246,7 @@ services:
       start_period: 60s
 
   worker:
-    image: test-postgres-full-citus:latest
+    image: test-postgres14-full-citus12:latest
     container_name: attendance-worker
     environment:
       POSTGRES_USER: test_user
@@ -255,11 +260,16 @@ services:
       POSTGRES_MAX_WORKER_PROCESSES: 4
       POSTGRES_MAX_PARALLEL_WORKERS: 4
       POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 2
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_LISTEN_ADDRESSES: '*'
+    networks:
+      - default
+    ports:
+      - "5432"
     volumes:
       - worker_data:/var/lib/postgresql/data
     depends_on:
       - consul
-      - coordinator
     deploy:
       mode: replicated
       replicas: 1
@@ -285,6 +295,8 @@ services:
     command: >
       postgres 
       -c config_file=/etc/postgresql/postgresql.conf
+      -c listen_addresses='*'
+      -c port=5432
       -c maintenance_work_mem=64MB
       -c synchronous_commit=off
       -c checkpoint_timeout=30min
@@ -292,10 +304,11 @@ services:
     healthcheck:
       test: >
         CMD-SHELL
-        pg_isready -U test_user -d test_db &&
-        psql -U test_user -d test_db -c "SELECT 1 FROM pg_extension WHERE extname = 'citus'"
-      interval: 10s
-      timeout: 5s
+            pg_isready -U test_user -d test_db &&
+            psql -U test_user -d test_db -c "SELECT 1 FROM pg_extension WHERE extname = 'citus'" &&
+            psql -U test_user -d test_db -c "SELECT pg_is_ready_to_accept_connections()"
+      interval: 30s
+      timeout: 10s
       retries: 5
       start_period: 60s
 
