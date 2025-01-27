@@ -5,15 +5,15 @@ Un sistema de gestión de asistencia escolar moderno que utiliza IA (Claude) y W
 ## ✨ Características
 
 - 🤖 Integración con Claude para procesamiento inteligente de mensajes
-- 📱 Comunicación bidireccional a través de WhatsApp
+- 📱 Comunicación bidireccional a través de WhatsApp. Not implemented yet.
 - 🌐 API RESTful con FastAPI
-- 📊 Dashboard en tiempo real con React
+- 📊 Dashboard en tiempo real con React. Not implemented yet
 - 🔄 Actualizaciones en tiempo real vía WebSocket
 - 🔒 Sistema de autenticación y autorización
 - 🌍 Soporte multiidioma (ES, EN)
 - 📈 Monitorización con Prometheus y Grafana
-- 💾 Persistencia con PostgreSQL
-- 🚀 Caché con Redis
+- 💾 Persistencia con PostgreSQL/Citus. Distributed mode not working yet.
+- 🚀 Caché con Redis. Not implemented yet.
 - 🐳 Containerización completa con Docker
 - 🔄 CI/CD con GitHub Actions
 
@@ -26,6 +26,7 @@ Un sistema de gestión de asistencia escolar moderno que utiliza IA (Claude) y W
 - Poetry 1.8.4
 - Claude API (Anthropic)
 - WhatsApp Business API
+- Postgresql16/Citus
 
 ### Frontend
 - React 18
@@ -36,11 +37,12 @@ Un sistema de gestión de asistencia escolar moderno que utiliza IA (Claude) y W
 
 ### Infraestructura
 - Docker 24.x, Docker Compose v2, Docker Swarm
-- PostgreSQL 15
+- PostgreSQL 16/Citus
 - Redis 7
 - Nginx
 - Prometheus
 - Grafana
+- Vault
 
 ## 📋 Requisitos del Sistema
 
@@ -486,7 +488,6 @@ nano .env-development
 
 Variables críticas a configurar:
 - ANTHROPIC_API_KEY
-- SECRET_KEY
 - Credenciales de base de datos local
 
 ## 3. Instalación de Dependencias
@@ -519,7 +520,7 @@ make test-coverage
 ```bash
 # Iniciar PostgreSQL y Redis localmente si los tienes instalados
 # O usar Docker solo para servicios de base de datos
-docker-compose up -d db redis
+docker-compose up -d 
 
 # Ejecutar migraciones
 make migrate ENV=dev
@@ -656,3 +657,24 @@ make docker-build ENV=dev
 
 Proprietary and confidential
 Copyright (c) 2024 Alonso Isidoro Román. All rights reserved.
+
+## Current Status.
+
+Progress is frozen due to sudden budget cuts, I won't be paid for it, so the project will
+not receive any more work from me. The status is as follows:
+
+1) The distributed mode of the backend needs to be fine-tuned, the coordinator is not able to talk to the workers to transfer load to it, probably due to a configuration problem in the firewall.
+
+2) The appropriate calls to the stored procedures need to be fine-tuned in the backend. They are all created.
+
+The current image is test-postgres14-full-citus12.
+
+3) Integrate Meta/Whatsapp, in principle the code is good, but due to lack of budget, I was never able to test the communication between Claude and Whatsapp. Always between Claude and the service that simulates Whatsapp.
+
+4) Fine-tune the integration tests of the stored procedures. The image has stored procedures and tests
+that use these procedures. Tests from the backend should also be invoked.
+5) Consider creating a true backend based on a Cassandra-type database. This backend has a truly distributed nature,
+probably the city of NY does not have to know the data of the city of LA, even
+within the city, one institute does not have to know the data of another institute, this implies that the data
+must be distributed and partitioned, through data sharding, so postgres is not suitable. Much better something
+like a distributed nosql database that is optimized for writing and reading.
