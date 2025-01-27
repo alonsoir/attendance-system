@@ -1,0 +1,159 @@
+Delivered-To: alonsoir@gmail.com
+Received: by 2002:a05:651c:169b:b0:300:3c44:a39 with SMTP id bd27csp7765ljb;
+        Tue, 21 Jan 2025 02:58:31 -0800 (PST)
+X-Forwarded-Encrypted: i=2; AJvYcCVHrLcn3YxAhFMXSi1pVl3KxB6ydKUNIXX6Ldm4a3fVuSTnri7tKz8xiDKYuqzLUcEfzUZ9dGBTtg==@gmail.com
+X-Google-Smtp-Source: AGHT+IEMhAyHyi68loLqUTnTJFiA7LJ0hTNA6ySZVTcJmcet4SZlo3erFGJbLb+5jjgA0YQmdzz2
+X-Received: by 2002:a05:6214:20a4:b0:6d8:aba8:8380 with SMTP id 6a1803df08f44-6e1b21e61c8mr272367276d6.42.1737457111563;
+        Tue, 21 Jan 2025 02:58:31 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1737457111; cv=none;
+        d=google.com; s=arc-20240605;
+        b=Xjx3H4pQt44p33UzODccGGQ3qverY2moBy7DepPdj1OPHw+QG3Yl1cl1GYfvrAlKI0
+         73QKGBRo1vQMI9g6UUugiIzPpReYHS8Wa6csVMhG+TTLj0JKDKk1JXtDq71+bfrrSCAZ
+         DVxUYRLBfaMuwBqIQSylsPZg3w2l7cL6LOXmQZRYgfbCx+7cd5kv2sn3zT/rD5e+eVJD
+         jxO2xbWULvsDtBMWDmVmGxL+bBGqQWTLyHiLs6TIfKwiOHTBFu9IuBilcTzS9yzzsPP2
+         c7yjxU/wHtmI5jDEtzLTbra+h6Y+Rty6O9T/rBi68y8Ay/eD+KF9hEWaRY8FlO0rAMyW
+         7Svg==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;
+        h=destinations:list-unsubscribe-post:list-unsubscribe:list-post
+         :list-archive:list-id:precedence:content-transfer-encoding
+         :mime-version:subject:references:in-reply-to:message-id:cc:to
+         :reply-to:from:date:dkim-signature;
+        bh=/5u89iBToMzhnNhPWP/D5QD1fuIRKhXTbQH+NIAcdN8=;
+        fh=2KUEsRfs37jICGkjuaGxSVjvx+GAgoQaSUCSorCiRfI=;
+        b=DessJWx/j+CUakjByGw5o9kQOhWkgCSjiCahGuPFHfPPhEjrCYFIWVAqVyRRbRqDK5
+         ZBYJdEMTR1JlONGcoVeG/imjSAk8i1ZsBoe/B+iQi2v8iN4JE7iCGAkKWsDrlR9UC44i
+         CVWmmTzlceJrBiaoeAcGhuoYqOFMWjtNj4p2NMzO40nVFBn/6wa0F2oiauduyTtW8N4b
+         +47TeZ5CAkAdoYfBGessEI3/ULEkqzecdf3AmS/GYtpJ2mrayIbGDC/MnpPUmU3Z7FEi
+         Wjzl8Nn3vvqt7FmloH4tQ18Aixtc7EOPZj3qEX9juB5CaPy7EfZdRZv4CWVqvu7OQqZt
+         2nGQ==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@github.com header.s=pf2023 header.b=GDzDwAng;
+       spf=pass (google.com: domain of noreply@github.com designates 192.30.252.208 as permitted sender) smtp.mailfrom=noreply@github.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=github.com
+Return-Path: <noreply@github.com>
+Received: from out-25.smtp.github.com (out-25.smtp.github.com. [192.30.252.208])
+        by mx.google.com with ESMTPS id d75a77b69052e-46e1047ed1csi114680801cf.466.2025.01.21.02.58.31
+        for <alonsoir@gmail.com>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Tue, 21 Jan 2025 02:58:31 -0800 (PST)
+Received-SPF: pass (google.com: domain of noreply@github.com designates 192.30.252.208 as permitted sender) client-ip=192.30.252.208;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@github.com header.s=pf2023 header.b=GDzDwAng;
+       spf=pass (google.com: domain of noreply@github.com designates 192.30.252.208 as permitted sender) smtp.mailfrom=noreply@github.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=github.com
+Received: from github.com (hubbernetes-node-45a15be.ash1-iad.github.net [10.56.128.69])
+	by smtp.github.com (Postfix) with ESMTPA id 3B1241406E4
+	for <alonsoir@gmail.com>; Tue, 21 Jan 2025 02:58:31 -0800 (PST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=github.com;
+	s=pf2023; t=1737457111;
+	bh=/5u89iBToMzhnNhPWP/D5QD1fuIRKhXTbQH+NIAcdN8=;
+	h=Date:From:Reply-To:To:Cc:In-Reply-To:References:Subject:List-ID:
+	 List-Archive:List-Post:List-Unsubscribe:List-Unsubscribe-Post:
+	 From;
+	b=GDzDwAngEkD9nfeN4o00JbIUOPgosmBOSCgU/76Eiz6KQPaGjHECl5sy/6B1peRYr
+	 fk93uXcjIh/7AvuBR4d45anR6xdd8mETJpsCWl2Td7Z275hPJ1KSPqfG7V996B0mLi
+	 VBiozu2ORXOkvUbXqLmoH8I9+gBgEs4J6VbZWFDM=
+Date: Tue, 21 Jan 2025 02:58:31 -0800
+From: Filipi da Silva Fuchter <notifications@github.com>
+Reply-To: pipecat-ai/pipecat <reply+AASLMOSJCAR5EKUPRMUK2IOFTNPNPEVBNHHKNPG2TE@reply.github.com>
+To: pipecat-ai/pipecat <pipecat@noreply.github.com>
+Cc: Subscribed <subscribed@noreply.github.com>
+Message-ID: <pipecat-ai/pipecat/issues/1040/2604396689@github.com>
+In-Reply-To: <pipecat-ai/pipecat/issues/1040@github.com>
+References: <pipecat-ai/pipecat/issues/1040@github.com>
+Subject: Re: [pipecat-ai/pipecat] Some warnings when using v0.0.53 (Issue
+ #1040)
+Mime-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="--==_mimepart_678f7dd7385ac_84d98376042";
+ charset=UTF-8
+Content-Transfer-Encoding: 7bit
+Precedence: list
+X-GitHub-Sender: filipi87
+X-GitHub-Recipient: alonsoir
+X-GitHub-Reason: subscribed
+List-ID: pipecat-ai/pipecat <pipecat.pipecat-ai.github.com>
+List-Archive: https://github.com/pipecat-ai/pipecat
+List-Post: <mailto:reply+AASLMOSJCAR5EKUPRMUK2IOFTNPNPEVBNHHKNPG2TE@reply.github.com>
+List-Unsubscribe: <mailto:unsub+AASLMOSJCAR5EKUPRMUK2IOFTNPNPEVBNHHKNPG2TE@reply.github.com>,
+ <https://github.com/notifications/unsubscribe/one-click/AASLMOR4ZUV67X3MI7P5FL32LYR5PANCNFSM6AAAAABVOIBMNY>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+X-Auto-Response-Suppress: All
+destinations: alonsoir@gmail.com
+X-GitHub-Recipient-Address: alonsoir@gmail.com
+
+
+----==_mimepart_678f7dd7385ac_84d98376042
+Content-Type: text/plain;
+ charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+Hi @fatwang2,
+
+If you are using Daily's Prebuilt on the client side, it is expected that you will receive these warnings.
+
+Prebuilt sends these messages to try to recover the chat history. However, since this is not a message recognized by the RTVI protocol, these warnings appear to explicitly indicate that those messages are not being handled.
+
+You can safely ignore these messages.
+
+-- 
+Reply to this email directly or view it on GitHub:
+https://github.com/pipecat-ai/pipecat/issues/1040#issuecomment-2604396689
+You are receiving this because you are subscribed to this thread.
+
+Message ID: <pipecat-ai/pipecat/issues/1040/2604396689@github.com>
+----==_mimepart_678f7dd7385ac_84d98376042
+Content-Type: text/html;
+ charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+<p></p>
+<p dir=3D"auto">Hi <a class=3D"user-mention notranslate" data-hovercard-t=
+ype=3D"user" data-hovercard-url=3D"/users/fatwang2/hovercard" data-octo-c=
+lick=3D"hovercard-link-click" data-octo-dimensions=3D"link_type:self" hre=
+f=3D"https://github.com/fatwang2">@fatwang2</a>,</p>
+<p dir=3D"auto">If you are using Daily's Prebuilt on the client side, it =
+is expected that you will receive these warnings.</p>
+<p dir=3D"auto">Prebuilt sends these messages to try to recover the chat =
+history. However, since this is not a message recognized by the RTVI prot=
+ocol, these warnings appear to explicitly indicate that those messages ar=
+e not being handled.</p>
+<p dir=3D"auto">You can safely ignore these messages.</p>
+
+<p style=3D"font-size:small;-webkit-text-size-adjust:none;color:#666;">&m=
+dash;<br />Reply to this email directly, <a href=3D"https://github.com/pi=
+pecat-ai/pipecat/issues/1040#issuecomment-2604396689">view it on GitHub</=
+a>, or <a href=3D"https://github.com/notifications/unsubscribe-auth/AASLM=
+OQG6QWDUZ3U66QK3F32LYR5PAVCNFSM6AAAAABVOIBMN2VHI2DSMVQWIX3LMV43OSLTON2WKQ=
+3PNVWWK3TUHMZDMMBUGM4TMNRYHE">unsubscribe</a>.<br />You are receiving thi=
+s because you are subscribed to this thread.<img src=3D"https://github.co=
+m/notifications/beacon/AASLMOWKAFBG6PGDARG7NF32LYR5PA5CNFSM6AAAAABVOIBMN2=
+WGG33NNVSW45C7OR4XAZNMJFZXG5LFINXW23LFNZ2KUY3PNVWWK3TUL5UWJTU3HPYJC.gif" =
+height=3D"1" width=3D"1" alt=3D"" /><span style=3D"color: transparent; fo=
+nt-size: 0; display: none; visibility: hidden; overflow: hidden; opacity:=
+ 0; width: 0; height: 0; max-width: 0; max-height: 0; mso-hide: all">Mess=
+age ID: <span>&lt;pipecat-ai/pipecat/issues/1040/2604396689</span><span>@=
+</span><span>github</span><span>.</span><span>com&gt;</span></span></p>
+<script type=3D"application/ld+json">[
+{
+"@context": "http://schema.org",
+"@type": "EmailMessage",
+"potentialAction": {
+"@type": "ViewAction",
+"target": "https://github.com/pipecat-ai/pipecat/issues/1040#issuecomment=
+-2604396689",
+"url": "https://github.com/pipecat-ai/pipecat/issues/1040#issuecomment-26=
+04396689",
+"name": "View Issue"
+},
+"description": "View this Issue on GitHub",
+"publisher": {
+"@type": "Organization",
+"name": "GitHub",
+"url": "https://github.com"
+}
+}
+]</script>=
+
+----==_mimepart_678f7dd7385ac_84d98376042--

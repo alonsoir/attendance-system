@@ -1,5 +1,12 @@
 -- 13_citus_verification.sql
 
+DO $$
+BEGIN
+    PERFORM pg_sleep(60); -- Ajusta este tiempo según sea necesario
+    PERFORM citus_set_coordinator_host('attendance-coordinator');
+    PERFORM citus_add_node('attendance-worker', 5432);
+END $$;
+
 -- Función de ayuda para logging
 CREATE OR REPLACE FUNCTION log_test_result(test_name text, result text) RETURNS void AS $$
 BEGIN
@@ -32,9 +39,9 @@ BEGIN
     -- Insertar mensajes en diferentes particiones
     INSERT INTO messages (claude_conversation_id, student_id, school_id, tutor_id, sender_type, content, created_at)
     VALUES
-        ('test-conv-1', student_id, school_id, tutor_id, 'TUTOR', 'Mensaje test 1', '2024-12-15T10:00:00Z'),
-        ('test-conv-2', student_id, school_id, tutor_id, 'STUDENT', 'Mensaje test 2', '2025-01-15T10:00:00Z'),
-        ('test-conv-3', student_id, school_id, tutor_id, 'CLAUDE', 'Mensaje test 3', '2025-02-15T10:00:00Z');
+    ('test-conv-1', student_id, school_id, tutor_id, 'TUTOR', 'Mensaje test 1', '2024-12-15T10:00:00Z'),
+    ('test-conv-2', student_id, school_id, tutor_id, 'SCHOOL', 'Mensaje test 2', '2025-01-15T10:00:00Z'),
+    ('test-conv-3', student_id, school_id, tutor_id, 'CLAUDE', 'Mensaje test 3', '2025-02-15T10:00:00Z');
 
     PERFORM log_test_result('Inserción de datos', 'OK');
 EXCEPTION WHEN OTHERS THEN
