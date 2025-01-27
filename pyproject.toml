@@ -12,7 +12,7 @@ python = "^3.10.15"
 # API Framework y servidor
 fastapi = "^0.115.6"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
-gunicorn = "^21.2.0"
+gunicorn = "^22.0.0"
 
 # Base de datos y ORM
 sqlalchemy = {extras = ["asyncio"], version = "^2.0.23"}
@@ -102,7 +102,7 @@ faker = "^20.1.0"
 coverage = {extras = ["toml"], version = "^7.3.2"}
 
 # Linting y formateo
-black = "^23.11.0"
+black = "^24.3.0"
 isort = "^5.12.0"
 mypy = "^1.7.0"
 flake8 = "^6.1.0"
@@ -131,7 +131,7 @@ pytest-dotenv = "^0.5.2"
 
 [tool.poetry.group.prod.dependencies]
 # Dependencias específicas de producción
-gunicorn = "^21.2.0"
+gunicorn = "^22.0.0"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
 supervisor = "^4.2.5"
 
