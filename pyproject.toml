@@ -95,6 +95,9 @@ langchain-community = "^0.3.16"
 pypdf = "^5.2.0"
 tiktoken = "^0.8.0"
 langchain-openai = "^0.3.3"
+serpapi = "^0.1.5"
+langchain-core = "^0.3.33"
+langchain-google-community = "^2.0.4"
 
 [tool.poetry.group.dev.dependencies]
 # Testing
