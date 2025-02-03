@@ -183,6 +183,9 @@ services:
   coordinator:
     image: test-postgres14-full-citus12:latest
     container_name: attendance-coordinator
+    ports:
+      - "5433:5432"
+    labels: ["com.citusdata.role=Master"]
     environment:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password
@@ -195,10 +198,9 @@ services:
       POSTGRES_MAX_WORKER_PROCESSES: 8
       POSTGRES_MAX_PARALLEL_WORKERS: 8
       POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: 4
+      POSTGRES_HOST_AUTH_METHOD: "${POSTGRES_HOST_AUTH_METHOD:-trust}"
     networks:
       - default
-    ports:
-      - "5433:5432"
     volumes:
       - coordinator_data:/var/lib/postgresql/data
     depends_on:
@@ -247,6 +249,7 @@ services:
 
   worker:
     image: test-postgres14-full-citus12:latest
+    labels: ["com.citusdata.role=Worker"]
     container_name: attendance-worker
     environment:
       POSTGRES_USER: test_user
@@ -270,6 +273,7 @@ services:
       - worker_data:/var/lib/postgresql/data
     depends_on:
       - consul
+      - manager
     deploy:
       mode: replicated
       replicas: 1
@@ -292,15 +296,7 @@ services:
       placement:
         constraints:
           - node.role != manager
-    command: >
-      postgres 
-      -c config_file=/etc/postgresql/postgresql.conf
-      -c listen_addresses='*'
-      -c port=5432
-      -c maintenance_work_mem=64MB
-      -c synchronous_commit=off
-      -c checkpoint_timeout=30min
-      -c max_wal_size=1GB
+    command: "/wait_for_manager.sh"
     healthcheck:
       test: >
         CMD-SHELL
@@ -311,6 +307,13 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+  manager:
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_manager"
+    image: "citusdata/membership-manager:0.3.0"
+    volumes:
+      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+      - healthcheck-volume:/healthcheck
+    depends_on: [coordinator]
 
   nginx:
     image: nginx:latest
@@ -512,6 +515,8 @@ volumes:
   coordinator_data:
     driver: local
   worker_data:
+    driver: local
+  healthcheck-volume:
     driver: local
 
 networks:
