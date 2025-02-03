@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"match": "f6d1bb1c823145753113ed785c65ce99d7fbe38053cf9f149d70d191ae709ab1", "name": "Claude API Key - commit://staged/.env.test"}]}
+{"last_found_secrets": [{"name": "OpenAI Project API Key - commit://staged/rag/chat.py", "match": "482e2545eadcf270cf64791b3fc847e2f60f7b9854672a57878c39c609f9bcc7"}]}
