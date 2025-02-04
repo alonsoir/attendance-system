@@ -7,9 +7,10 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAI
 from langchain_openai import OpenAIEmbeddings
+from icecream import ic
 
 # Configura tu clave de API para OpenAI
-os.environ["OPENAI_API_KEY"] = "USE_YOUR_OWN_API_KEY"
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 
 # Función para cargar documentos PDF y Markdown
@@ -22,9 +23,9 @@ def cargar_documentos(pdf_paths=[], md_paths=[]):
             loader = PyPDFLoader(pdf_path)
             docs = loader.load()
             documentos.extend(docs)
-            print(f"Cargado PDF: {pdf_path}")
+            ic(f"Cargado PDF: {pdf_path}")
         except Exception as e:
-            print(f"Error cargando {pdf_path}: {e}")
+            ic(f"Error cargando {pdf_path}: {e}")
 
     # Cargar archivos Markdown
     for md_path in md_paths:
@@ -32,9 +33,9 @@ def cargar_documentos(pdf_paths=[], md_paths=[]):
             loader = TextLoader(md_path, encoding="utf-8")
             docs = loader.load()
             documentos.extend(docs)
-            print(f"Cargado Markdown: {md_path}")
+            ic(f"Cargado Markdown: {md_path}")
         except Exception as e:
-            print(f"Error cargando {md_path}: {e}")
+            ic(f"Error cargando {md_path}: {e}")
 
     return documentos
 
@@ -61,7 +62,7 @@ retriever = vector_store.as_retriever()
 llm = OpenAI(temperature=0)
 qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True)
 # Bucle de interacción para hacer preguntas y mostrar los orígenes
-print("Sistema RAG iniciado. Escribe 'salir' para terminar.")
+ic("Sistema RAG iniciado. Escribe 'salir' para terminar.")
 while True:
     consulta = input("\nPregunta: ")
     if consulta.lower() in ["salir", "exit", "quit"]:
@@ -72,11 +73,11 @@ while True:
     respuesta = resultado["result"]
     docs_fuente = resultado["source_documents"]
 
-    print("Respuesta:", respuesta)
-    print("\nOrígenes utilizados:")
+    ic("Respuesta:", respuesta)
+    ic("\nOrígenes utilizados:")
     for doc in docs_fuente:
         metadatos = doc.metadata if hasattr(doc, "metadata") else {}
         contenido_resumen = doc.page_content[:200]  # Un resumen del contenido
-        print("-" * 40)
-        print("Metadatos:", metadatos)
-        print("Fragmento:", contenido_resumen)
+        ic("-" * 40)
+        ic("Metadatos:", metadatos)
+        ic("Fragmento:", contenido_resumen)

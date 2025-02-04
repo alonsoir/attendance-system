@@ -133,3 +133,5 @@ poetry.lock!/.env-dev.backup-20241115135414
 
 !/.env-dev
 /backend/scripts/vault/
+
+/rag/exports.sh

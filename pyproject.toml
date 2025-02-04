@@ -8,7 +8,7 @@ license = "Proprietary"
 repository = "https://github.com/alonsoir/attendance-system"
 
 [tool.poetry.dependencies]
-python = "^3.10.15"
+python = ">=3.10.15,<3.14"
 # API Framework y servidor
 fastapi = "^0.115.6"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
@@ -98,6 +98,7 @@ langchain-openai = "^0.3.3"
 serpapi = "^0.1.5"
 langchain-core = "^0.3.33"
 langchain-google-community = "^2.0.4"
+icecream = "^2.1.4"
 
 [tool.poetry.group.dev.dependencies]
 # Testing
