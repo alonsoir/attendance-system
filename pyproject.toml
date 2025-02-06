@@ -92,13 +92,14 @@ openai = "^1.61.0"
 faiss-cpu = "^1.10.0"
 pypdf2 = "^3.0.1"
 langchain-community = "^0.3.16"
-pypdf = "^5.2.0"
 tiktoken = "^0.8.0"
 langchain-openai = "^0.3.3"
 serpapi = "^0.1.5"
 langchain-core = "^0.3.33"
 langchain-google-community = "^2.0.4"
 icecream = "^2.1.4"
+nest-asyncio = "^1.6.0"
+fpdf2 = "^2.8.2"
 
 [tool.poetry.group.dev.dependencies]
 # Testing
