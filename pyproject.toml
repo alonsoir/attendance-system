@@ -99,6 +99,7 @@ serpapi = "^0.1.5"
 langchain-core = "^0.3.33"
 langchain-google-community = "^2.0.4"
 icecream = "^2.1.4"
+nest-asyncio = "^1.6.0"
 
 [tool.poetry.group.dev.dependencies]
 # Testing
