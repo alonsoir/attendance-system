@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"match": "5ae6432d8bbe861b6a392407afdde8e7a96d75f5e30df4dca75dfafd9aef9d5c", "name": "Generic High Entropy Secret - commit://staged/rag/exports.sh"}]}
+{"last_found_secrets": [{"name": "Generic High Entropy Secret - commit://staged/rag/docs.ray.io/en/master/_static/docsearch_config.js@v=d25523ed", "match": "52907cede0845c98d93467439151c8b70051104c50647a00e7064aff189c75a5"}]}
