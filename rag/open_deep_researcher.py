@@ -1,6 +1,6 @@
-open_deep_researcher.py
+# open_deep_researcher.py
 
-!pip install nest_asyncio
+# !pip install nest_asyncio
 import nest_asyncio
 nest_asyncio.apply()
 
