@@ -215,6 +215,36 @@ def embed_text_in_pixels(image, encrypted_text):
 
     return Image.fromarray(np_image)
 
+
+def extract_text_from_pixels(image):
+    """ Extrae el texto cifrado de los píxeles (canal azul). """
+    np_image = np.array(image)
+    h, w, _ = np_image.shape
+
+    # Buffer para almacenar los bytes extraídos
+    extracted_bytes = bytearray()
+
+    # Extraer los 4 bits menos significativos del canal azul
+    # hasta encontrar un byte nulo o alcanzar el final de la imagen
+    for y in range(h):
+        for x in range(w):
+            pixel_value = np_image[y, x, 2] & 0x0F  # Obtener los 4 bits menos significativos
+            extracted_bytes.append(pixel_value)
+
+            # Si encontramos un byte nulo, hemos llegado al final del texto
+            if len(extracted_bytes) > 0 and extracted_bytes[-1] == 0:
+                try:
+                    # Intentar decodificar el texto
+                    return bytes(extracted_bytes[:-1]).decode()
+                except UnicodeDecodeError:
+                    continue
+
+    # Si llegamos aquí, convertimos todos los bytes recolectados
+    try:
+        return bytes(extracted_bytes).decode()
+    except UnicodeDecodeError:
+        return ""
+
 def recover_watermark(input_image_path: str, secret_key: bytes) -> Optional[Dict[str, Any]]:
     """Recupera y verifica la marca de agua y los metadatos."""
     if not input_image_path.lower().endswith('.png'):
