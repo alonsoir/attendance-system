@@ -1,5 +1,11 @@
+import time
+
 from scapy.all import *
 from scapy.layers.dns import *
+import threading
+
+from scapy.layers.inet import ICMP
+from scapy.modules.p0fv2 import prnp0f
 
 '''
 Hacer **fuzzing** es una técnica de seguridad informática utilizada para probar la robustez y seguridad de un sistema 
@@ -132,15 +138,24 @@ def test_dns_valid():
     return response
 
 
+
 def create_and_send_package(target):
-    pkt = IP(dst=target) / UDP(dport=53) / fuzz(DNS())
-    response = sr1(pkt, timeout=1)
+    dns_fuzz = IP(dst=target) / UDP(dport=53) / fuzz(DNS())
+    response = sr1(dns_fuzz, timeout=1)
     return response
 
 def create_and_send_package_less_aggresive(target):
     pkt = IP(dst=target) / UDP(dport=53) / DNS(rd=1, qd=DNSQR(qname="example.org"))
     response = sr1(pkt, timeout=1)
     return response
+
+def packet_callback(packet):
+    if packet.haslayer("IP") and packet.haslayer("UDP") and packet.haslayer("DNS"):
+        if packet["IP"].dst == "1.1.1.1" and packet["UDP"].dport == 53:
+            print(packet.summary())
+        else:
+            print("Nothing to print...")
+
 
 
 def analyze_responses(responses):
@@ -153,7 +168,7 @@ def analyze_responses(responses):
 
 
 
-def main(target, num_packages):
+def main(target, num_packages, timeout):
     """Función principal que gestiona el envío y análisis de paquetes."""
     responses = []
     response = test_dns_valid()
@@ -162,6 +177,9 @@ def main(target, num_packages):
         response = create_and_send_package_less_aggresive(target)
         responses.append(response)
         time.sleep(1)  # Añadir pausa entre envíos
+    filter = "udp port 53 and dst host " + target
+    print(f"======> Using filter {filter}")
+    sniff(filter=filter, prn=packet_callback, store=0)
     analyze_responses(responses)
 
 
@@ -169,8 +187,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fuzzing DNS")
     parser.add_argument('target', type=str, help="Target IP")
     parser.add_argument('--packets', type=int, default=10, help="Number of packets to send")
+    parser.add_argument('--timeout', type=int, default=10, help="Timeout for the sniffer")
 
     args = parser.parse_args()
     print(f"Target: {args.target}, Packets: {args.packets}")
 
-    main(args.target, args.packets)
+    main(args.target, args.packets, args.timeout)
