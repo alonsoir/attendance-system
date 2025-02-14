@@ -4,6 +4,16 @@ Este script sirve para automatizar Wireshark para monitorear el tráfico de red 
 MAC que podrían indicar spoofing, aunque Wireshark en sí mismo no tiene funcionalidades de automatización integradas
 para este propósito específico.
 
+Herramientas Alternativas
+NetworkMiner: Puede analizar flujos de tráfico en tiempo real o capturas de tráfico y tiene características
+para detectar cambios en las direcciones MAC.
+
+Bro/Zeek: Un sistema de monitoreo de red que puede ser configurado para detectar y alertar sobre cambios en
+las direcciones MAC.
+
+Sistemas de Detección de Intrusos (IDS) como Snort o Suricata:
+Pueden ser configurados con reglas que detecten cambios inusuales en las direcciones MAC.
+
 variables de entorno no obligatorias para avisar el administrador de la red.
 
 export SMTP_SERVER=smtp.yourdomain.com
