@@ -109,6 +109,11 @@ vpython = "^7.6.5"
 cryptography = "^44.0.0"
 pylint = "^3.3.4"
 boofuzz = "^0.4.2"
+python-whois = "^0.9.5"
+netifaces = "^0.11.0"
+psutil = "^6.1.1"
+shodan = "^1.31.0"
+pyshark = "^0.6"
 
 [tool.poetry.group.dev.dependencies]
 # Testing

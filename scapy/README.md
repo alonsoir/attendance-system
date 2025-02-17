@@ -121,7 +121,7 @@ seguridad para ser efectiva.
     
     Configura la seguridad de puerto en los switches de red para limitar la cantidad de direcciones MAC permitidas en cada puerto físico:
     Ejemplo en un switch Cisco:
-    plaintext
+    
         switchport mode access
         switchport port-security
         switchport port-security maximum 1

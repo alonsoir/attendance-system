@@ -1,0 +1,9 @@
+sensor:
+  - platform: mqtt
+    name: "Test MQTT Sensor"
+    state_topic: "homeassistant/test_sensor"
+    unit_of_measurement: "%"
+    value_template: "{{ value }}"
+    availability_topic: "homeassistant/test_sensor/availability"
+    payload_available: "online"
+    payload_not_available: "offline"
