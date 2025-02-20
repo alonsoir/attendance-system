@@ -1,89 +1,40 @@
-version: '3.8'
-
 services:
   homeassistant:
-    container_name: homeassistant
     image: homeassistant/home-assistant:latest
-    restart: unless-stopped
     ports:
       - "8123:8123"
-    volumes:
-      - ./config:/config
-    environment:
-      - TZ=Europe/Madrid
-    networks:
-      - home-network
-    depends_on:
-      - mqtt
-      - ollama
-      - chromadb
-
-  mqtt:
-    container_name: mosquitto
-    image: eclipse-mosquitto:latest
-    ports:
-      - "1883:1883"
-    volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
-    restart: unless-stopped
-    networks:
-      - home-network
-
-  ollama:
-    container_name: ollama
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        limits:
-          memory: 12G
-        reservations:
-          memory: 8G
-    environment:
-      - OLLAMA_MODELS=mistral
-    networks:
-      - home-network
     restart: unless-stopped
 
   chromadb:
-    container_name: chromadb
     image: chromadb/chroma:latest
     ports:
       - "8000:8000"
-    volumes:
-      - ./chromadb:/chroma/data
-    networks:
-      - home-network
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
     restart: unless-stopped
 
   ha-llm-bridge:
-    container_name: ha-llm-bridge
+    image: ha-llm-bridge
     build:
-      context: ./ha-llm-bridge
-      dockerfile: Dockerfile
-    volumes:
-      - ./ha-llm-bridge:/app
+      context: .
+      dockerfile: Dockerfile-bridge
     environment:
-      - HA_URL=http://homeassistant:8123
-      - HA_TOKEN=your_long_lived_access_token
+      - HA_URL=ws://homeassistant:8123
+      - HA_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiMDRmMTRhNTBhMGE0MWI1YjY2YzQzMWE2ZmYxNzNiYiIsImlhdCI6MTc0MDA1NDc1NywiZXhwIjoyMDU1NDE0NzU3fQ.Ex7uELwo_DbxrSFEnx93uvvObgm7XWLuFRrNWXr09Xw
       - OLLAMA_URL=http://ollama:11434
-      - CHROMADB_URL=http://chromadb:8000
-    networks:
-      - home-network
+      - CHROMADB_URL=chromadb:8000
     depends_on:
       - homeassistant
-      - ollama
       - chromadb
+      - ollama
     restart: unless-stopped
-
-volumes:
-  ollama_data:
-
-networks:
-  home-network:
-    driver: bridge

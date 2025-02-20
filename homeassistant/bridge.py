@@ -2,13 +2,18 @@ import asyncio
 import json
 import logging
 import os
+import time
 from datetime import datetime
 import websockets
 import chromadb
 from chromadb.config import Settings
 import requests
+from dotenv import load_dotenv  # Agrega esta importación
 
-logging.basicConfig(level=logging.INFO)
+# Cargar variables de entorno desde .env
+load_dotenv()
+
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -17,43 +22,73 @@ class HALLMBridge:
         self.ha_url = ha_url
         self.ha_token = ha_token
         self.ollama_url = ollama_url
-        self.chromadb_client = chromadb.HttpClient(host=chromadb_url)
 
-        # Crear o obtener la colección para telemetría
+        chromadb_host = chromadb_url.split(":")[0]
+        chromadb_port = int(chromadb_url.split(":")[1])
+
+        # Intentar conectar con reintentos
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                self.chromadb_client = chromadb.HttpClient(host=chromadb_host, port=chromadb_port)
+                break
+            except ValueError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(2)  # Espera 2 segundos antes de reintentar
+                    continue
+                else:
+                    raise e
+
         self.collection = self.chromadb_client.get_or_create_collection(
             name="ha_telemetry",
             metadata={"description": "Home Assistant telemetry data"}
         )
 
     async def connect_to_ha(self):
-        """Conecta al WebSocket de Home Assistant."""
+        """Conecta al WebSocket de Home Assistant con reconexión automática."""
         uri = f"{self.ha_url}/api/websocket"
-        async with websockets.connect(uri) as websocket:
-            # Autenticación
-            auth_message = {
-                "type": "auth",
-                "access_token": self.ha_token
-            }
-            await websocket.send(json.dumps(auth_message))
-            auth_response = await websocket.recv()
-            logger.info(f"Auth response: {auth_response}")
+        while True:
+            try:
+                async with websockets.connect(uri) as websocket:
+                    # Autenticación
+                    auth_message = {
+                        "type": "auth",
+                        "access_token": self.ha_token
+                    }
+                    await websocket.send(json.dumps(auth_message))
+                    auth_response = json.loads(await websocket.recv())
+                    if auth_response.get("type") != "auth_ok":
+                        logger.error(f"Authentication failed: {auth_response}")
+                        await asyncio.sleep(5)
+                        continue
+                    logger.info("Authentication successful")
 
-            # Suscribirse a eventos de estado
-            sub_message = {
-                "id": 1,
-                "type": "subscribe_events",
-                "event_type": "state_changed"
-            }
-            await websocket.send(json.dumps(sub_message))
+                    # Suscribirse a eventos de estado
+                    sub_message = {
+                        "id": 1,
+                        "type": "subscribe_events",
+                        "event_type": "state_changed"
+                    }
+                    await websocket.send(json.dumps(sub_message))
+                    sub_response = json.loads(await websocket.recv())
+                    if sub_response.get("success") is not True:
+                        logger.error(f"Subscription failed: {sub_response}")
+                        await asyncio.sleep(5)
+                        continue
+                    logger.info("Subscribed to state_changed events")
 
-            while True:
-                try:
-                    message = await websocket.recv()
-                    await self.process_message(json.loads(message))
-                except Exception as e:
-                    logger.error(f"Error processing message: {e}")
+                    while True:
+                        message = await websocket.recv()
+                        await self.process_message(json.loads(message))
+            except websockets.exceptions.ConnectionClosed as e:
+                logger.error(f"WebSocket connection closed: {e}")
+                await asyncio.sleep(5)
+            except Exception as e:
+                logger.error(f"Unexpected error in WebSocket connection: {e}")
+                await asyncio.sleep(5)
 
     async def process_message(self, message):
+        logger.debug(f"Received message: {json.dumps(message, indent=2)}")
         """Procesa los mensajes recibidos de HA."""
         if message.get("type") == "event" and message["event"]["event_type"] == "state_changed":
             # Extraer datos relevantes
