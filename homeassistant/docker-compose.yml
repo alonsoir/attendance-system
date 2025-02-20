@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   homeassistant:
     container_name: homeassistant
@@ -13,6 +15,8 @@ services:
       - home-network
     depends_on:
       - mqtt
+      - ollama
+      - chromadb
 
   mqtt:
     container_name: mosquitto
@@ -26,6 +30,59 @@ services:
     restart: unless-stopped
     networks:
       - home-network
+
+  ollama:
+    container_name: ollama
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+        reservations:
+          memory: 8G
+    environment:
+      - OLLAMA_MODELS=mistral
+    networks:
+      - home-network
+    restart: unless-stopped
+
+  chromadb:
+    container_name: chromadb
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./chromadb:/chroma/data
+    networks:
+      - home-network
+    restart: unless-stopped
+
+  ha-llm-bridge:
+    container_name: ha-llm-bridge
+    build:
+      context: ./ha-llm-bridge
+      dockerfile: Dockerfile
+    volumes:
+      - ./ha-llm-bridge:/app
+    environment:
+      - HA_URL=http://homeassistant:8123
+      - HA_TOKEN=your_long_lived_access_token
+      - OLLAMA_URL=http://ollama:11434
+      - CHROMADB_URL=http://chromadb:8000
+    networks:
+      - home-network
+    depends_on:
+      - homeassistant
+      - ollama
+      - chromadb
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
 
 networks:
   home-network:
