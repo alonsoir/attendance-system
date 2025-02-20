@@ -1,11 +1,13 @@
 import asyncio
+import os
+
 import websockets
 import json
 import ollama
 
 # Configuración de Home Assistant
-HA_URL = "ws://localhost:8123/api/websocket"
-HA_TOKEN = ""
+HA_URL = os.getenv("HA_URL")
+HA_TOKEN = os.getenv("HA_TOKEN")
 
 
 # Función para enviar un mensaje a Home Assistant
