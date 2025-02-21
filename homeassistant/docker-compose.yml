@@ -1,40 +1,136 @@
 services:
   homeassistant:
+    container_name: homeassistant
     image: homeassistant/home-assistant:latest
+    restart: unless-stopped
     ports:
       - "8123:8123"
+    volumes:
+      - ./config:/config
+    environment:
+      - TZ=${TZ}
+    networks:
+      - home-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  mqtt:
+    container_name: mosquitto
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
     restart: unless-stopped
+    networks:
+      - home-network
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "health-check", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
 
   chromadb:
     image: chromadb/chroma:latest
     ports:
       - "8000:8000"
     restart: unless-stopped
+    networks:
+      - home-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.2'
 
   ollama:
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
+    environment:
+      - NO_PROXY=localhost,127.0.0.1
+    volumes:
+      - ./ollama-data:/root/.ollama
+      - ./entrypoint.sh:/entrypoint.sh
+    entrypoint: [ "/entrypoint.sh" ]  # entrypoint levanta mistral
     restart: unless-stopped
-
-  mosquitto:
-    image: eclipse-mosquitto:latest
-    ports:
-      - "1883:1883"
-    restart: unless-stopped
+    networks:
+      - home-network
+    healthcheck:
+      test: ["CMD", "pgrep", "ollama"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        reservations:
+          memory: 2G
+          cpus: '1'
 
   ha-llm-bridge:
     image: ha-llm-bridge
     build:
       context: .
       dockerfile: Dockerfile-bridge
+    env_file:
+      - .env
     environment:
-      - HA_URL=ws://homeassistant:8123
-      - HA_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiMDRmMTRhNTBhMGE0MWI1YjY2YzQzMWE2ZmYxNzNiYiIsImlhdCI6MTc0MDA1NDc1NywiZXhwIjoyMDU1NDE0NzU3fQ.Ex7uELwo_DbxrSFEnx93uvvObgm7XWLuFRrNWXr09Xw
-      - OLLAMA_URL=http://ollama:11434
-      - CHROMADB_URL=chromadb:8000
+      - HA_URL=${HA_URL}
+      - HA_TOKEN=${HA_TOKEN}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - CHROMADB_URL=${CHROMADB_URL}
     depends_on:
-      - homeassistant
-      - chromadb
-      - ollama
+      homeassistant:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - home-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.2'
+
+networks:
+  home-network:
+    driver: bridge
