@@ -1,0 +1,3 @@
+FROM ollama/ollama:latest
+# Carga el modelo mistral al construir la imagen
+RUN ollama pull mistral
