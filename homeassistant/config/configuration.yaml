@@ -16,6 +16,11 @@ homeassistant:
   unit_system: metric
   time_zone: Europe/Madrid
 
+input_boolean:
+  test_switch:
+    name: "Test Switch"
+    initial: off
+
 # Configuración MQTT
 mqtt:
 
