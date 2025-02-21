@@ -57,7 +57,7 @@ Status:
     docker-compose con el homeassistant y mosquitto up and running. OK 
     Tengo un script (mqtt_sensor_simulator.py) que envia datos a topics mqtt. OK
     Tengo que integrar ese script básico con uno que use faker (generate_syntetic_data.py) para alimentar el topic. KO
-    Tengo que levantar ollama con un modelo pequeño. KO
-    Tengo que conectar el modelo a homeassistant. KO
-    Tengo que hacer que el modelo decida que hacer en función a lo que lee. KO
-    Tengo que hacer que el modelo mande comandos a homeassistan. KO
+    Tengo que levantar ollama con un modelo pequeño. OK
+    Tengo que conectar el modelo a homeassistant. OK
+    Tengo que hacer que el modelo decida que hacer en función a lo que lee. In progress, almost there
+    Tengo que hacer que el modelo mande comandos a homeassistan. In progress, almost there
