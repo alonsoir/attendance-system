@@ -1,13 +1,8 @@
-FROM python:3.10-slim
-
+FROM python:3.11-slim
 WORKDIR /app
-
-# Instalar dependencias
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copiar código
-COPY . .
-
-# Ejecutar el bridge
+RUN python -c "import chromadb; client = chromadb.HttpClient(host='chromadb', port=8000); client.get_or_create_collection('ha_telemetry')" || true
+COPY bridge.py .
+COPY .env .
 CMD ["python", "bridge.py"]

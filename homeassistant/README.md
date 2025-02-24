@@ -60,4 +60,10 @@ Status:
     Tengo que levantar ollama con un modelo pequeño. OK
     Tengo que conectar el modelo a homeassistant. OK
     Tengo que hacer que el modelo decida que hacer en función a lo que lee. In progress, almost there
-    Tengo que hacer que el modelo mande comandos a homeassistan. In progress, almost there
+    Tengo que hacer que el modelo mande comandos a homeassistant. In progress, almost there
+
+Resumen:
+
+Creo que esta máquina no tiene la potencia necesaria para contener la demo. Lo retomaré el día que tenga una máquina más
+capaz. Parece que Mistral en local no es capaz de generar el comando necesario para HA, pero la peticion le llega.
+En local no es capaz de crearla. Faltaría probarlo en otra configuración de hardware.

@@ -82,23 +82,23 @@ services:
     volumes:
       - ./ollama-data:/root/.ollama
       - ./entrypoint.sh:/entrypoint.sh
-    entrypoint: [ "/entrypoint.sh" ]  # entrypoint levanta mistral
+    entrypoint: [ "/entrypoint.sh" ]
     restart: unless-stopped
     networks:
       - home-network
     healthcheck:
-      test: ["CMD", "pgrep", "ollama"]
+      test: [ "CMD", "pgrep", "ollama" ]
       interval: 30s
       timeout: 10s
       retries: 5
     deploy:
       resources:
         limits:
+          memory: 8G
+          cpus: '4'
+        reservations:
           memory: 4G
           cpus: '2'
-        reservations:
-          memory: 2G
-          cpus: '1'
 
   ha-llm-bridge:
     image: ha-llm-bridge
@@ -130,6 +130,21 @@ services:
         reservations:
           memory: 512M
           cpus: '0.2'
+
+  test-e2e:
+    image: test-e2e
+    build:
+      context: .
+      dockerfile: Dockerfile-test-e2e
+    env_file:
+      - .env
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    networks:
+      - home-network
+    volumes:
+      - ./e2e.py:/app/e2e.py  # Opcional para desarrollo
 
 networks:
   home-network:
