@@ -22,6 +22,8 @@ class HALLMBridge:
         self.ha_url = ha_url
         self.ha_token = ha_token
         self.ollama_url = ollama_url
+        self.websocket = None
+        self.message_id = 1
         # Trato de usar un modelo local precargado, deshabilitar la descarga.
         chromadb_host = chromadb_url.split(":")[0]
         chromadb_port = int(chromadb_url.split(":")[1])
@@ -94,59 +96,72 @@ class HALLMBridge:
                 await asyncio.sleep(5)
 
     async def process_message(self, message):
-        logger.debug(f"Received message: {json.dumps(message, indent=2)}")
-        if message.get("type") == "event" and message["event"]["event_type"] == "state_changed":
-            event_data = message["event"]["data"]
-            entity_id = event_data["entity_id"]
-            new_state = event_data["new_state"]
-            old_state = event_data["old_state"]
-            logger.info(
-                f"Processing state change for {entity_id}: {old_state['state'] if old_state else 'None'} -> {new_state['state']}")
-            document = {
-                "entity_id": entity_id,
-                "state": new_state["state"],
-                "last_changed": new_state["last_changed"],
-                "attributes": json.dumps(new_state["attributes"])
-            }
-            logger.debug(f"Storing in ChromaDB: {json.dumps(document, indent=2)}")
-            self.collection.add(
-                documents=[json.dumps(document)],
-                ids=[f"{entity_id}_{datetime.now().isoformat()}"],
-                metadatas=[{"entity_id": entity_id, "timestamp": datetime.now().isoformat()}]
-            )
-            logger.debug("Stored in ChromaDB successfully")
-            logger.debug("Calling analyze_with_llm")
-            await self.analyze_with_llm(document, old_state)
+        try:
+            logger.debug(f"Received message: {json.dumps(message, indent=2)}")
+            if message.get("type") == "event" and message["event"]["event_type"] == "state_changed":
+                event_data = message["event"]["data"]
+                entity_id = event_data["entity_id"]
+                new_state = event_data["new_state"]
+                old_state = event_data["old_state"]
+                logger.info(
+                    f"Processing state change for {entity_id}: {old_state['state'] if old_state else 'None'} -> {new_state['state']}")
+                document = {
+                    "entity_id": entity_id,
+                    "state": new_state["state"],
+                    "last_changed": new_state["last_changed"],
+                    "attributes": json.dumps(new_state["attributes"])
+                }
+                logger.debug(f"Storing in ChromaDB: {json.dumps(document, indent=2)}")
+                self.collection.add(
+                    documents=[json.dumps(document)],
+                    ids=[f"{entity_id}_{datetime.now().isoformat()}"],
+                    metadatas=[{"entity_id": entity_id, "timestamp": datetime.now().isoformat()}]
+                )
+                logger.debug("Stored in ChromaDB successfully")
+                logger.debug("Calling analyze_with_llm")
+                await self.analyze_with_llm(document, old_state)
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
 
     async def analyze_with_llm(self, current_state, old_state):
         prompt = self.build_prompt(current_state, old_state)
         logger.debug(f"Sending prompt to Ollama: {prompt}")
-        try:
-            response = requests.post(
-                f"{self.ollama_url}/api/generate",
-                json={"model": "mistral", "prompt": prompt, "stream": False},
-                timeout=60
-            )
-            response.raise_for_status()
-            result = response.json()
-            logger.info(f"LLM response: {result}")
-            await self.execute_llm_suggestion(result["response"])
-        except requests.RequestException as e:
-            logger.error(f"Error al consultar Ollama: {e}")
-            # Acción por defecto si Ollama falla
-            if current_state["entity_id"] == "input_boolean.test_switch" and current_state["state"] == "on":
-                logger.info("Ollama falló, aplicando acción por defecto para input_boolean.test_switch: apagando")
-                await self.websocket.send(json.dumps({
-                    "id": self.message_id,
-                    "type": "call_service",
-                    "domain": "input_boolean",
-                    "service": "turn_off",
-                    "service_data": {"entity_id": "input_boolean.test_switch"}
-                }))
-                self.message_id += 1
-                logger.info("=====================================")
-                logger.info("¡APAGANDO input_boolean.test_switch POR DEFECTO!")
-                logger.info("=====================================")
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={"model": "mistral", "prompt": prompt, "stream": False},
+                    timeout=90  # Aumentado a 90 segundos
+                )
+                response.raise_for_status()
+                result = response.json()
+                logger.info(f"Raw LLM response: {result['response']}")
+                await self.execute_llm_suggestion(result["response"])
+                break
+            except requests.RequestException as e:
+                logger.error(f"Error al consultar Ollama (intento {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(5)
+                    continue
+                # Acción por defecto si todos los intentos fallan
+                if current_state["entity_id"] == "input_boolean.test_switch" and current_state["state"] == "on":
+                    logger.info("Ollama falló tras reintentos, aplicando acción por defecto...")
+                    if self.websocket and self.websocket.open:
+                        await self.websocket.send(json.dumps({
+                            "id": self.message_id,
+                            "type": "call_service",
+                            "domain": "input_boolean",
+                            "service": "turn_off",
+                            "service_data": {"entity_id": "input_boolean.test_switch"}
+                        }))
+                        self.message_id += 1
+                    else:
+                        logger.error("WebSocket no está conectado, usando API REST como fallback")
+                        await self.call_ha_service("input_boolean.turn_off", {"entity_id": "input_boolean.test_switch"})
+                    logger.info("=====================================")
+                    logger.info("¡APAGANDO input_boolean.test_switch POR DEFECTO!")
+                    logger.info("=====================================")
 
     async def connect_to_ha(self):
         logger.debug("Trying to connect to HA.")
@@ -187,42 +202,52 @@ class HALLMBridge:
                             await self.process_message(json.loads(message))
                         except websockets.exceptions.ConnectionClosed:
                             logger.error("WebSocket connection closed unexpectedly")
-                            break  # Salir del bucle interno para reconectar
+                            break
             except Exception as e:
                 logger.error(f"Unexpected error in WebSocket connection: {e}")
             await asyncio.sleep(5)
 
     def build_prompt(self, current_state, old_state):
-        """Construye el prompt para el LLM."""
-        # Obtener contexto histórico de ChromaDB
-        results = self.collection.query(
-            query_texts=[f"Entity: {current_state['entity_id']}"],
-            n_results=5
-        )
+        return f"""Analiza este cambio de estado en Home Assistant y responde SOLO con un JSON válido siguiendo esta estructura:
 
-        return f"""Analiza este cambio de estado en Home Assistant y sugiere acciones:
+        Entidad: {current_state['entity_id']}
+        Estado anterior: {old_state['state'] if old_state else 'None'}
+        Estado actual: {current_state['state']}
+        Atributos: {current_state['attributes']}
 
-    Entidad: {current_state['entity_id']}
-    Estado anterior: {old_state['state'] if old_state else 'None'}
-    Estado actual: {current_state['state']}
-    Atributos: {current_state['attributes']}
+        Contexto histórico:
+        {json.dumps(self.collection.query(query_texts=[f"Entity: {current_state['entity_id']}"], n_results=5), indent=2)}
 
-    Contexto histórico:
-    {json.dumps(results, indent=2)}
+        Instrucciones:
+        - Si la entidad es 'input_boolean.test_switch' y el estado actual es 'on', recomienda apagarla con el servicio 'input_boolean.turn_off'.
+        - Para otros casos, sugiere acciones razonables o deja "acciones_recomendadas" vacío.
+        - NO respondas con texto fuera del JSON.
+        - Ejemplo: Si entidad es 'input_boolean.test_switch', estado anterior 'off', estado actual 'on':
+          {{
+              "análisis": "El interruptor cambió de off a on.",
+              "acciones_recomendadas": [
+                  {{
+                      "servicio": "input_boolean.turn_off",
+                      "datos": {{
+                          "entity_id": "input_boolean.test_switch"
+                      }}
+                  }}
+              ]
+          }}
 
-    Si la entidad es 'input_boolean.test_switch' y el estado actual es 'on', recomienda apagarla inmediatamente ejecutando el servicio 'input_boolean.turn_off'. Para otros casos, analiza y sugiere acciones razonables. Responde en formato JSON con esta estructura:
-    {{
-        "análisis": "tu análisis del cambio",
-        "acciones_recomendadas": [
-            {{
-                "servicio": "servicio.a_llamar",
-                "datos": {{
-                    "parámetros": "necesarios"
+        Formato requerido:
+        {{
+            "análisis": "tu análisis del cambio",
+            "acciones_recomendadas": [
+                {{
+                    "servicio": "servicio.a_llamar",
+                    "datos": {{
+                        "parámetros": "necesarios"
+                    }}
                 }}
-            }}
-        ]
-    }}
-    """
+            ]
+        }}
+        """
 
     async def execute_llm_suggestion(self, llm_response):
         """Ejecuta las sugerencias del LLM si son apropiadas."""
@@ -246,16 +271,16 @@ class HALLMBridge:
             logger.error(f"Error executing suggestion: {e}")
 
     async def call_ha_service(self, service, data):
-        """Llama a un servicio de Home Assistant."""
         domain, service_name = service.split(".")
         url = f"{self.ha_url}/api/services/{domain}/{service_name}"
         headers = {
             "Authorization": f"Bearer {self.ha_token}",
             "Content-Type": "application/json"
         }
-
         response = requests.post(url, headers=headers, json=data)
-        if response.status_code != 200:
+        if response.status_code == 200:
+            logger.info(f"Servicio {service} ejecutado con éxito para {data}")
+        else:
             logger.error(f"Error calling HA service: {response.text}")
 
 
