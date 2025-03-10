@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"match": "e33726ded12aec7b9830fea94d1edead0ee0744a189d39b5db75c1f4553a0974", "name": "Generic High Entropy Secret - commit://staged/homeassistant/home_assistant_ws.py"}]}
+{"last_found_secrets": [{"name": "Generic High Entropy Secret - commit://staged/MarketStackStockComparison.py", "match": "e64b2e4ddc6d0d1c880d9b4b9abcc5e8f764836f9d646ef92a811ac41fb28f98"}]}
