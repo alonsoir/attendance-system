@@ -31,7 +31,7 @@ networks:
 
 
 # requirements.txt
-pyautogen>=0.2.0
+ag2>=0.2.0
 qdrant-client>=1.6.0
 python-dotenv>=0.19.0
 fastapi>=0.68.0
